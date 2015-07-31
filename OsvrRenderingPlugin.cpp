@@ -289,6 +289,16 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID)
 	// Unknown graphics device type? Do nothing.
 	if (g_DeviceType == -1)
 		return;
+	// @todo Define more events that we might want to send
+	// BeginFrame, EndFrame, DrawUILayer?
+	// Call the Render loop
+	switch (eventID)
+	{
+	case 0:
+	default:
+		render->Render();
+		break;
+	}
 
 	// A colored triangle. Note that colors will come out differently
 	// in D3D9/11 and OpenGL, for example, since they expect color bytes
