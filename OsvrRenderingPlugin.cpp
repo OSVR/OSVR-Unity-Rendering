@@ -51,6 +51,12 @@ static void DebugLog(const char* str)
 #define SAFE_RELEASE(a) if (a) { a->Release(); a = NULL; }
 #endif
 
+// Static global variables we use for rendering.
+static Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
+static Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
+
+static osvr::renderkit::RenderManager *render;
+
 
 
 // --------------------------------------------------------------------------
