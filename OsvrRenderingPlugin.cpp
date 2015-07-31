@@ -57,6 +57,89 @@ static Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
 
 static osvr::renderkit::RenderManager *render;
 
+// internal function declarations
+bool SetupRendering(osvr::renderkit::GraphicsLibrary library);
+void RenderEyeTextures(
+	void *userData              //< Passed into AddRenderCallback
+	, osvr::renderkit::GraphicsLibrary   library //< Graphics library context to use
+	, osvr::renderkit::OSVR_ViewportDescription viewport  //< Viewport we're rendering into
+	, OSVR_PoseState   pose     //< OSVR ModelView matrix set by RenderManager
+	, osvr::renderkit::OSVR_ProjectionMatrix  projection  //< Projection matrix set by RenderManager
+	, OSVR_TimeValue deadline   //< When the frame should be sent to the screen
+	);
+
+// @todo Figure out what should be in here, this code is taken from
+// RenderManagerD3DExample.cpp
+bool SetupRendering(osvr::renderkit::GraphicsLibrary library)
+{
+	ID3D11Device *device = library.D3D11->device;
+	ID3D11DeviceContext *context = library.D3D11->context;
+	ID3D11RenderTargetView *renderTargetView = library.D3D11->renderTargetView;
+
+	// Setup vertex shader
+	auto hr = device->CreateVertexShader(g_triangle_vs, sizeof(g_triangle_vs), nullptr, vertexShader.GetAddressOf());
+	if (FAILED(hr)) { return false; }
+
+	// Setup pixel shader
+	hr = device->CreatePixelShader(g_triangle_ps, sizeof(g_triangle_ps), nullptr, pixelShader.GetAddressOf());
+	if (FAILED(hr)) { return false; }
+
+	// Set the input layout
+	ID3D11InputLayout* vertexLayout;
+	D3D11_INPUT_ELEMENT_DESC layout[] = { { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 }, };
+	hr = device->CreateInputLayout(layout, _countof(layout), g_triangle_vs, sizeof(g_triangle_vs), &vertexLayout);
+	if (SUCCEEDED(hr)) {
+		context->IASetInputLayout(vertexLayout);
+		vertexLayout->Release();
+		vertexLayout = nullptr;
+	}
+
+	// Create vertex buffer
+	ID3D11Buffer* vertexBuffer;
+	struct XMFLOAT3 { float x; float y; float z; };
+	struct SimpleVertex { XMFLOAT3 Pos; };
+	SimpleVertex vertices[3];
+	vertices[0].Pos.x = 0.0f; vertices[0].Pos.y = 0.5f; vertices[0].Pos.z = 0.5f;
+	vertices[1].Pos.x = 0.5f; vertices[1].Pos.y = -0.5f; vertices[1].Pos.z = 0.5f;
+	vertices[2].Pos.x = -0.5f; vertices[2].Pos.y = -0.5f; vertices[2].Pos.z = 0.5f;
+	CD3D11_BUFFER_DESC bufferDesc(sizeof(SimpleVertex) * _countof(vertices), D3D11_BIND_VERTEX_BUFFER);
+	D3D11_SUBRESOURCE_DATA subResData = { vertices, 0, 0 };
+	hr = device->CreateBuffer(&bufferDesc, &subResData, &vertexBuffer);
+	if (SUCCEEDED(hr)) {
+		// Set vertex buffer
+		UINT stride = sizeof(SimpleVertex);
+		UINT offset = 0;
+		context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+		vertexBuffer->Release();
+		vertexBuffer = nullptr;
+	}
+	// Set primitive topology
+	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	
+	return true;
+}
+
+// Callback to draw eye textures
+void RenderEyeTextures(
+	void *userData              //< Passed into AddRenderCallback
+	, osvr::renderkit::GraphicsLibrary   library //< Graphics library context to use
+	, osvr::renderkit::OSVR_ViewportDescription viewport  //< Viewport we're rendering into
+	, OSVR_PoseState   pose     //< OSVR ModelView matrix set by RenderManager
+	, osvr::renderkit::OSVR_ProjectionMatrix  projection  //< Projection matrix set by RenderManager
+	, OSVR_TimeValue deadline   //< When the frame should be sent to the screen
+	)
+{
+	ID3D11Device *device = library.D3D11->device;
+	ID3D11DeviceContext *context = library.D3D11->context;
+	ID3D11RenderTargetView *renderTargetView = library.D3D11->renderTargetView;
+
+	// Draw a triangle using the simple shaders
+	//context->VSSetShader(vertexShader.Get(), nullptr, 0);
+	//context->PSSetShader(pixelShader.Get(), nullptr, 0);
+	//context->Draw(3, 0);
+
+	/// @todo Pass eye render textures to render manager?
+}
 
 
 // --------------------------------------------------------------------------
