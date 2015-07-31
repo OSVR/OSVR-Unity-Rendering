@@ -1,11 +1,17 @@
-// Example low level rendering Unity plugin
-
-
 #include "UnityPluginInterface.h"
-
+#include "osvr\ClientKit\ClientKit.h"
+#include "osvr\RenderKit\RenderManager.h"
 #include <math.h>
 #include <stdio.h>
 #include <vector>
+#include <d3d11.h>
+#include <wrl.h>
+#include "osvr\RenderKit\GraphicsLibraryD3D11.h"
+
+// Includes from our own directory
+#include "pixelshader.h"
+#include "vertexshader.h"
+
 
 // --------------------------------------------------------------------------
 // Include headers for the graphics APIs we support
