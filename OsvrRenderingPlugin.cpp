@@ -187,20 +187,29 @@ static float g_Time;
 
 extern "C" void EXPORT_API SetTimeFromUnity(float t) { g_Time = t; }
 
-
-
 // --------------------------------------------------------------------------
-// SetTextureFromUnity, an example function we export which is called by one of the scripts.
+// SetEyeTextureFromUnity, an example function we export which is called by one of the scripts.
+// Should pass in something like eyeRenderTexture.GetNativeTexturePtr()
 
-static void* g_TexturePointer;
+static void* g_leftEyeTexturePointer;
+static void* g_rightEyeTexturePointer;
 
-extern "C" void EXPORT_API SetTextureFromUnity(void* texturePtr)
+extern "C" void EXPORT_API SetEyeTextureFromUnity(void* texturePtr, int eye)
 {
 	// A script calls this at initialization time; just remember the texture pointer here.
 	// Will update texture pixels each frame from the plugin rendering event (texture update
 	// needs to happen on the rendering thread).
-	g_TexturePointer = texturePtr;
+	if (eye == 0)
+	{
+		g_leftEyeTexturePointer = texturePtr;
+	}
+	else
+	{
+		g_rightEyeTexturePointer = texturePtr;
+	}
+	
 }
+
 
 
 
