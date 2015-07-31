@@ -299,11 +299,12 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID)
 		render->Render();
 		break;
 	}
-
+	
+	/* Keeping some sample code here in case it might be useful */
 	// A colored triangle. Note that colors will come out differently
 	// in D3D9/11 and OpenGL, for example, since they expect color bytes
 	// in different ordering.
-	MyVertex verts[3] = {
+	/*MyVertex verts[3] = {
 		{ -0.5f, -0.25f, 0, 0xFFff0000 },
 		{ 0.5f, -0.25f, 0, 0xFF00ff00 },
 		{ 0, 0.5f, 0, 0xFF0000ff },
@@ -337,7 +338,7 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID)
 	};
 
 	
-	DoRendering(worldMatrix, identityMatrix, projectionMatrix, verts);
+	DoRendering(worldMatrix, identityMatrix, projectionMatrix, verts);*/
 }
 
 
@@ -640,8 +641,8 @@ static void SetDefaultGraphicsState()
 #endif
 }
 
-
-static void FillTextureFromCode(int width, int height, int stride, unsigned char* dst)
+/* Some samble code that applies a time-based effect to a texture */
+/*static void FillTextureFromCode(int width, int height, int stride, unsigned char* dst)
 {
 	const float t = g_Time * 4.0f;
 
@@ -671,10 +672,10 @@ static void FillTextureFromCode(int width, int height, int stride, unsigned char
 		// To next image row
 		dst += stride;
 	}
-}
+}*/
 
-
-static void DoRendering(const float* worldMatrix, const float* identityMatrix, float* projectionMatrix, const MyVertex* verts)
+/* Keeping this sample code for now in case it is useful */
+/*static void DoRendering(const float* worldMatrix, const float* identityMatrix, float* projectionMatrix, const MyVertex* verts)
 {
 	// Does actual rendering of a simple triangle
 
@@ -807,4 +808,4 @@ static void DoRendering(const float* worldMatrix, const float* identityMatrix, f
 		}
 	}
 #endif
-}
+}*/
