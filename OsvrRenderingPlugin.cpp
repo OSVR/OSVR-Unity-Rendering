@@ -68,6 +68,44 @@ void RenderEyeTextures(
 	, OSVR_TimeValue deadline   //< When the frame should be sent to the screen
 	);
 
+// Called from Unity to create a RenderManager, passing in a ClientContext
+// Will passing a ClientContext like this from C# work?
+extern "C" void EXPORT_API SetupRenderingFromUnity(osvr::clientkit::ClientContext* clientContext)
+{
+	// Get the display config file from the display path
+	std::string displayConfigJsonFileName = clientContext->getStringParameter("/me/head");
+	std::string	pipelineConfigJsonFileName = ""; //@todo schema needs to be defined
+
+	// Open Direct3D and set up the context for rendering to
+	// an HMD.  Do this using the OSVR RenderManager interface,
+	// which maps to the nVidia or other vendor direct mode
+	// to reduce the latency.
+	// NOTE: The pipelineConfig file needs to ask for a D3D
+	// context, or this won't work.
+	render = osvr::renderkit::createRenderManager(*clientContext, displayConfigJsonFileName, pipelineConfigJsonFileName);
+	if ((render == nullptr) ||
+		(!render->doingOkay())) {
+		std::cerr << "[OSVR Rendering Plugin] Could not create RenderManager" << std::endl;
+		return;
+	}
+
+	// Register callback to do Rendering
+	render->AddRenderCallback("/", RenderEyeTextures);
+
+	// Open the display and make sure this worked.
+	osvr::renderkit::RenderManager::OpenResults ret = render->OpenDisplay();
+	if (ret.status == osvr::renderkit::RenderManager::OpenStatus::FAILURE) {
+		std::cerr << "[OSVR Rendering Plugin] Could not open display" << std::endl;
+		return;
+	}
+
+	// Set up the rendering state we need.
+	if (!SetupRendering(ret.library)) {
+		std::cerr << "[OSVR Rendering Plugin] Could not setup rendering" << std::endl;
+		return;
+	}
+}
+
 // @todo Figure out what should be in here, this code is taken from
 // RenderManagerD3DExample.cpp
 bool SetupRendering(osvr::renderkit::GraphicsLibrary library)
