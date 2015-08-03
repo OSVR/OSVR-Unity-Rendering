@@ -92,7 +92,7 @@ extern "C" int EXPORT_API GetEventID()
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 // Will passing a ClientContext like this from C# work?
-extern "C" void EXPORT_API SetupRenderingFromUnity(osvr::clientkit::ClientContext* clientContext)
+extern "C" void EXPORT_API CreateRenderManagerFromUnity(osvr::clientkit::ClientContext* clientContext)
 {
 	// Get the display config file from the display path
 	std::string displayConfigJsonFileName = clientContext->getStringParameter("/me/head");
