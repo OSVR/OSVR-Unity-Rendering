@@ -75,6 +75,21 @@ void RenderEyeTextures(
 	, OSVR_TimeValue deadline   //< When the frame should be sent to the screen
 	);
 
+// --------------------------------------------------------------------------
+// C API and internal function implementation
+
+// RenderEvents
+// If we ever decide to add more events, here's the place for it.
+enum RenderEvents
+{
+	kOsvrEventID_Render = 0
+};
+// GetEventID, returns the event code used when raising the render event for this plugin.
+extern "C" int EXPORT_API GetEventID()
+{
+	return kOsvrEventID_Render;
+}
+
 // Called from Unity to create a RenderManager, passing in a ClientContext
 // Will passing a ClientContext like this from C# work?
 extern "C" void EXPORT_API SetupRenderingFromUnity(osvr::clientkit::ClientContext* clientContext)
@@ -301,7 +316,7 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID)
 	// Call the Render loop
 	switch (eventID)
 	{
-	case 0:
+	case kOsvrEventID_Render:
 	default:
 		render->Render();
 		break;
