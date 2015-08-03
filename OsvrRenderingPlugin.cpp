@@ -60,6 +60,8 @@ static inline void DebugLog(char *str) {
 static Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
 static Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
 static osvr::renderkit::RenderManager *render;
+static int g_DeviceType = -1;
+static float g_Time;
 
 // --------------------------------------------------------------------------
 // Internal function declarations
@@ -79,13 +81,8 @@ void RenderEyeTextures(
     ,
     OSVR_TimeValue deadline //< When the frame should be sent to the screen
     );
-struct MyVertex {
-  float x, y, z;
-  unsigned int color;
-};
+
 static void SetDefaultGraphicsState();
-static void DoRendering(const float *worldMatrix, const float *identityMatrix,
-                        float *projectionMatrix, const MyVertex *verts);
 
 // --------------------------------------------------------------------------
 // C API and internal function implementation
@@ -243,8 +240,6 @@ void RenderEyeTextures(
 // --------------------------------------------------------------------------
 // SetTimeFromUnity, an example function we export which is called by one of the
 // scripts.
-static float g_Time;
-
 extern "C" void EXPORT_API SetTimeFromUnity(float t) { g_Time = t; }
 
 // --------------------------------------------------------------------------
@@ -310,8 +305,6 @@ static void SetGraphicsDeviceD3D11(ID3D11Device *device,
 #endif
 // --------------------------------------------------------------------------
 // UnitySetGraphicsDevice
-
-static int g_DeviceType = -1;
 extern "C" void EXPORT_API UnitySetGraphicsDevice(void *device, int deviceType,
                                                   int eventType) {
   // Set device type to -1, i.e. "not recognized by our plugin"
@@ -370,46 +363,6 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID) {
     render->Render();
     break;
   }
-
-  /* Keeping some sample code here in case it might be useful */
-  // A colored triangle. Note that colors will come out differently
-  // in D3D9/11 and OpenGL, for example, since they expect color bytes
-  // in different ordering.
-  /*MyVertex verts[3] = {
-          { -0.5f, -0.25f, 0, 0xFFff0000 },
-          { 0.5f, -0.25f, 0, 0xFF00ff00 },
-          { 0, 0.5f, 0, 0xFF0000ff },
-  };
-
-
-  // Some transformation matrices: rotate around Z axis for world
-  // matrix, identity view matrix, and identity projection matrix.
-
-  float phi = g_Time;
-  float cosPhi = cosf(phi);
-  float sinPhi = sinf(phi);
-
-  float worldMatrix[16] = {
-          cosPhi, -sinPhi, 0, 0,
-          sinPhi, cosPhi, 0, 0,
-          0, 0, 1, 0,
-          0, 0, 0.7f, 1,
-  };
-  float identityMatrix[16] = {
-          1, 0, 0, 0,
-          0, 1, 0, 0,
-          0, 0, 1, 0,
-          0, 0, 0, 1,
-  };
-  float projectionMatrix[16] = {
-          1, 0, 0, 0,
-          0, 1, 0, 0,
-          0, 0, 1, 0,
-          0, 0, 0, 1,
-  };
-
-
-  DoRendering(worldMatrix, identityMatrix, projectionMatrix, verts);*/
 }
 
 // -------------------------------------------------------------------
@@ -704,200 +657,3 @@ static void SetDefaultGraphicsState() {
 #endif
 }
 
-/* Some samble code that applies a time-based effect to a texture */
-/*static void FillTextureFromCode(int width, int height, int stride, unsigned
-char* dst)
-{
-        const float t = g_Time * 4.0f;
-
-        for (int y = 0; y < height; ++y)
-        {
-                unsigned char* ptr = dst;
-                for (int x = 0; x < width; ++x)
-                {
-                        // Simple oldskool "plasma effect", a bunch of combined
-sine waves
-                        int vv = int(
-                                (127.0f + (127.0f * sinf(x / 7.0f + t))) +
-                                (127.0f + (127.0f * sinf(y / 5.0f - t))) +
-                                (127.0f + (127.0f * sinf((x + y) / 6.0f - t))) +
-                                (127.0f + (127.0f * sinf(sqrtf(float(x*x + y*y))
-/ 4.0f - t)))
-                                ) / 4;
-
-                        // Write the texture pixel
-                        ptr[0] = vv;
-                        ptr[1] = vv;
-                        ptr[2] = vv;
-                        ptr[3] = vv;
-
-                        // To next pixel (our pixels are 4 bpp)
-                        ptr += 4;
-                }
-
-                // To next image row
-                dst += stride;
-        }
-}*/
-
-/* Keeping this sample code for now in case it is useful */
-/*static void DoRendering(const float* worldMatrix, const float* identityMatrix,
-float* projectionMatrix, const MyVertex* verts)
-{
-        // Does actual rendering of a simple triangle
-
-#if SUPPORT_D3D9
-        // D3D9 case
-        if (g_DeviceType == kGfxRendererD3D9)
-        {
-                // Transformation matrices
-                g_D3D9Device->SetTransform(D3DTS_WORLD, (const
-D3DMATRIX*)worldMatrix);
-                g_D3D9Device->SetTransform(D3DTS_VIEW, (const
-D3DMATRIX*)identityMatrix);
-                g_D3D9Device->SetTransform(D3DTS_PROJECTION, (const
-D3DMATRIX*)projectionMatrix);
-
-                // Vertex layout
-                g_D3D9Device->SetFVF(D3DFVF_XYZ | D3DFVF_DIFFUSE);
-
-                // Texture stage states to output vertex color
-                g_D3D9Device->SetTextureStageState(0, D3DTSS_COLOROP,
-D3DTOP_SELECTARG1);
-                g_D3D9Device->SetTextureStageState(0, D3DTSS_COLORARG1,
-D3DTA_CURRENT);
-                g_D3D9Device->SetTextureStageState(0, D3DTSS_ALPHAOP,
-D3DTOP_SELECTARG1);
-                g_D3D9Device->SetTextureStageState(0, D3DTSS_ALPHAARG1,
-D3DTA_CURRENT);
-                g_D3D9Device->SetTextureStageState(1, D3DTSS_COLOROP,
-D3DTOP_DISABLE);
-                g_D3D9Device->SetTextureStageState(1, D3DTSS_ALPHAOP,
-D3DTOP_DISABLE);
-
-                // Copy vertex data into our small dynamic vertex buffer. We
-could have used
-                // DrawPrimitiveUP just fine as well.
-                void* vbPtr;
-                g_D3D9DynamicVB->Lock(0, 0, &vbPtr, D3DLOCK_DISCARD);
-                memcpy(vbPtr, verts, sizeof(verts[0]) * 3);
-                g_D3D9DynamicVB->Unlock();
-                g_D3D9Device->SetStreamSource(0, g_D3D9DynamicVB, 0,
-sizeof(MyVertex));
-
-                // Draw!
-                g_D3D9Device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, 1);
-
-                // Update native texture from code
-                if (g_TexturePointer)
-                {
-                        IDirect3DTexture9* d3dtex =
-(IDirect3DTexture9*)g_TexturePointer;
-                        D3DSURFACE_DESC desc;
-                        d3dtex->GetLevelDesc(0, &desc);
-                        D3DLOCKED_RECT lr;
-                        d3dtex->LockRect(0, &lr, NULL, 0);
-                        FillTextureFromCode(desc.Width, desc.Height, lr.Pitch,
-(unsigned char*)lr.pBits);
-                        d3dtex->UnlockRect(0);
-                }
-        }
-#endif
-
-
-#if SUPPORT_D3D11
-        // D3D11 case
-        if (g_DeviceType == kGfxRendererD3D11 && g_D3D11VertexShader)
-        {
-                ID3D11DeviceContext* ctx = NULL;
-                g_D3D11Device->GetImmediateContext(&ctx);
-
-                // update constant buffer - just the world matrix in our case
-                ctx->UpdateSubresource(g_D3D11CB, 0, NULL, worldMatrix, 64, 0);
-
-                // set shaders
-                ctx->VSSetConstantBuffers(0, 1, &g_D3D11CB);
-                ctx->VSSetShader(g_D3D11VertexShader, NULL, 0);
-                ctx->PSSetShader(g_D3D11PixelShader, NULL, 0);
-
-                // update vertex buffer
-                ctx->UpdateSubresource(g_D3D11VB, 0, NULL, verts,
-sizeof(verts[0]) * 3, 0);
-
-                // set input assembler data and draw
-                ctx->IASetInputLayout(g_D3D11InputLayout);
-                ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                UINT stride = sizeof(MyVertex);
-                UINT offset = 0;
-                ctx->IASetVertexBuffers(0, 1, &g_D3D11VB, &stride, &offset);
-                ctx->Draw(3, 0);
-
-                // update native texture from code
-                if (g_TexturePointer)
-                {
-                        ID3D11Texture2D* d3dtex =
-(ID3D11Texture2D*)g_TexturePointer;
-                        D3D11_TEXTURE2D_DESC desc;
-                        d3dtex->GetDesc(&desc);
-
-                        unsigned char* data = new unsigned
-char[desc.Width*desc.Height * 4];
-                        FillTextureFromCode(desc.Width, desc.Height, desc.Width
-* 4, data);
-                        ctx->UpdateSubresource(d3dtex, 0, NULL, data, desc.Width
-* 4, 0);
-                        delete[] data;
-                }
-
-                ctx->Release();
-        }
-#endif
-
-
-#if SUPPORT_OPENGL
-        // OpenGL case
-        if (g_DeviceType == kGfxRendererOpenGL)
-        {
-                // Transformation matrices
-                glMatrixMode(GL_MODELVIEW);
-                glLoadMatrixf(worldMatrix);
-                glMatrixMode(GL_PROJECTION);
-                // Tweak the projection matrix a bit to make it match what
-identity
-                // projection would do in D3D case.
-                projectionMatrix[10] = 2.0f;
-                projectionMatrix[14] = -1.0f;
-                glLoadMatrixf(projectionMatrix);
-
-                // Vertex layout
-                glVertexPointer(3, GL_FLOAT, sizeof(verts[0]), &verts[0].x);
-                glEnableClientState(GL_VERTEX_ARRAY);
-                glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(verts[0]),
-&verts[0].color);
-                glEnableClientState(GL_COLOR_ARRAY);
-
-                // Draw!
-                glDrawArrays(GL_TRIANGLES, 0, 3);
-
-                // update native texture from code
-                if (g_TexturePointer)
-                {
-                        GLuint gltex = (GLuint)(size_t)(g_TexturePointer);
-                        glBindTexture(GL_TEXTURE_2D, gltex);
-                        int texWidth, texHeight;
-                        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0,
-GL_TEXTURE_WIDTH, &texWidth);
-                        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0,
-GL_TEXTURE_HEIGHT, &texHeight);
-
-                        unsigned char* data = new unsigned
-char[texWidth*texHeight * 4];
-                        FillTextureFromCode(texWidth, texHeight, texHeight * 4,
-data);
-                        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texWidth,
-texHeight, GL_RGBA, GL_UNSIGNED_BYTE, data);
-                        delete[] data;
-                }
-        }
-#endif
-}*/
