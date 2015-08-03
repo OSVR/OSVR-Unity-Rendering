@@ -212,27 +212,49 @@ extern "C" void EXPORT_API SetTimeFromUnity(float t) { g_Time = t; }
 // --------------------------------------------------------------------------
 // SetEyeTextureFromUnity, an example function we export which is called by one of the scripts.
 // Should pass in something like eyeRenderTexture.GetNativeTexturePtr()
-
-static void* g_leftEyeTexturePointer;
-static void* g_rightEyeTexturePointer;
-
-extern "C" void EXPORT_API SetEyeTextureFromUnity(void* texturePtr, int eye)
+extern "C" int EXPORT_API SetEyeTextureFromUnity(void* texturePtr, int eye)
 {
-	// A script calls this at initialization time; just remember the texture pointer here.
-	// Will update texture pixels each frame from the plugin rendering event (texture update
-	// needs to happen on the rendering thread).
+	if (g_DeviceType == -1) return -1;
+
+	//@todo pass the texturePtr to RenderManager
+
+	//some sample D3D code below if we were to handle drawing rendertextures
+	//here rather than pass to render manager
+	/*
+	#if SUPPORT_D3D9
+	//@todo
+	#endif 
+	#if SUPPORT_D3D11
+	ID3D11Texture2D* eyeTexture = (ID3D11Texture2D*)texturePtr;
+
+		if (eyeTexture == texturePtr) return 0;
+
+		// Cache for future dirty checks.
 	if (eye == 0)
 	{
-		g_leftEyeTexturePointer = texturePtr;
+			g_leftEyeTexture = eyeTexture;
+			if (g_D3D11RenderTargetViewLeft != NULL) g_D3D11RenderTargetViewLeft->Release();
 	}
 	else
 	{
-		g_rightEyeTexturePointer = texturePtr;
+			g_rightEyeTexture = eyeTexture;
+			if (g_D3D11RenderTargetViewRight != NULL) g_D3D11RenderTargetViewRight->Release();
 	}
 	
+		D3D11_RENDER_TARGET_VIEW_DESC desc;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+		desc.Texture2D.MipSlice = 0;
+
+		HRESULT hr = g_D3D11Device->CreateRenderTargetView(eyeTexture, &desc, eye == 0 ? &g_D3D11RenderTargetViewLeft : &g_D3D11RenderTargetViewRight);
+		DebugLog(hr == S_OK ? "Set D3D output RTV.\n" : "Error setting D3D11 output SRV.\n");
+
+	#endif
+	#if SUPPORT_OPENGL
+	//@todo
+	#endif
+	*/
 }
-
-
 
 
 // --------------------------------------------------------------------------
@@ -408,6 +430,12 @@ static void SetGraphicsDeviceD3D9(IDirect3DDevice9* device, GfxDeviceEventType e
 static ID3D11Device* g_D3D11Device;
 static ID3D11Buffer* g_D3D11VB; // vertex buffer
 static ID3D11Buffer* g_D3D11CB; // constant buffer
+// Cache copy for performing fast dirty checks when setting textures from Unity.
+static ID3D11Texture2D*             g_leftEyeTexture = NULL;
+static ID3D11Texture2D*             g_rightEyeTexture = NULL;
+static ID3D11ShaderResourceView*    g_D3D11ShaderResourceView = NULL;
+static ID3D11RenderTargetView*      g_D3D11RenderTargetViewLeft = NULL;
+static ID3D11RenderTargetView*      g_D3D11RenderTargetViewRight = NULL;
 static ID3D11VertexShader* g_D3D11VertexShader;
 static ID3D11PixelShader* g_D3D11PixelShader;
 static ID3D11InputLayout* g_D3D11InputLayout;
