@@ -35,15 +35,22 @@
 // --------------------------------------------------------------------------
 // Helper utilities
 
-
-// Prints a string
-static void DebugLog(const char* str)
+// Allow writing to the Unity debug console from inside DLL land.
+extern "C"
 {
-#if UNITY_WIN
-	OutputDebugStringA(str);
-#else
-	printf("%s", str);
-#endif
+	void(_stdcall*debugLog)(char*) = NULL;
+
+	__declspec(dllexport) void LinkDebug( void(_stdcall*d)(char *))
+	{
+		debugLog = d;
+	}
+}
+
+static inline void DebugLog(char* str)
+{
+#   if _DEBUG
+	if (debugLog) debugLog(str);
+#   endif
 }
 
 // COM-like Release macro
