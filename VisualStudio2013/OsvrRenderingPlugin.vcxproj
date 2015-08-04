@@ -52,6 +52,8 @@
     <OutDir>$(SolutionDir)build/$(Configuration)\</OutDir>
     <IntDir>build/$(Configuration)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Users\DuFF\Documents\OSVR\Snapshot\OSVR-Core-Snapshot-v0.2-299-gd5b68a9-build118-vs12-32bit\include;C:\Users\DuFF\Documents\OSVR\boost_1_58_0;C:\Users\DuFF\Documents\OSVR\DirectRender</IncludePath>
+    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);C:\Users\DuFF\Documents\OSVR\Snapshot\OSVR-Core-Snapshot-v0.2-299-gd5b68a9-build118-vs12-32bit\libC:\Users\DuFF\Documents\OSVR\boost_1_58_0\lib32-msvc-12.0;C:\Users\DuFF\Documents\OSVR\DirectRender\build\Release</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -83,7 +85,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;%(AdditionalDependencies);osvrRenderManager.lib;nvapi.lib;</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
