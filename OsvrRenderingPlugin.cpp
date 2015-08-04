@@ -97,12 +97,10 @@ extern "C" int EXPORT_API GetEventID() { return kOsvrEventID_Render; }
 // Called from Unity to create a RenderManager, passing in a ClientContext
 // Will passing a ClientContext like this from C# work?
 extern "C" void EXPORT_API
-CreateRenderManagerFromUnity(osvr::clientkit::ClientContext *clientContext) {
+CreateRenderManagerFromUnity(osvr::clientkit::ClientContext &clientContext) {
   // Get the display config file from the display path
-  std::string displayConfigJsonFileName =
-      clientContext->getStringParameter("/me/head");
-  std::string pipelineConfigJsonFileName =
-      ""; //@todo schema needs to be defined
+  std::string displayConfigJsonFileName = clientContext.getStringParameter("/me/head");
+  std::string pipelineConfigJsonFileName = ""; //@todo schema needs to be defined
 
   // Open Direct3D and set up the context for rendering to
   // an HMD.  Do this using the OSVR RenderManager interface,
@@ -110,8 +108,8 @@ CreateRenderManagerFromUnity(osvr::clientkit::ClientContext *clientContext) {
   // to reduce the latency.
   // NOTE: The pipelineConfig file needs to ask for a D3D
   // context, or this won't work.
-  render = osvr::renderkit::createRenderManager(
-      *clientContext, displayConfigJsonFileName, pipelineConfigJsonFileName);
+  render = osvr::renderkit::createRenderManager(clientContext, displayConfigJsonFileName, 
+	  pipelineConfigJsonFileName);
   if ((render == nullptr) || (!render->doingOkay())) {
     std::cerr << "[OSVR Rendering Plugin] Could not create RenderManager"
               << std::endl;
