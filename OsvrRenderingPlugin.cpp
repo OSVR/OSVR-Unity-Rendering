@@ -111,8 +111,8 @@ CreateRenderManagerFromUnity(osvr::clientkit::ClientContext &clientContext) {
   render = osvr::renderkit::createRenderManager(clientContext, displayConfigJsonFileName, 
 	  pipelineConfigJsonFileName);
   if ((render == nullptr) || (!render->doingOkay())) {
-    std::cerr << "[OSVR Rendering Plugin] Could not create RenderManager"
-              << std::endl;
+	  DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
+            
     return;
   }
 
@@ -122,14 +122,13 @@ CreateRenderManagerFromUnity(osvr::clientkit::ClientContext &clientContext) {
   // Open the display and make sure this worked.
   osvr::renderkit::RenderManager::OpenResults ret = render->OpenDisplay();
   if (ret.status == osvr::renderkit::RenderManager::OpenStatus::FAILURE) {
-    std::cerr << "[OSVR Rendering Plugin] Could not open display" << std::endl;
+	  DebugLog("[OSVR Rendering Plugin] Could not open display");
     return;
   }
 
   // Set up the rendering state we need.
   if (!SetupRendering(ret.library)) {
-    std::cerr << "[OSVR Rendering Plugin] Could not setup rendering"
-              << std::endl;
+	  DebugLog("[OSVR Rendering Plugin] Could not setup rendering");
     return;
   }
 }
