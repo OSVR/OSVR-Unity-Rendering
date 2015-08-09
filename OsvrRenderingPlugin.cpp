@@ -32,18 +32,18 @@
 
 // Allow writing to the Unity debug console from inside DLL land.
 extern "C" {
-void(_stdcall *debugLog)(char *) = NULL;
+	void(_stdcall *debugLog)(std::string) = NULL;
 
-__declspec(dllexport) void LinkDebug(void(_stdcall *d)(char *)) {
+__declspec(dllexport) void LinkDebug(void(_stdcall *d)(std::string)) {
   debugLog = d;
 }
 }
 
-static inline void DebugLog(char *str) {
-#if _DEBUG
+static inline void DebugLog(std::string str) {
+//#if _DEBUG
   if (debugLog)
     debugLog(str);
-#endif
+//#endif
 }
 
 // COM-like Release macro
