@@ -99,7 +99,7 @@ extern "C" int EXPORT_API GetEventID() { return kOsvrEventID_Render; }
 extern "C" void EXPORT_API
 CreateRenderManagerFromUnity(osvr::clientkit::ClientContext &clientContext) {
   // Get the display config file from the display path
-  std::string displayConfigJsonFileName = clientContext.getStringParameter("/me/head");
+  std::string displayConfigJsonFileName = clientContext.getStringParameter("/display");
   std::string pipelineConfigJsonFileName = ""; //@todo schema needs to be defined
 
   // Open Direct3D and set up the context for rendering to
