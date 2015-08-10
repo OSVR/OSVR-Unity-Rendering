@@ -99,10 +99,11 @@ extern "C" int EXPORT_API GetEventID() {
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 // Will passing a ClientContext like this from C# work?
-extern "C" void EXPORT_API
-CreateRenderManagerFromUnity(osvr::clientkit::ClientContext &clientContext) {
-  // Get the display config file from the display path
-  std::string displayConfigJsonFileName = clientContext.getStringParameter("/me/head");
+extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientContext ctx) {
+  //@todo Get the display config file from the display path
+  //std::string displayConfigJsonFileName = "";// clientContext.getStringParameter("/display");
+  //use local display config for now until we can pass in OSVR_ClientContext
+  std::string displayConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_display_config.json"; 
   std::string pipelineConfigJsonFileName = ""; //@todo schema needs to be defined
 
   // Open Direct3D and set up the context for rendering to
