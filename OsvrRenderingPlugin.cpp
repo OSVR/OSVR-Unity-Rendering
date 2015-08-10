@@ -40,10 +40,10 @@ __declspec(dllexport) void LinkDebug(void(_stdcall *d)(char *)) {
 }
 
 static inline void DebugLog(char *str) {
-#if _DEBUG
+//#if _DEBUG
   if (debugLog)
     debugLog(str);
-#endif
+//#endif
 }
 
 // COM-like Release macro
