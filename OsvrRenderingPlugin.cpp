@@ -92,7 +92,10 @@ static void SetDefaultGraphicsState();
 enum RenderEvents { kOsvrEventID_Render = 0 };
 // GetEventID, returns the event code used when raising the render event for
 // this plugin.
-extern "C" int EXPORT_API GetEventID() { return kOsvrEventID_Render; }
+extern "C" int EXPORT_API GetEventID() { 
+	DebugLog("[OSVR Rendering Plugin] GetEventID");
+	return kOsvrEventID_Render; 
+}
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 // Will passing a ClientContext like this from C# work?
