@@ -106,6 +106,9 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
   std::string displayConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_display_config.json"; 
   std::string pipelineConfigJsonFileName = ""; //@todo schema needs to be defined
 
+ // osvr::clientkit::ClientContext context("org.opengoggles.exampleclients.TrackerCallback");
+ // DebugLog("[OSVR Rendering Plugin] Created context");
+  
   // Open Direct3D and set up the context for rendering to
   // an HMD.  Do this using the OSVR RenderManager interface,
   // which maps to the nVidia or other vendor direct mode
