@@ -115,7 +115,7 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
   // to reduce the latency.
   // NOTE: The pipelineConfig file needs to ask for a D3D
   // context, or this won't work.
-  render = osvr::renderkit::createRenderManager(clientContext, displayConfigJsonFileName, 
+  render = osvr::renderkit::createRenderManager(ctx, displayConfigJsonFileName,
 	  pipelineConfigJsonFileName);
   if ((render == nullptr) || (!render->doingOkay())) {
 	  DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
