@@ -105,7 +105,7 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
   //use local display config for now until we can pass in OSVR_ClientContext
   std::string displayConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_display_config.json"; 
   std::string pipelineConfigJsonFileName = ""; //@todo schema needs to be defined
-
+  
  // osvr::clientkit::ClientContext context("org.opengoggles.exampleclients.TrackerCallback");
  // DebugLog("[OSVR Rendering Plugin] Created context");
   
@@ -120,7 +120,7 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
   if ((render == nullptr) || (!render->doingOkay())) {
 	  DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
             
-    return;
+	  return OSVR_RETURN_FAILURE;
   }
 
   // Register callback to do Rendering
@@ -130,14 +130,16 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
   osvr::renderkit::RenderManager::OpenResults ret = render->OpenDisplay();
   if (ret.status == osvr::renderkit::RenderManager::OpenStatus::FAILURE) {
 	  DebugLog("[OSVR Rendering Plugin] Could not open display");
-    return;
+    return OSVR_RETURN_FAILURE;
   }
 
   // Set up the rendering state we need.
   if (!SetupRendering(ret.library)) {
 	  DebugLog("[OSVR Rendering Plugin] Could not setup rendering");
-    return;
+	  return OSVR_RETURN_FAILURE;
   }
+  DebugLog("[OSVR Rendering Plugin] Success?");
+  return OSVR_RETURN_SUCCESS;
 }
 
 // @todo Figure out what should be in here, this code is taken from
