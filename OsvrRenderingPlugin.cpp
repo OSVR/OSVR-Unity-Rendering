@@ -66,7 +66,7 @@ static float g_Time;
 // --------------------------------------------------------------------------
 // Internal function declarations
 bool SetupRendering(osvr::renderkit::GraphicsLibrary library);
-void RenderEyeTextures(
+void DrawWorld(
     void *userData //< Passed into AddRenderCallback
     ,
     osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
@@ -124,7 +124,7 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
   }
 
   // Register callback to do Rendering
-  render->AddRenderCallback("/", RenderEyeTextures);
+  render->AddRenderCallback("/", DrawWorld);
 
   // Open the display and make sure this worked.
   osvr::renderkit::RenderManager::OpenResults ret = render->OpenDisplay();
@@ -216,7 +216,7 @@ bool SetupRendering(osvr::renderkit::GraphicsLibrary library) {
 }
 
 // Callback to draw eye textures
-void RenderEyeTextures(
+void DrawWorld(
     void *userData //< Passed into AddRenderCallback
     ,
     osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
@@ -231,16 +231,19 @@ void RenderEyeTextures(
     ,
     OSVR_TimeValue deadline //< When the frame should be sent to the screen
     ) {
-  ID3D11Device *device = library.D3D11->device;
-  ID3D11DeviceContext *context = library.D3D11->context;
-  ID3D11RenderTargetView *renderTargetView = library.D3D11->renderTargetView;
+	auto context = library.D3D11->context;
+	auto device = library.D3D11->device;
+	auto renderTargetView = library.D3D11->renderTargetView;
 
-  // Draw a triangle using the simple shaders
-  // context->VSSetShader(vertexShader.Get(), nullptr, 0);
-  // context->PSSetShader(pixelShader.Get(), nullptr, 0);
-  // context->Draw(3, 0);
+	// get projection matrix
+	float projectionD3D[16];
+	osvr::renderkit::OSVR_Projection_to_D3D(projectionD3D, projection);
 
-  /// @todo Pass eye render textures to render manager?
+	// get view matrix
+	float viewD3D[16];
+	osvr::renderkit::OSVR_PoseState_to_D3D(viewD3D, pose);
+
+   /// @todo Pass eye render textures to render manager?
 }
 
 // --------------------------------------------------------------------------
