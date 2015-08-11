@@ -109,6 +109,8 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
  // osvr::clientkit::ClientContext context("org.opengoggles.exampleclients.TrackerCallback");
  // DebugLog("[OSVR Rendering Plugin] Created context");
   
+  //@todo setup a head tracker here or use a PoseInterface in Unity?
+  
   // Open Direct3D and set up the context for rendering to
   // an HMD.  Do this using the OSVR RenderManager interface,
   // which maps to the nVidia or other vendor direct mode
