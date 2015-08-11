@@ -32,14 +32,14 @@
 
 // Allow writing to the Unity debug console from inside DLL land.
 extern "C" {
-	void(_stdcall *debugLog)(std::string) = NULL;
+void(_stdcall *debugLog)(char *) = NULL;
 
-__declspec(dllexport) void LinkDebug(void(_stdcall *d)(std::string)) {
+__declspec(dllexport) void LinkDebug(void(_stdcall *d)(char *)) {
   debugLog = d;
 }
 }
 
-static inline void DebugLog(std::string str) {
+static inline void DebugLog(char *str) {
 //#if _DEBUG
   if (debugLog)
     debugLog(str);
@@ -92,28 +92,35 @@ static void SetDefaultGraphicsState();
 enum RenderEvents { kOsvrEventID_Render = 0 };
 // GetEventID, returns the event code used when raising the render event for
 // this plugin.
-extern "C" int EXPORT_API GetEventID() { return kOsvrEventID_Render; }
+extern "C" int EXPORT_API GetEventID() { 
+	DebugLog("[OSVR Rendering Plugin] GetEventID");
+	return kOsvrEventID_Render; 
+}
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 // Will passing a ClientContext like this from C# work?
-extern "C" void EXPORT_API
-CreateRenderManagerFromUnity(osvr::clientkit::ClientContext &clientContext) {
-  // Get the display config file from the display path
-  std::string displayConfigJsonFileName = clientContext.getStringParameter("/display");
+extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientContext ctx) {
+  //@todo Get the display config file from the display path
+  //std::string displayConfigJsonFileName = "";// clientContext.getStringParameter("/display");
+  //use local display config for now until we can pass in OSVR_ClientContext
+  std::string displayConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_display_config.json"; 
   std::string pipelineConfigJsonFileName = ""; //@todo schema needs to be defined
-
+  
+ // osvr::clientkit::ClientContext context("org.opengoggles.exampleclients.TrackerCallback");
+ // DebugLog("[OSVR Rendering Plugin] Created context");
+  
   // Open Direct3D and set up the context for rendering to
   // an HMD.  Do this using the OSVR RenderManager interface,
   // which maps to the nVidia or other vendor direct mode
   // to reduce the latency.
   // NOTE: The pipelineConfig file needs to ask for a D3D
   // context, or this won't work.
-  render = osvr::renderkit::createRenderManager(clientContext, displayConfigJsonFileName, 
+  render = osvr::renderkit::createRenderManager(ctx, displayConfigJsonFileName,
 	  pipelineConfigJsonFileName);
   if ((render == nullptr) || (!render->doingOkay())) {
 	  DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
             
-    return;
+	  return OSVR_RETURN_FAILURE;
   }
 
   // Register callback to do Rendering
@@ -123,14 +130,16 @@ CreateRenderManagerFromUnity(osvr::clientkit::ClientContext &clientContext) {
   osvr::renderkit::RenderManager::OpenResults ret = render->OpenDisplay();
   if (ret.status == osvr::renderkit::RenderManager::OpenStatus::FAILURE) {
 	  DebugLog("[OSVR Rendering Plugin] Could not open display");
-    return;
+    return OSVR_RETURN_FAILURE;
   }
 
   // Set up the rendering state we need.
   if (!SetupRendering(ret.library)) {
 	  DebugLog("[OSVR Rendering Plugin] Could not setup rendering");
-    return;
+	  return OSVR_RETURN_FAILURE;
   }
+  DebugLog("[OSVR Rendering Plugin] Success?");
+  return OSVR_RETURN_SUCCESS;
 }
 
 // @todo Figure out what should be in here, this code is taken from
