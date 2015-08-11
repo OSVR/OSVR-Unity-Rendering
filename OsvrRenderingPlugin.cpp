@@ -61,7 +61,7 @@ static Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
 static Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
 static osvr::renderkit::RenderManager *render;
 static int g_DeviceType = -1;
-static float g_Time;
+static OSVR_TimeValue g_Time;
 
 // --------------------------------------------------------------------------
 // Internal function declarations
@@ -247,9 +247,14 @@ void DrawWorld(
 }
 
 // --------------------------------------------------------------------------
-// SetTimeFromUnity, an example function we export which is called by one of the
-// scripts.
-extern "C" void EXPORT_API SetTimeFromUnity(float t) { g_Time = t; }
+// SetTimeFromUnity. Would probably be passed Time.time:
+// Which is the time in seconds since the start of the game.
+extern "C" void EXPORT_API SetTimeFromUnity(float t) 
+{ 
+	long seconds = (long)t;
+	int microseconds = t - seconds;
+	g_Time = OSVR_TimeValue{ seconds, microseconds };
+}
 
 // --------------------------------------------------------------------------
 // SetEyeTextureFromUnity, an example function we export which is called by one
