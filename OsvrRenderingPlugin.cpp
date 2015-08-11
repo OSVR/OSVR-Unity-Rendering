@@ -108,7 +108,7 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
   
  // osvr::clientkit::ClientContext context("org.opengoggles.exampleclients.TrackerCallback");
  // DebugLog("[OSVR Rendering Plugin] Created context");
-  
+
   //@todo setup a head tracker here or use a PoseInterface in Unity?
   
   // Open Direct3D and set up the context for rendering to
@@ -124,6 +124,12 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
             
 	  return OSVR_RETURN_FAILURE;
   }
+
+  // Set callback to handle setting up rendering in a display
+  render->SetDisplayCallback(SetupDisplay);
+
+  // Set callback to handle setting up rendering in an eye
+  render->SetViewProjectionCallback(SetupEye);
 
   // Register callback to do Rendering
   render->AddRenderCallback("/", DrawWorld);
@@ -142,6 +148,37 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
   }
   DebugLog("[OSVR Rendering Plugin] Success?");
   return OSVR_RETURN_SUCCESS;
+}
+
+// Callback to set up for rendering into a given display (which may have on or more eyes).
+void SetupDisplay(
+	void *userData              //< Passed into SetViewProjectionCallback
+	, osvr::renderkit::GraphicsLibrary   library //< Graphics library context to use
+	)
+{
+	auto context = library.D3D11->context;
+	auto renderTargetView = library.D3D11->renderTargetView;
+	auto depthStencilView = library.D3D11->depthStencilView;
+
+	// Perform a random colorfill
+	FLOAT red = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
+	FLOAT green = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
+	FLOAT blue = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
+	FLOAT colorRgba[4] = { red, green, blue, 1.0f };
+	context->ClearRenderTargetView(renderTargetView, colorRgba);
+	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+}
+
+// Callback to set up for rendering into a given eye (viewpoint and projection).
+void SetupEye(
+	void *userData              //< Passed into SetViewProjectionCallback
+	, osvr::renderkit::GraphicsLibrary   library //< Graphics library context to use
+	, osvr::renderkit::OSVR_ViewportDescription viewport  //< Viewport set by RenderManager
+	, osvr::renderkit::OSVR_ProjectionMatrix  projection  //< Projection matrix set by RenderManager
+	, size_t    whichEye        //< Which eye are we setting up for?
+	)
+{
+	// Nothing to do here -- it has been set up for us.
 }
 
 // @todo Figure out what should be in here, this code is taken from
