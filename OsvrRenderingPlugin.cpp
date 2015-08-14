@@ -372,7 +372,7 @@ extern "C" void EXPORT_API UnitySetGraphicsDevice(void *device, int deviceType,
   // D3D9 device, remember device pointer and device type.
   // The pointer we get is IDirect3DDevice9.
   if (deviceType == kGfxRendererD3D9) {
-    DebugLog("Set D3D9 graphics device\n");
+    DebugLog("[OSVR Rendering Plugin] Set D3D9 graphics device");
     g_DeviceType = deviceType;
     SetGraphicsDeviceD3D9((IDirect3DDevice9 *)device,
                           (GfxDeviceEventType)eventType);
@@ -383,7 +383,7 @@ extern "C" void EXPORT_API UnitySetGraphicsDevice(void *device, int deviceType,
   // D3D11 device, remember device pointer and device type.
   // The pointer we get is ID3D11Device.
   if (deviceType == kGfxRendererD3D11) {
-    DebugLog("Set D3D11 graphics device\n");
+    DebugLog("[OSVR Rendering Plugin] Set D3D11 graphics device");
     g_DeviceType = deviceType;
     SetGraphicsDeviceD3D11((ID3D11Device *)device,
                            (GfxDeviceEventType)eventType);
@@ -396,7 +396,7 @@ extern "C" void EXPORT_API UnitySetGraphicsDevice(void *device, int deviceType,
   // set
   // global context.
   if (deviceType == kGfxRendererOpenGL) {
-    DebugLog("Set OpenGL graphics device\n");
+    DebugLog("[OSVR Rendering Plugin] Set OpenGL graphics device");
     g_DeviceType = deviceType;
   }
 #endif
@@ -435,6 +435,7 @@ static IDirect3DVertexBuffer9 *g_D3D9DynamicVB;
 
 static void SetGraphicsDeviceD3D9(IDirect3DDevice9 *device,
                                   GfxDeviceEventType eventType) {
+  DebugLog("[OSVR Rendering Plugin] Set D3D9 graphics device");
   g_D3D9Device = device;
 
   // Create or release a small dynamic vertex buffer depending on the event
@@ -527,6 +528,7 @@ static D3D11_INPUT_ELEMENT_DESC s_DX11InputElementDesc[] = {
      0},
 };
 static void CreateD3D11Resources() {
+  DebugLog("[OSVR Rendering Plugin] CreateD3D11Resources");
   D3D11_BUFFER_DESC desc;
   memset(&desc, 0, sizeof(desc));
 
@@ -588,8 +590,7 @@ static void CreateD3D11Resources() {
 
     FreeLibrary(compiler);
   } else {
-    DebugLog(
-        "D3D11: HLSL shader compiler not found, will not render anything\n");
+    DebugLog("D3D11: HLSL shader compiler not found, will not render anything");
   }
 #elif UNITY_METRO
   HRESULT hr = -1;
@@ -654,6 +655,7 @@ static void ReleaseD3D11Resources() {
 
 static void SetGraphicsDeviceD3D11(ID3D11Device *device,
                                    GfxDeviceEventType eventType) {
+  DebugLog("[OSVR Rendering Plugin] Set D3D11 graphics device");
   g_D3D11Device = device;
 
   if (eventType == kGfxDeviceEventInitialize)
@@ -677,6 +679,7 @@ static void SetGraphicsDeviceD3D11(ID3D11Device *device,
 // comparison to less equal, and Z writes off.
 
 static void SetDefaultGraphicsState() {
+	DebugLog("[OSVR Rendering Plugin] Set default graphics state");
 #if SUPPORT_D3D9
   // D3D9 case
   if (g_DeviceType == kGfxRendererD3D9) {
