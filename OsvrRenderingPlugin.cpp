@@ -184,7 +184,7 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
 	  DebugLog("[OSVR Rendering Plugin] Could not setup rendering");
 	  return OSVR_RETURN_FAILURE;
   }
-  DebugLog("[OSVR Rendering Plugin] Success?");
+  DebugLog("[OSVR Rendering Plugin] Success!");
   return OSVR_RETURN_SUCCESS;
 }
 
