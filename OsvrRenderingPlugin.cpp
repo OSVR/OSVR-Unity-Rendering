@@ -61,12 +61,12 @@ static Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
 static Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
 static osvr::renderkit::RenderManager *render;
 static int g_DeviceType = -1;
-static float g_Time;
+static OSVR_TimeValue g_Time;
 
 // --------------------------------------------------------------------------
 // Internal function declarations
 bool SetupRendering(osvr::renderkit::GraphicsLibrary library);
-void RenderEyeTextures(
+void DrawWorld(
     void *userData //< Passed into AddRenderCallback
     ,
     osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
@@ -108,6 +108,8 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
   
  // osvr::clientkit::ClientContext context("org.opengoggles.exampleclients.TrackerCallback");
  // DebugLog("[OSVR Rendering Plugin] Created context");
+
+  //@todo setup a head tracker here or use a PoseInterface in Unity?
   
   // Open Direct3D and set up the context for rendering to
   // an HMD.  Do this using the OSVR RenderManager interface,
@@ -123,8 +125,14 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
 	  return OSVR_RETURN_FAILURE;
   }
 
+  // Set callback to handle setting up rendering in a display
+  render->SetDisplayCallback(SetupDisplay);
+
+  // Set callback to handle setting up rendering in an eye
+  render->SetViewProjectionCallback(SetupEye);
+
   // Register callback to do Rendering
-  render->AddRenderCallback("/", RenderEyeTextures);
+  render->AddRenderCallback("/", DrawWorld);
 
   // Open the display and make sure this worked.
   osvr::renderkit::RenderManager::OpenResults ret = render->OpenDisplay();
@@ -140,6 +148,37 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
   }
   DebugLog("[OSVR Rendering Plugin] Success?");
   return OSVR_RETURN_SUCCESS;
+}
+
+// Callback to set up for rendering into a given display (which may have on or more eyes).
+void SetupDisplay(
+	void *userData              //< Passed into SetViewProjectionCallback
+	, osvr::renderkit::GraphicsLibrary   library //< Graphics library context to use
+	)
+{
+	auto context = library.D3D11->context;
+	auto renderTargetView = library.D3D11->renderTargetView;
+	auto depthStencilView = library.D3D11->depthStencilView;
+
+	// Perform a random colorfill
+	FLOAT red = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
+	FLOAT green = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
+	FLOAT blue = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
+	FLOAT colorRgba[4] = { red, green, blue, 1.0f };
+	context->ClearRenderTargetView(renderTargetView, colorRgba);
+	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+}
+
+// Callback to set up for rendering into a given eye (viewpoint and projection).
+void SetupEye(
+	void *userData              //< Passed into SetViewProjectionCallback
+	, osvr::renderkit::GraphicsLibrary   library //< Graphics library context to use
+	, osvr::renderkit::OSVR_ViewportDescription viewport  //< Viewport set by RenderManager
+	, osvr::renderkit::OSVR_ProjectionMatrix  projection  //< Projection matrix set by RenderManager
+	, size_t    whichEye        //< Which eye are we setting up for?
+	)
+{
+	// Nothing to do here -- it has been set up for us.
 }
 
 // @todo Figure out what should be in here, this code is taken from
@@ -216,7 +255,7 @@ bool SetupRendering(osvr::renderkit::GraphicsLibrary library) {
 }
 
 // Callback to draw eye textures
-void RenderEyeTextures(
+void DrawWorld(
     void *userData //< Passed into AddRenderCallback
     ,
     osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
@@ -231,22 +270,30 @@ void RenderEyeTextures(
     ,
     OSVR_TimeValue deadline //< When the frame should be sent to the screen
     ) {
-  ID3D11Device *device = library.D3D11->device;
-  ID3D11DeviceContext *context = library.D3D11->context;
-  ID3D11RenderTargetView *renderTargetView = library.D3D11->renderTargetView;
+	auto context = library.D3D11->context;
+	auto device = library.D3D11->device;
+	auto renderTargetView = library.D3D11->renderTargetView;
 
-  // Draw a triangle using the simple shaders
-  // context->VSSetShader(vertexShader.Get(), nullptr, 0);
-  // context->PSSetShader(pixelShader.Get(), nullptr, 0);
-  // context->Draw(3, 0);
+	// get projection matrix
+	float projectionD3D[16];
+	osvr::renderkit::OSVR_Projection_to_D3D(projectionD3D, projection);
 
-  /// @todo Pass eye render textures to render manager?
+	// get view matrix
+	float viewD3D[16];
+	osvr::renderkit::OSVR_PoseState_to_D3D(viewD3D, pose);
+
+   /// @todo Pass eye render textures to render manager?
 }
 
 // --------------------------------------------------------------------------
-// SetTimeFromUnity, an example function we export which is called by one of the
-// scripts.
-extern "C" void EXPORT_API SetTimeFromUnity(float t) { g_Time = t; }
+// SetTimeFromUnity. Would probably be passed Time.time:
+// Which is the time in seconds since the start of the game.
+extern "C" void EXPORT_API SetTimeFromUnity(float t) 
+{ 
+	long seconds = (long)t;
+	int microseconds = t - seconds;
+	g_Time = OSVR_TimeValue{ seconds, microseconds };
+}
 
 // --------------------------------------------------------------------------
 // SetEyeTextureFromUnity, an example function we export which is called by one
