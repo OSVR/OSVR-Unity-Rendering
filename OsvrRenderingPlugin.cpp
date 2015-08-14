@@ -269,7 +269,7 @@ void DrawWorld(
     ,
     OSVR_TimeValue deadline //< When the frame should be sent to the screen
     ) {
-	auto context = library.D3D11->context;
+	/*auto context = library.D3D11->context;
 	auto device = library.D3D11->device;
 	auto renderTargetView = library.D3D11->renderTargetView;
 
@@ -279,8 +279,14 @@ void DrawWorld(
 
 	// get view matrix
 	float viewD3D[16];
-	osvr::renderkit::OSVR_PoseState_to_D3D(viewD3D, pose);
+	osvr::renderkit::OSVR_PoseState_to_D3D(viewD3D, pose);*/
+	ID3D11DeviceContext *context = library.D3D11->context;
+	ID3D11RenderTargetView *renderTargetView = library.D3D11->renderTargetView;
 
+	// Draw a triangle using the simple shaders
+	context->VSSetShader(vertexShader.Get(), nullptr, 0);
+	context->PSSetShader(pixelShader.Get(), nullptr, 0);
+	context->Draw(3, 0);
    /// @todo Pass eye render textures to render manager?
 }
 
