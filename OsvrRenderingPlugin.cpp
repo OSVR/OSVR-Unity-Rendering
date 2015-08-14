@@ -189,76 +189,68 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
 }
 
 // @todo Figure out what should be in here, this code is taken from
-// RenderManagerD3DExample.cpp
+// RenderManagerD3DExampleTest2D.cpp
 bool SetupRendering(osvr::renderkit::GraphicsLibrary library) {
-  ID3D11Device *device = library.D3D11->device;
-  ID3D11DeviceContext *context = library.D3D11->context;
-  ID3D11RenderTargetView *renderTargetView = library.D3D11->renderTargetView;
+	ID3D11Device *device = library.D3D11->device;
+	ID3D11DeviceContext *context = library.D3D11->context;
 
-  // Setup vertex shader
-  auto hr = device->CreateVertexShader(g_triangle_vs, sizeof(g_triangle_vs),
-                                       nullptr, vertexShader.GetAddressOf());
-  if (FAILED(hr)) {
-    return false;
-  }
+	// Setup vertex shader
+	auto hr = device->CreateVertexShader(g_triangle_vs, sizeof(g_triangle_vs), nullptr, vertexShader.GetAddressOf());
+	if (FAILED(hr)) { return false; }
 
-  // Setup pixel shader
-  hr = device->CreatePixelShader(g_triangle_ps, sizeof(g_triangle_ps), nullptr,
-                                 pixelShader.GetAddressOf());
-  if (FAILED(hr)) {
-    return false;
-  }
+	// Setup pixel shader
+	hr = device->CreatePixelShader(g_triangle_ps, sizeof(g_triangle_ps), nullptr, pixelShader.GetAddressOf());
+	if (FAILED(hr)) { return false; }
 
-  // Set the input layout
-  ID3D11InputLayout *vertexLayout;
-  D3D11_INPUT_ELEMENT_DESC layout[] = {
-      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-       D3D11_INPUT_PER_VERTEX_DATA, 0},
-  };
-  hr = device->CreateInputLayout(layout, _countof(layout), g_triangle_vs,
-                                 sizeof(g_triangle_vs), &vertexLayout);
-  if (SUCCEEDED(hr)) {
-    context->IASetInputLayout(vertexLayout);
-    vertexLayout->Release();
-    vertexLayout = nullptr;
-  }
+	// Set the input layout
+	ID3D11InputLayout* vertexLayout;
+	D3D11_INPUT_ELEMENT_DESC layout[] = { { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 }, };
+	hr = device->CreateInputLayout(layout, _countof(layout), g_triangle_vs, sizeof(g_triangle_vs), &vertexLayout);
+	if (SUCCEEDED(hr)) {
+		context->IASetInputLayout(vertexLayout);
+		vertexLayout->Release();
+		vertexLayout = nullptr;
+	}
 
-  // Create vertex buffer
-  ID3D11Buffer *vertexBuffer;
-  struct XMFLOAT3 {
-    float x;
-    float y;
-    float z;
-  };
-  struct SimpleVertex {
-    XMFLOAT3 Pos;
-  };
-  SimpleVertex vertices[3];
-  vertices[0].Pos.x = 0.0f;
-  vertices[0].Pos.y = 0.5f;
-  vertices[0].Pos.z = 0.5f;
-  vertices[1].Pos.x = 0.5f;
-  vertices[1].Pos.y = -0.5f;
-  vertices[1].Pos.z = 0.5f;
-  vertices[2].Pos.x = -0.5f;
-  vertices[2].Pos.y = -0.5f;
-  vertices[2].Pos.z = 0.5f;
-  CD3D11_BUFFER_DESC bufferDesc(sizeof(SimpleVertex) * _countof(vertices),
-                                D3D11_BIND_VERTEX_BUFFER);
-  D3D11_SUBRESOURCE_DATA subResData = {vertices, 0, 0};
-  hr = device->CreateBuffer(&bufferDesc, &subResData, &vertexBuffer);
-  if (SUCCEEDED(hr)) {
-    // Set vertex buffer
-    UINT stride = sizeof(SimpleVertex);
-    UINT offset = 0;
-    context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
-    vertexBuffer->Release();
-    vertexBuffer = nullptr;
-  }
-  // Set primitive topology
-  context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	// Create vertex buffer
+	ID3D11Buffer* vertexBuffer;
+	struct XMFLOAT3 { float x; float y; float z; };
+	struct SimpleVertex { XMFLOAT3 Pos; };
+	SimpleVertex vertices[3];
+	vertices[0].Pos.x = 0.0f; vertices[0].Pos.y = 0.5f; vertices[0].Pos.z = 0.5f;
+	vertices[1].Pos.x = 0.5f; vertices[1].Pos.y = -0.5f; vertices[1].Pos.z = 0.5f;
+	vertices[2].Pos.x = -0.5f; vertices[2].Pos.y = -0.5f; vertices[2].Pos.z = 0.5f;
+	CD3D11_BUFFER_DESC bufferDesc(sizeof(SimpleVertex) * _countof(vertices), D3D11_BIND_VERTEX_BUFFER);
+	D3D11_SUBRESOURCE_DATA subResData = { vertices, 0, 0 };
+	hr = device->CreateBuffer(&bufferDesc, &subResData, &vertexBuffer);
+	if (SUCCEEDED(hr)) {
+		// Set vertex buffer
+		UINT stride = sizeof(SimpleVertex);
+		UINT offset = 0;
+		context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+		vertexBuffer->Release();
+		vertexBuffer = nullptr;
+	}
+	// Set primitive topology
+	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-  return true;
+	// Describe how depth and stencil tests should be performed.
+	// In particular, that they should not be for this 2D example
+	// where we want to render a triangle no matter what.
+	D3D11_DEPTH_STENCIL_DESC depthStencilDescription = { 0 };
+	depthStencilDescription.DepthEnable = false;
+	depthStencilDescription.StencilEnable = false;
+
+	// Create depth stencil state and set it.
+	ID3D11DepthStencilState *depthStencilState;
+	hr = device->CreateDepthStencilState(&depthStencilDescription,
+		&depthStencilState);
+	if (FAILED(hr)) {
+		std::cerr << "SetupRendering: Could not create depth/stencil state"
+			<< std::endl;
+		return false;
+	}
+	context->OMSetDepthStencilState(depthStencilState, 1);
 }
 
 // Callback to draw eye textures
