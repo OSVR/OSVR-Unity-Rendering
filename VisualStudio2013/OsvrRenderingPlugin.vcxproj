@@ -53,7 +53,7 @@
     <IntDir>build/$(Configuration)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Users\DuFF\Documents\OSVR\boost_1_58_0;C:\Users\DuFF\Documents\OSVR\DirectRender</IncludePath>
-    <LibraryPath>C:\Users\DuFF\Documents\OSVR\jsoncpp-binaries\lib;$(WindowsSDK_LibraryPath_x86);C:\Users\DuFF\Documents\OSVR\OSVR-Core-Snapshot-v0.2-299-gd5b68a9-build118-vs12-32bit\libC:\Users\DuFF\Documents\OSVR\boost_1_58_0\lib32-msvc-12.0;C:\Users\DuFF\Documents\OSVR\DirectRenderBuild\Release;C:\Users\DuFF\Documents\OSVR\OSVR-Core-Snapshot-v0.2-299-gd5b68a9-build118-vs12-32bit\lib;C:\Program Files\SDL2-2.0.3\lib\x86;C:\Users\DuFF\Documents\OSVR\DirectMode\2015-07-20-gameworks-vr-for-headset-developers-beta-1\direct_mode\DirectModeSample;C:\Users\DuFF\Documents\OSVR\vrpn-windows-binaries-master\lib;$(VC_LibraryPath_x86)</LibraryPath>
+    <LibraryPath>C:\Users\DuFF\Documents\OSVR\jsoncpp-binaries\lib;$(WindowsSDK_LibraryPath_x86);C:\Users\DuFF\Documents\OSVR\Core\x86\OSVR-Core-Snapshot-v0.2-472-gd61d6ff-build128-vs12-32bit\lib;C:\Users\DuFF\Documents\OSVR\boost_1_58_0\lib32-msvc-12.0;C:\Users\DuFF\Documents\OSVR\DirectRenderBuild\Release;C:\Program Files\SDL2-2.0.3\lib\x86;C:\Users\DuFF\Documents\OSVR\DirectMode\2015-07-20-gameworks-vr-for-headset-developers-beta-1\direct_mode\DirectModeSample;C:\Users\DuFF\Documents\OSVR\vrpn-windows-binaries-master\lib;$(VC_LibraryPath_x86)</LibraryPath>
     <TargetExt>.dll</TargetExt>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -84,7 +84,7 @@
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>C:\Users\DuFF\Documents\OSVR\OSVR-Core-Snapshot-v0.2-299-gd5b68a9-build118-vs12-32bit\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\GLEW\include;C:\Users\DuFF\Documents\OSVR\Core\x86\OSVR-Core-Snapshot-v0.2-472-gd61d6ff-build128-vs12-32bit\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>opengl32.lib;%(AdditionalDependencies);osvrRenderManager.lib;nvapi.lib;jsoncpp.lib;C:\Program Files\GLEW\lib\Release\Win32\glew32.lib;SDL2.lib;SDL2main.lib;osvrClient.lib;osvrClientKit.lib;osvrCommon.lib;osvrUtil.lib;quat.lib</AdditionalDependencies>
