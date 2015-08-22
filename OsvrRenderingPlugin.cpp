@@ -1,16 +1,17 @@
 #include "UnityPluginInterface.h"
-#include "osvr\ClientKit\ClientKit.h"
+#include "osvr\ClientKit\Context.h"
+#include <osvr/ClientKit/Interface.h>
+#include <osvr/ClientKit/InterfaceStateC.h>
 #include "osvr\RenderKit\RenderManager.h"
 #include <math.h>
 #include <stdio.h>
 #include <vector>
-#include <d3d11.h>
 #include <wrl.h>
-#include "osvr\RenderKit\GraphicsLibraryD3D11.h"
+
 
 // Includes from our own directory
-#include "pixelshader.h"
-#include "vertexshader.h"
+//#include "pixelshader.h"
+//#include "vertexshader.h"
 
 // Include headers for the graphics APIs we support
 #if SUPPORT_D3D9
@@ -18,10 +19,17 @@
 #endif
 #if SUPPORT_D3D11
 #include <d3d11.h>
+#include "osvr\RenderKit\GraphicsLibraryD3D11.h"
 #endif
 #if SUPPORT_OPENGL
 #if UNITY_WIN || UNITY_LINUX
+// Needed for render buffer calls.  OSVR will have called glewInit() for us
+// when we open the display.
+#include <GL/glew.h>
 #include <GL/gl.h>
+
+#include "osvr/RenderKit/GraphicsLibraryOpenGL.h"
+#include "osvr/RenderKit/RenderKitGraphicsTransforms.h"
 #else
 #include <OpenGL/OpenGL.h>
 #endif
@@ -57,15 +65,19 @@ static inline void DebugLog(char *str) {
 
 // --------------------------------------------------------------------------
 // Static global variables we use for rendering.
-static Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
-static Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
+//static Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
+//static Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
+
 static osvr::renderkit::RenderManager *render;
 static int g_DeviceType = -1;
 static OSVR_TimeValue g_Time;
 
+//static Cube roomCube(1.0f);
+
 // --------------------------------------------------------------------------
 // Internal function declarations
 bool SetupRendering(osvr::renderkit::GraphicsLibrary library);
+
 void DrawWorld(
     void *userData //< Passed into AddRenderCallback
     ,
@@ -92,17 +104,11 @@ void SetupDisplay(
 	, osvr::renderkit::GraphicsLibrary   library //< Graphics library context to use
 	)
 {
-	auto context = library.D3D11->context;
-	auto renderTargetView = library.D3D11->renderTargetView;
-	auto depthStencilView = library.D3D11->depthStencilView;
+	osvr::renderkit::GraphicsLibraryOpenGL *glLibrary = library.OpenGL;
 
-	// Perform a random colorfill
-	FLOAT red = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
-	FLOAT green = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
-	FLOAT blue = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
-	FLOAT colorRgba[4] = { red, green, blue, 1.0f };
-	context->ClearRenderTargetView(renderTargetView, colorRgba);
-	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+	// Clear the screen to black and clear depth
+	glClearColor(0, 0, 0, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 // Callback to set up for rendering into a given eye (viewpoint and projection).
@@ -114,63 +120,56 @@ void SetupEye(
 	, size_t    whichEye        //< Which eye are we setting up for?
 	)
 {
-	// Nothing to do here -- it has been set up for us.
-	ID3D11DeviceContext *context = library.D3D11->context;
-	ID3D11RenderTargetView *renderTargetView = library.D3D11->renderTargetView;
-
-	// Perform a random colorfill
-	FLOAT red = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
-	FLOAT green = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
-	FLOAT blue = static_cast<FLOAT>((double)rand() / (double)RAND_MAX);
-	FLOAT colorRgba[4] = { red, green, blue, 1.0f };
-	context->ClearRenderTargetView(renderTargetView, colorRgba);
+	// We don't do anything here -- everthing has been configured for us
+	// in the RenderManager.
 }
+
 // RenderEvents
 // If we ever decide to add more events, here's the place for it.
 enum RenderEvents { kOsvrEventID_Render = 0 };
+
 // GetEventID, returns the event code used when raising the render event for
 // this plugin.
-extern "C" int EXPORT_API GetEventID() { 
+extern "C" int EXPORT_API GetEventID() 
+{ 
 	DebugLog("[OSVR Rendering Plugin] GetEventID");
 	return kOsvrEventID_Render; 
 }
 
+// --------------------------------------------------------------------------
+// SetTimeFromUnity. Would probably be passed Time.time:
+// Which is the time in seconds since the start of the game.
+extern "C" void EXPORT_API SetTimeFromUnity(float t)
+{
+	long seconds = (long)t;
+	int microseconds = t - seconds;
+	g_Time = OSVR_TimeValue{ seconds, microseconds };
+}
+
+
+
+OSVR_ClientContext clientContext;
+GLuint eyesFrameBuffer;               //< Groups a color buffer and a depth buffer
+std::vector<osvr::renderkit::RenderBuffer> colorBuffers;
+std::vector<GLuint> depthBuffers; //< Depth/stencil buffers to render into
+
 // Called from Unity to create a RenderManager, passing in a ClientContext
-// Will passing a ClientContext like this from C# work?
-extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientContext ctx) {
+extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientContext context) {
+	clientContext = context;
   //@todo Get the display config file from the display path
   //std::string displayConfigJsonFileName = "";// clientContext.getStringParameter("/display");
   //use local display config for now until we can pass in OSVR_ClientContext
   std::string displayConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_display_config.json"; 
   std::string pipelineConfigJsonFileName = ""; //@todo schema needs to be defined
   
- // osvr::clientkit::ClientContext context("org.opengoggles.exampleclients.TrackerCallback");
- // DebugLog("[OSVR Rendering Plugin] Created context");
-
-  //@todo setup a head tracker here or use a PoseInterface in Unity?
   
-  // Open Direct3D and set up the context for rendering to
-  // an HMD.  Do this using the OSVR RenderManager interface,
-  // which maps to the nVidia or other vendor direct mode
-  // to reduce the latency.
-  // NOTE: The pipelineConfig file needs to ask for a D3D
-  // context, or this won't work.
-  render = osvr::renderkit::createRenderManager(ctx, displayConfigJsonFileName,
+  render = osvr::renderkit::createRenderManager(context, displayConfigJsonFileName,
 	  pipelineConfigJsonFileName);
   if ((render == nullptr) || (!render->doingOkay())) {
 	  DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
             
 	  return OSVR_RETURN_FAILURE;
   }
-
-  // Set callback to handle setting up rendering in a display
-  render->SetDisplayCallback(SetupDisplay);
-
-  // Set callback to handle setting up rendering in an eye
-  render->SetViewProjectionCallback(SetupEye);
-
-  // Register callback to do Rendering
-  render->AddRenderCallback("/", DrawWorld);
 
   // Open the display and make sure this worked.
   osvr::renderkit::RenderManager::OpenResults ret = render->OpenDisplay();
@@ -184,174 +183,181 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
 	  DebugLog("[OSVR Rendering Plugin] Could not setup rendering");
 	  return OSVR_RETURN_FAILURE;
   }
+
   DebugLog("[OSVR Rendering Plugin] Success!");
   return OSVR_RETURN_SUCCESS;
 }
 
-// @todo Figure out what should be in here, this code is taken from
-// RenderManagerD3DExampleTest2D.cpp
+//Shutdown
+extern "C" void EXPORT_API Shutdown()
+{
+	DebugLog("[OSVR Rendering Plugin] Shutdown.");
+	std::vector<osvr::renderkit::RenderInfo> renderInfo;
+	osvrClientUpdate(clientContext);
+	renderInfo = render->GetRenderInfo();
+	DebugLog("Got render info");
+	// Clean up after ourselves.
+	glDeleteFramebuffers(1, &eyesFrameBuffer);
+	for (size_t i = 0; i < renderInfo.size(); i++) {
+		glDeleteTextures(1, &colorBuffers[i].OpenGL->colorBufferName);
+		delete colorBuffers[i].OpenGL;
+		glDeleteRenderbuffers(1, &depthBuffers[i]);
+	}
+	DebugLog("[OSVR Rendering Plugin] delete render now.");
+
+	// Close the Renderer interface cleanly.
+	delete render;
+}
+
 bool SetupRendering(osvr::renderkit::GraphicsLibrary library) {
-	ID3D11Device *device = library.D3D11->device;
-	ID3D11DeviceContext *context = library.D3D11->context;
+	
+	osvr::renderkit::GraphicsLibraryOpenGL *glLibrary = library.OpenGL;
 
-	// Setup vertex shader
-	auto hr = device->CreateVertexShader(g_triangle_vs, sizeof(g_triangle_vs), nullptr, vertexShader.GetAddressOf());
-	if (FAILED(hr)) { return false; }
+	// Turn on depth testing, so we get correct ordering.
+	glEnable(GL_DEPTH_TEST);
 
-	// Setup pixel shader
-	hr = device->CreatePixelShader(g_triangle_ps, sizeof(g_triangle_ps), nullptr, pixelShader.GetAddressOf());
-	if (FAILED(hr)) { return false; }
-
-	// Set the input layout
-	ID3D11InputLayout* vertexLayout;
-	D3D11_INPUT_ELEMENT_DESC layout[] = { { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 }, };
-	hr = device->CreateInputLayout(layout, _countof(layout), g_triangle_vs, sizeof(g_triangle_vs), &vertexLayout);
-	if (SUCCEEDED(hr)) {
-		context->IASetInputLayout(vertexLayout);
-		vertexLayout->Release();
-		vertexLayout = nullptr;
-	}
-
-	// Create vertex buffer
-	ID3D11Buffer* vertexBuffer;
-	struct XMFLOAT3 { float x; float y; float z; };
-	struct SimpleVertex { XMFLOAT3 Pos; };
-	SimpleVertex vertices[3];
-	vertices[0].Pos.x = 0.0f; vertices[0].Pos.y = 0.5f; vertices[0].Pos.z = 0.5f;
-	vertices[1].Pos.x = 0.5f; vertices[1].Pos.y = -0.5f; vertices[1].Pos.z = 0.5f;
-	vertices[2].Pos.x = -0.5f; vertices[2].Pos.y = -0.5f; vertices[2].Pos.z = 0.5f;
-	CD3D11_BUFFER_DESC bufferDesc(sizeof(SimpleVertex) * _countof(vertices), D3D11_BIND_VERTEX_BUFFER);
-	D3D11_SUBRESOURCE_DATA subResData = { vertices, 0, 0 };
-	hr = device->CreateBuffer(&bufferDesc, &subResData, &vertexBuffer);
-	if (SUCCEEDED(hr)) {
-		// Set vertex buffer
-		UINT stride = sizeof(SimpleVertex);
-		UINT offset = 0;
-		context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
-		vertexBuffer->Release();
-		vertexBuffer = nullptr;
-	}
-	// Set primitive topology
-	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	// Describe how depth and stencil tests should be performed.
-	// In particular, that they should not be for this 2D example
-	// where we want to render a triangle no matter what.
-	D3D11_DEPTH_STENCIL_DESC depthStencilDescription = { 0 };
-	depthStencilDescription.DepthEnable = false;
-	depthStencilDescription.StencilEnable = false;
-
-	// Create depth stencil state and set it.
-	ID3D11DepthStencilState *depthStencilState;
-	hr = device->CreateDepthStencilState(&depthStencilDescription,
-		&depthStencilState);
-	if (FAILED(hr)) {
-		std::cerr << "SetupRendering: Could not create depth/stencil state"
-			<< std::endl;
-		return false;
-	}
-	context->OMSetDepthStencilState(depthStencilState, 1);
+	return true;
 }
 
-// Callback to draw eye textures
-void DrawWorld(
-    void *userData //< Passed into AddRenderCallback
-    ,
-    osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-    ,
-    osvr::renderkit::OSVR_ViewportDescription
-        viewport //< Viewport we're rendering into
-    ,
-    OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
-    ,
-    osvr::renderkit::OSVR_ProjectionMatrix
-        projection //< Projection matrix set by RenderManager
-    ,
-    OSVR_TimeValue deadline //< When the frame should be sent to the screen
-    ) {
-	/*auto context = library.D3D11->context;
-	auto device = library.D3D11->device;
-	auto renderTargetView = library.D3D11->renderTargetView;
+// Forward declarations of rendering functions defined below.
+void draw_cube(double radius);
 
-	// get projection matrix
-	float projectionD3D[16];
-	osvr::renderkit::OSVR_Projection_to_D3D(projectionD3D, projection);
+// Render the world from the specified point of view.
+void RenderView(
+	const osvr::renderkit::RenderInfo &renderInfo,  //< Info needed to render
+	GLuint frameBuffer, //< Frame buffer object to bind our buffers to
+	GLuint colorBuffer, //< Color buffer to render into
+	GLuint depthBuffer  //< Depth buffer to render into
+	)
+{
+	// Render to our framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
 
-	// get view matrix
-	float viewD3D[16];
-	osvr::renderkit::OSVR_PoseState_to_D3D(viewD3D, pose);*/
-	ID3D11DeviceContext *context = library.D3D11->context;
-	ID3D11RenderTargetView *renderTargetView = library.D3D11->renderTargetView;
+	// Set color and depth buffers for the frame buffer
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+		colorBuffer, 0);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+		GL_RENDERBUFFER, depthBuffer);
 
-	// Draw a triangle using the simple shaders
-	context->VSSetShader(vertexShader.Get(), nullptr, 0);
-	context->PSSetShader(pixelShader.Get(), nullptr, 0);
-	context->Draw(3, 0);
-   /// @todo Pass eye render textures to render manager?
+	// Set the list of draw buffers.
+	GLenum DrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
+	glDrawBuffers(1, DrawBuffers); // "1" is the size of DrawBuffers
+
+	// Always check that our framebuffer is ok
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		DebugLog("RenderView: Incomplete Framebuffer");
+		return;
+	}
+
+	// Set the viewport to cover our entire render texture.
+	glViewport(0, 0,
+		static_cast<GLsizei>(renderInfo.viewport.width),
+		static_cast<GLsizei>(renderInfo.viewport.height));
+
+	// Set the OpenGL projection matrix 
+	GLdouble projection[16];
+	osvr::renderkit::OSVR_Projection_to_OpenGL(projection, renderInfo.projection);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glMultMatrixd(projection);
+
+	/// Put the transform into the OpenGL ModelView matrix
+	GLdouble modelView[16];
+	osvr::renderkit::OSVR_PoseState_to_OpenGL(modelView, renderInfo.pose);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glMultMatrixd(modelView);
+
+	// Clear the screen to black and clear depth
+	glClearColor(1, 0, 0, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	// =================================================================
+	// This is where we draw our world and hands and any other objects.
+	// We're in World Space.  To find out about where to render objects
+	// in OSVR spaces (like left/right hand space) we need to query the
+	// interface and handle the coordinate tranforms ourselves.
+
+	// Draw a cube with a 5-meter radius as the room we are floating in.
+	draw_cube(5.0);
 }
 
 // --------------------------------------------------------------------------
-// SetTimeFromUnity. Would probably be passed Time.time:
-// Which is the time in seconds since the start of the game.
-extern "C" void EXPORT_API SetTimeFromUnity(float t) 
-{ 
-	long seconds = (long)t;
-	int microseconds = t - seconds;
-	g_Time = OSVR_TimeValue{ seconds, microseconds };
-}
-
-// --------------------------------------------------------------------------
-// SetEyeTextureFromUnity, an example function we export which is called by one
-// of the scripts.
-// Should pass in something like eyeRenderTexture.GetNativeTexturePtr()
+// Construct the buffers we're going to need for our render-to-texture
+// code.
+// Should pass in eyeRenderTexture.GetNativeTexturePtr(), which gets updated in Unity when the camera renders
 extern "C" int EXPORT_API SetEyeTextureFromUnity(void *texturePtr, int eye) {
   if (g_DeviceType == -1)
     return -1;
 
-  //@todo pass the texturePtr to RenderManager
+  DebugLog("ConstructBuffers");
+  // Do a call to get the information we need to construct our
+  // color and depth render-to-texture buffers.
+  std::vector<osvr::renderkit::RenderInfo> renderInfo;
+  osvrClientUpdate(clientContext);
+  renderInfo = render->GetRenderInfo();
+  DebugLog("Got Render Info");
 
-  // some sample D3D code below if we were to handle drawing rendertextures
-  // here rather than pass to render manager
-  /*
-  #if SUPPORT_D3D9
-  //@todo
-  #endif
-  #if SUPPORT_D3D11
-  ID3D11Texture2D* eyeTexture = (ID3D11Texture2D*)texturePtr;
+  //Init glew
+  GLenum err = glewInit();
+  if (err != GLEW_OK)
+  {
+	  DebugLog("glewInit failed, aborting.");
+  }
+  if (eye == 0) //only do this once
+  {
+	  glGenFramebuffersEXT(1, &eyesFrameBuffer);
+	  glBindFramebuffer(GL_FRAMEBUFFER, eyesFrameBuffer);
+	  DebugLog("Assigned framebuffer");
+  }
 
-          if (eyeTexture == texturePtr) return 0;
 
-          // Cache for future dirty checks.
-          if (eye == 0)
-          {
-                  g_leftEyeTexture = eyeTexture;
-                  if (g_D3D11RenderTargetViewLeft != NULL)
-  g_D3D11RenderTargetViewLeft->Release();
-          }
-          else
-          {
-                  g_rightEyeTexture = eyeTexture;
-                  if (g_D3D11RenderTargetViewRight != NULL)
-  g_D3D11RenderTargetViewRight->Release();
-          }
+  // The color buffer for this eye.  We need to put this into
+  // a generic structure for the Present function, but we only need
+  // to fill in the OpenGL portion.
+  GLuint colorBufferName = (GLuint)(size_t)(texturePtr);
+  glGenTextures(1, &colorBufferName);
+  DebugLog("Generated color buffer");
+  osvr::renderkit::RenderBuffer rb;
+  rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
+  rb.OpenGL->colorBufferName = colorBufferName;
+  colorBuffers.push_back(rb);
+  DebugLog("Added color buffer");
 
-          D3D11_RENDER_TARGET_VIEW_DESC desc;
-          desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-          desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-          desc.Texture2D.MipSlice = 0;
+  // "Bind" the newly created texture : all future texture
+  // functions will modify this texture glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, colorBufferName);
 
-          HRESULT hr = g_D3D11Device->CreateRenderTargetView(eyeTexture, &desc,
-  eye == 0 ? &g_D3D11RenderTargetViewLeft : &g_D3D11RenderTargetViewRight);
-          DebugLog(hr == S_OK ? "Set D3D output RTV.\n" : "Error setting D3D11
-  output SRV.\n");
+  // Determine the appropriate size for the frame buffer to be used for
+  // this eye.
+  int width = static_cast<int>(renderInfo[eye].viewport.width);
+  int height = static_cast<int>(renderInfo[eye].viewport.height);
 
-  #endif
-  #if SUPPORT_OPENGL
-  //@todo
-  #endif
-  */
+  // Give an empty image to OpenGL ( the last "0" means "empty" )
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+	  width,
+	  height,
+	  0,
+	  GL_RGB, GL_UNSIGNED_BYTE, 0);
+
+  // Bilinear filtering
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+  // The depth buffer
+  GLuint depthrenderbuffer;
+  glGenRenderbuffers(1, &depthrenderbuffer);
+  glBindRenderbuffer(GL_RENDERBUFFER, depthrenderbuffer);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
+	  width,
+	  height);
+  depthBuffers.push_back(depthrenderbuffer);
+  DebugLog("Done Constructing buffers");
 }
 
+/*
 // Actual setup/teardown functions defined below
 #if SUPPORT_D3D9
 static void SetGraphicsDeviceD3D9(IDirect3DDevice9 *device,
@@ -400,7 +406,8 @@ extern "C" void EXPORT_API UnitySetGraphicsDevice(void *device, int deviceType,
     g_DeviceType = deviceType;
   }
 #endif
-}
+}*/
+
 
 // --------------------------------------------------------------------------
 // UnityRenderEvent
@@ -412,17 +419,120 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID) {
   if (g_DeviceType == -1)
     return;
 
+  
   // @todo Define more events that we might want to send
   // BeginFrame, EndFrame, DrawUILayer?
   // Call the Render loop
   switch (eventID) {
   case kOsvrEventID_Render:
-  default:
-    render->Render();
+
+	  // OpenGL
+	  if (g_DeviceType == kGfxRendererOpenGL)
+	  {
+		  std::vector<osvr::renderkit::RenderInfo> renderInfo;
+		  // Update the system state so the GetRenderInfo will have up-to-date
+		  // information about the tracker state.  Then get the RenderInfo
+		  // @todo Check that we won't need to adjust any of our buffers.
+		  osvrClientUpdate(clientContext);
+		  renderInfo = render->GetRenderInfo();
+		  // Render into each buffer using the specified information.
+		  for (size_t i = 0; i < renderInfo.size(); i++) {
+			  RenderView(renderInfo[i], eyesFrameBuffer,
+				  colorBuffers[i].OpenGL->colorBufferName,
+				  depthBuffers[i]);
+		  }
+
+		  // Send the rendered results to the screen
+		  if (!render->PresentRenderBuffers(colorBuffers)) {
+			  DebugLog("PresentRenderBuffers() returned false, maybe because it was asked to quit");
+		  }
+
+	  }
     break;
+  default:
+	  break;
   }
 }
+static GLfloat matspec[4] = { 0.5, 0.5, 0.5, 0.0 };
+static float red_col[] = { 1.0, 0.0, 0.0 };
+static float grn_col[] = { 0.0, 1.0, 0.0 };
+static float blu_col[] = { 0.0, 0.0, 1.0 };
+static float yel_col[] = { 1.0, 1.0, 0.0 };
+static float lightblu_col[] = { 0.0, 1.0, 1.0 };
+static float pur_col[] = { 1.0, 0.0, 1.0 };
+void draw_cube(double radius)
+{
+	GLfloat matspec[4] = { 0.5, 0.5, 0.5, 0.0 };
+	glPushMatrix();
+	glScaled(radius, radius, radius);
+	glMaterialfv(GL_FRONT, GL_SPECULAR, matspec);
+	glMaterialf(GL_FRONT, GL_SHININESS, 64.0);
+	glBegin(GL_POLYGON);
+	glColor3fv(lightblu_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, lightblu_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, lightblu_col);
+	glNormal3f(0.0, 0.0, -1.0);
+	glVertex3f(1.0, 1.0, -1.0);
+	glVertex3f(1.0, -1.0, -1.0);
+	glVertex3f(-1.0, -1.0, -1.0);
+	glVertex3f(-1.0, 1.0, -1.0);
+	glEnd();
+	glBegin(GL_POLYGON);
+	glColor3fv(blu_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blu_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, blu_col);
+	glNormal3f(0.0, 0.0, 1.0);
+	glVertex3f(-1.0, 1.0, 1.0);
+	glVertex3f(-1.0, -1.0, 1.0);
+	glVertex3f(1.0, -1.0, 1.0);
+	glVertex3f(1.0, 1.0, 1.0);
+	glEnd();
+	glBegin(GL_POLYGON);
+	glColor3fv(yel_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, yel_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, yel_col);
+	glNormal3f(0.0, -1.0, 0.0);
+	glVertex3f(1.0, -1.0, 1.0);
+	glVertex3f(-1.0, -1.0, 1.0);
+	glVertex3f(-1.0, -1.0, -1.0);
+	glVertex3f(1.0, -1.0, -1.0);
+	glEnd();
+	glBegin(GL_POLYGON);
+	glColor3fv(grn_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, grn_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, grn_col);
+	glNormal3f(0.0, 1.0, 0.0);
+	glVertex3f(1.0, 1.0, 1.0);
+	glVertex3f(1.0, 1.0, -1.0);
+	glVertex3f(-1.0, 1.0, -1.0);
+	glVertex3f(-1.0, 1.0, 1.0);
+	glEnd();
+	glBegin(GL_POLYGON);
+	glColor3fv(pur_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, pur_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, pur_col);
+	glNormal3f(-1.0, 0.0, 0.0);
+	glVertex3f(-1.0, 1.0, 1.0);
+	glVertex3f(-1.0, 1.0, -1.0);
+	glVertex3f(-1.0, -1.0, -1.0);
+	glVertex3f(-1.0, -1.0, 1.0);
+	glEnd();
+	glBegin(GL_POLYGON);
+	glColor3fv(red_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, red_col);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, red_col);
+	glNormal3f(1.0, 0.0, 0.0);
+	glVertex3f(1.0, -1.0, 1.0);
+	glVertex3f(1.0, -1.0, -1.0);
+	glVertex3f(1.0, 1.0, -1.0);
+	glVertex3f(1.0, 1.0, 1.0);
+	glEnd();
+	glPopMatrix();
+}
 
+
+
+/*
 // -------------------------------------------------------------------
 //  Direct3D 9 setup/teardown code
 
@@ -665,7 +775,7 @@ static void SetGraphicsDeviceD3D11(ID3D11Device *device,
 }
 
 #endif // #if SUPPORT_D3D11
-
+*/
 // --------------------------------------------------------------------------
 // SetDefaultGraphicsState
 //
@@ -677,7 +787,7 @@ static void SetGraphicsDeviceD3D11(ID3D11Device *device,
 //
 // Here, we set culling off, lighting off, alpha blend & test off, Z
 // comparison to less equal, and Z writes off.
-
+/*
 static void SetDefaultGraphicsState() {
 	DebugLog("[OSVR Rendering Plugin] Set default graphics state");
 #if SUPPORT_D3D9
@@ -716,5 +826,5 @@ static void SetDefaultGraphicsState() {
     glDepthMask(GL_FALSE);
   }
 #endif
-}
+}*/
 
