@@ -497,7 +497,7 @@ extern "C" void EXPORT_API UnitySetGraphicsDevice(void *device, int deviceType,
     g_DeviceType = deviceType;
   }
 #endif
-}*/
+}
 
 
 // --------------------------------------------------------------------------
@@ -544,6 +544,8 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID) {
 	  break;
   }
 }
+
+//draw a simple cube scene
 static GLfloat matspec[4] = { 0.5, 0.5, 0.5, 0.0 };
 static float red_col[] = { 1.0, 0.0, 0.0 };
 static float grn_col[] = { 0.0, 1.0, 0.0 };
@@ -623,7 +625,7 @@ void draw_cube(double radius)
 
 
 
-/*
+
 // -------------------------------------------------------------------
 //  Direct3D 9 setup/teardown code
 
@@ -866,7 +868,7 @@ static void SetGraphicsDeviceD3D11(ID3D11Device *device,
 }
 
 #endif // #if SUPPORT_D3D11
-*/
+
 // --------------------------------------------------------------------------
 // SetDefaultGraphicsState
 //
@@ -878,7 +880,7 @@ static void SetGraphicsDeviceD3D11(ID3D11Device *device,
 //
 // Here, we set culling off, lighting off, alpha blend & test off, Z
 // comparison to less equal, and Z writes off.
-/*
+
 static void SetDefaultGraphicsState() {
 	DebugLog("[OSVR Rendering Plugin] Set default graphics state");
 #if SUPPORT_D3D9
@@ -894,7 +896,7 @@ static void SetDefaultGraphicsState() {
 #endif
 
 #if SUPPORT_D3D11
-  // D3D11 case
+  //@todo D3D11 case
   if (g_DeviceType == kGfxRendererD3D11) {
     ID3D11DeviceContext *ctx = NULL;
     g_D3D11Device->GetImmediateContext(&ctx);
@@ -906,7 +908,7 @@ static void SetDefaultGraphicsState() {
 #endif
 
 #if SUPPORT_OPENGL
-  // OpenGL case
+  //@todo OpenGL case
   if (g_DeviceType == kGfxRendererOpenGL) {
     glDisable(GL_CULL_FACE);
     glDisable(GL_LIGHTING);
@@ -917,5 +919,5 @@ static void SetDefaultGraphicsState() {
     glDepthMask(GL_FALSE);
   }
 #endif
-}*/
+}
 
