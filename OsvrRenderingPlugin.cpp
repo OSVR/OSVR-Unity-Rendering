@@ -148,10 +148,18 @@ extern "C" void EXPORT_API SetTimeFromUnity(float t)
 
 
 
+
 OSVR_ClientContext clientContext;
-GLuint eyesFrameBuffer;               //< Groups a color buffer and a depth buffer
+GLuint frameBuffer;               //< Groups a color buffer and a depth buffer
 std::vector<osvr::renderkit::RenderBuffer> colorBuffers;
 std::vector<GLuint> depthBuffers; //< Depth/stencil buffers to render into
+GLuint leftEyeColorBuffer;
+GLuint leftEyeDepthBuffer;
+GLuint rightEyeColorBuffer;
+GLuint rightEyeDepthBuffer;
+int eyeWidth = 0;
+int eyeHeight = 0;
+void ConstructBuffers();
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientContext context) {
