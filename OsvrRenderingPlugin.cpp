@@ -192,8 +192,117 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
 	  return OSVR_RETURN_FAILURE;
   }
 
+  // Do a call to get the information we need to construct our
+  // color and depth render-to-texture buffers.
+  std::vector<osvr::renderkit::RenderInfo> renderInfo;
+  osvrClientUpdate(clientContext);
+  renderInfo = render->GetRenderInfo();
+  for (size_t i = 0; i < renderInfo.size(); i++) {
+	  // Determine the appropriate size for the frame buffer to be used for
+	  // this eye.
+	  eyeWidth = static_cast<int>(renderInfo[i].viewport.width);
+	  eyeHeight = static_cast<int>(renderInfo[i].viewport.height);
+  }
+  
+
+
   DebugLog("[OSVR Rendering Plugin] Success!");
   return OSVR_RETURN_SUCCESS;
+}
+
+void ConstructBuffersOpenGL(void *texturePtr, int eye)
+{
+	//Init glew
+	glewExperimental = true;
+	GLenum err = glewInit();
+	if (err != GLEW_OK)
+	{
+		DebugLog("glewInit failed, aborting.");
+	}
+
+	osvrClientUpdate(clientContext);
+
+	if (eye == 0)
+	{
+		//do this once
+		glGenFramebuffers(1, &frameBuffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+	}
+
+		// The color buffer for this eye.  We need to put this into
+		// a generic structure for the Present function, but we only need
+		// to fill in the OpenGL portion.
+		if (eye == 0) //left eye
+		{
+			leftEyeColorBuffer = (GLuint)(size_t)texturePtr;
+			glGenRenderbuffers(1, &leftEyeColorBuffer);
+			osvr::renderkit::RenderBuffer rb;
+			rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
+			rb.OpenGL->colorBufferName = leftEyeColorBuffer;
+			colorBuffers.push_back(rb);
+			// "Bind" the newly created texture : all future texture
+			// functions will modify this texture glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, leftEyeColorBuffer);
+		}
+		else //right eye
+		{
+			rightEyeColorBuffer = (GLuint)(size_t)texturePtr;
+			glGenRenderbuffers(1, &rightEyeColorBuffer);
+			osvr::renderkit::RenderBuffer rb;
+			rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
+			rb.OpenGL->colorBufferName = rightEyeColorBuffer;
+			colorBuffers.push_back(rb);
+			// "Bind" the newly created texture : all future texture
+			// functions will modify this texture glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, rightEyeColorBuffer);
+		}
+
+		
+	
+		// Give an empty image to OpenGL ( the last "0" means "empty" )
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+			eyeWidth,
+			eyeHeight,
+			0,
+			GL_RGB, GL_UNSIGNED_BYTE, 0);
+
+		// Bilinear filtering
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+		// The depth buffer
+		if (eye == 0) //left eye
+		{
+			glGenRenderbuffers(1, &leftEyeDepthBuffer);
+			glBindRenderbuffer(GL_RENDERBUFFER, leftEyeDepthBuffer);
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
+				eyeWidth,
+				eyeHeight);
+			depthBuffers.push_back(leftEyeDepthBuffer);
+		}
+		else //right eye
+		{
+			glGenRenderbuffers(1, &rightEyeDepthBuffer);
+			glBindRenderbuffer(GL_RENDERBUFFER, rightEyeDepthBuffer);
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
+				eyeWidth,
+				eyeHeight);
+			depthBuffers.push_back(rightEyeDepthBuffer);
+		}
+		
+		
+	
+}
+
+extern "C" int EXPORT_API GetEyeWidth()
+{
+	return eyeWidth;
+}
+extern "C" int EXPORT_API GetEyeHeight()
+{
+	return eyeHeight;
 }
 
 //Shutdown
