@@ -314,7 +314,7 @@ extern "C" void EXPORT_API Shutdown()
 	renderInfo = render->GetRenderInfo();
 	DebugLog("Got render info");
 	// Clean up after ourselves.
-	glDeleteFramebuffers(1, &eyesFrameBuffer);
+	glDeleteFramebuffers(1, &frameBuffer);
 	for (size_t i = 0; i < renderInfo.size(); i++) {
 		glDeleteTextures(1, &colorBuffers[i].OpenGL->colorBufferName);
 		delete colorBuffers[i].OpenGL;
@@ -385,7 +385,7 @@ void RenderView(
 	glLoadIdentity();
 	glMultMatrixd(modelView);
 
-	// Clear the screen to black and clear depth
+	// Clear the screen to red and clear depth
 	glClearColor(1, 0, 0, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -554,7 +554,7 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID) {
 		  renderInfo = render->GetRenderInfo();
 		  // Render into each buffer using the specified information.
 		  for (size_t i = 0; i < renderInfo.size(); i++) {
-			  RenderView(renderInfo[i], eyesFrameBuffer,
+			  RenderView(renderInfo[i], frameBuffer,
 				  colorBuffers[i].OpenGL->colorBufferName,
 				  depthBuffers[i]);
 		  }
