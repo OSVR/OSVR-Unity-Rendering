@@ -400,81 +400,55 @@ void RenderView(
 }
 
 // --------------------------------------------------------------------------
-// Construct the buffers we're going to need for our render-to-texture
-// code.
-// Should pass in eyeRenderTexture.GetNativeTexturePtr(), which gets updated in Unity when the camera renders
-extern "C" int EXPORT_API SetEyeTextureFromUnity(void *texturePtr, int eye) {
+// Should pass in eyeRenderTexture.GetNativeTexturePtr(), which gets updated in Unity when the camera renders.
+// On Direct3D-like devices, GetNativeTexturePtr() returns a pointer to the base texture type (IDirect3DBaseTexture9 on D3D9, 
+// ID3D11Resource on D3D11). On OpenGL-like devices the texture "name" is returned; cast the pointer to integer 
+// type to get it. On platforms that do not support native code plugins, this function always returns NULL.
+// Note that calling this function when using multi - threaded rendering will synchronize with the rendering 
+// thread(a slow operation), so best practice is to set up needed texture pointers only at initialization time.
+//http://docs.unity3d.com/ScriptReference/Texture.GetNativeTexturePtr.html
+extern "C" int EXPORT_API SetColorBufferFromUnity(void *texturePtr, int eye) {
   if (g_DeviceType == -1)
-    return -1;
+    return OSVR_RETURN_FAILURE;
 
-  DebugLog("ConstructBuffers");
-  // Do a call to get the information we need to construct our
-  // color and depth render-to-texture buffers.
-  std::vector<osvr::renderkit::RenderInfo> renderInfo;
-  osvrClientUpdate(clientContext);
-  renderInfo = render->GetRenderInfo();
-  DebugLog("Got Render Info");
-
-  //Init glew
-  GLenum err = glewInit();
-  if (err != GLEW_OK)
-  {
-	  DebugLog("glewInit failed, aborting.");
-  }
-  if (eye == 0) //only do this once
-  {
-	  glGenFramebuffersEXT(1, &eyesFrameBuffer);
-	  glBindFramebuffer(GL_FRAMEBUFFER, eyesFrameBuffer);
-	  DebugLog("Assigned framebuffer");
-  }
-
-
-  // The color buffer for this eye.  We need to put this into
-  // a generic structure for the Present function, but we only need
-  // to fill in the OpenGL portion.
-  GLuint colorBufferName = (GLuint)(size_t)(texturePtr);
-  glGenTextures(1, &colorBufferName);
-  DebugLog("Generated color buffer");
-  osvr::renderkit::RenderBuffer rb;
-  rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
-  rb.OpenGL->colorBufferName = colorBufferName;
-  colorBuffers.push_back(rb);
-  DebugLog("Added color buffer");
-
-  // "Bind" the newly created texture : all future texture
-  // functions will modify this texture glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, colorBufferName);
-
-  // Determine the appropriate size for the frame buffer to be used for
-  // this eye.
-  int width = static_cast<int>(renderInfo[eye].viewport.width);
-  int height = static_cast<int>(renderInfo[eye].viewport.height);
-
-  // Give an empty image to OpenGL ( the last "0" means "empty" )
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-	  width,
-	  height,
-	  0,
-	  GL_RGB, GL_UNSIGNED_BYTE, 0);
-
-  // Bilinear filtering
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-  // The depth buffer
-  GLuint depthrenderbuffer;
-  glGenRenderbuffers(1, &depthrenderbuffer);
-  glBindRenderbuffer(GL_RENDERBUFFER, depthrenderbuffer);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
-	  width,
-	  height);
-  depthBuffers.push_back(depthrenderbuffer);
-  DebugLog("Done Constructing buffers");
+#if SUPPORT_OPENGL
+  //@todo texturePtr points to "name"
+  ConstructBuffersOpenGL(texturePtr, eye);
+#endif
+#if SUPPORT_D3D9
+  //@todo texturePtr points to type IDirect3DBaseTexture9
+#endif
+#if SUPPORT_D3D11
+  //@todo texturePtr points ID3D11Resource
+#endif
+   
+  
+  return OSVR_RETURN_SUCCESS;
 }
 
-/*
+//This isn't being used
+extern "C" int EXPORT_API SetDepthBufferFromUnity(void *texturePtr, int eye) {
+	if (g_DeviceType == -1)
+		return OSVR_RETURN_FAILURE;
+
+	depthBuffers[eye] = (GLuint)(size_t)texturePtr;
+
+	return OSVR_RETURN_SUCCESS;
+}
+
+//this isn't being used
+extern "C" int EXPORT_API GetPixels(void* buffer, int x, int y, int width, int height) {
+	if (glGetError())
+		return -1;
+
+	glReadPixels(x, y, width, height, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, buffer);
+
+	if (glGetError())
+		return -2;
+	return 0;
+}
+
+
 // Actual setup/teardown functions defined below
 #if SUPPORT_D3D9
 static void SetGraphicsDeviceD3D9(IDirect3DDevice9 *device,
