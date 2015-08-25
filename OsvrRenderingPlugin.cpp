@@ -941,7 +941,6 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID) {
 		  // Send the rendered results to the screen
 		  if (!render->PresentRenderBuffers(renderBuffers)) {
 			  std::cerr << "PresentRenderBuffers() returned false, maybe because it was asked to quit" << std::endl;
-			  quit = true;
 		  }
 	  }
 	  // OpenGL
