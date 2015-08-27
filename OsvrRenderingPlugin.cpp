@@ -247,10 +247,10 @@ static SimpleShader simpleShader;
 static osvr::renderkit::RenderManager *render;
 static int g_DeviceType = -1;
 static OSVR_TimeValue g_Time;
-OSVR_ClientContext clientContext;
-std::vector<osvr::renderkit::RenderBuffer> renderBuffers;
-unsigned int eyeWidth = 0;
-unsigned int eyeHeight = 0;
+static OSVR_ClientContext clientContext;
+static std::vector<osvr::renderkit::RenderBuffer> renderBuffers;
+static unsigned int eyeWidth = 0;
+static unsigned int eyeHeight = 0;
 
 // BANDAID FIX START
 // - We're not currently iterating through the eyes in the render manager, so we just switch between left/right eye
@@ -273,11 +273,12 @@ std::vector<GLuint> depthBuffers; //< Depth/stencil buffers to render into
 #if SUPPORT_D3D11
 // Set up the vector of textures to render to and any framebuffer
 // we need to group them.
-std::vector<ID3D11Texture2D *> depthStencilTextures;
-std::vector<ID3D11DepthStencilView *> depthStencilViews;
-ID3D11DepthStencilState *depthStencilState;
-static ID3D11Texture2D* leftEyeTexturePtr;
-static ID3D11Texture2D* rightEyeTexturePtr;
+static std::vector<ID3D11Texture2D *> depthStencilTextures;
+static std::vector<ID3D11DepthStencilView *> depthStencilViews;
+static ID3D11DepthStencilState *depthStencilState;
+static D3D11_DEPTH_STENCIL_DESC depthStencilDescription;
+static void *leftEyeTexturePtr;
+static void *rightEyeTexturePtr;
 #endif
 
 // --------------------------------------------------------------------------
