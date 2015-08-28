@@ -1,5 +1,5 @@
 #include "UnityPluginInterface.h"
-#include "osvr\ClientKit\Context.h"
+#include <osvr/ClientKit/Context.h>
 #include <osvr/ClientKit/Interface.h>
 #include "osvr\RenderKit\RenderManager.h"
 #include <osvr/Util/MatrixConventionsC.h>
@@ -13,6 +13,7 @@
 #include <iostream>
 #include <string>
 #include <stdlib.h>
+#include <time.h>
 
 #include <windows.h>
 #include <initguid.h>
@@ -246,9 +247,10 @@ static SimpleShader simpleShader;
 
 static osvr::renderkit::RenderManager *render;
 static int g_DeviceType = -1;
-static OSVR_TimeValue g_Time;
+static float g_Time;
 static OSVR_ClientContext clientContext;
 static std::vector<osvr::renderkit::RenderBuffer> renderBuffers;
+static std::vector<osvr::renderkit::RenderInfo> renderInfo;
 static unsigned int eyeWidth = 0;
 static unsigned int eyeHeight = 0;
 
@@ -277,16 +279,16 @@ static std::vector<ID3D11Texture2D *> depthStencilTextures;
 static std::vector<ID3D11DepthStencilView *> depthStencilViews;
 static ID3D11DepthStencilState *depthStencilState;
 static D3D11_DEPTH_STENCIL_DESC depthStencilDescription;
+static D3D11_TEXTURE2D_DESC textureDesc;
 static void *leftEyeTexturePtr;
 static void *rightEyeTexturePtr;
 #endif
 
 // --------------------------------------------------------------------------
 // Forward function declarations of functions defined below
-bool SetupRendering(osvr::renderkit::GraphicsLibrary library);
 static void SetDefaultGraphicsState();
-void draw_cube(double radius);
-int CreateDepthStencilState();
+static void draw_cube(double radius);
+static int CreateDepthStencilState();
 
 // --------------------------------------------------------------------------
 // C API and internal function implementation
@@ -310,7 +312,7 @@ extern "C" void EXPORT_API SetTimeFromUnity(float t)
 {
 	long seconds = (long)t;
 	int microseconds = t - seconds;
-	g_Time = OSVR_TimeValue{ seconds, microseconds };
+	g_Time = t;// OSVR_TimeValue{ seconds, microseconds };
 }
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
@@ -319,8 +321,8 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
   //@todo Get the display config file from the display path
   //std::string displayConfigJsonFileName = "";// clientContext.getStringParameter("/display");
   //use local display config for now until we can pass in OSVR_ClientContext
-  //std::string displayConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_display_config.json"; 
-  std::string displayConfigJsonFileName = "C:/Users/Sensics/OSVR/DirectRender/test_display_config.json";
+  std::string displayConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_display_config.json"; 
+  //std::string displayConfigJsonFileName = "C:/Users/Sensics/OSVR/DirectRender/test_display_config.json";
   std::string pipelineConfigJsonFileName = ""; //@todo schema needs to be defined
   
   // BANDAID FIX START
@@ -360,15 +362,8 @@ extern "C" OSVR_ReturnCode EXPORT_API CreateRenderManagerFromUnity(OSVR_ClientCo
     return OSVR_RETURN_FAILURE;
   }
 
-  // Set up the rendering state we need.
-  if (!SetupRendering(ret.library)) {
-	  DebugLog("[OSVR Rendering Plugin] Could not setup rendering");
-	  return OSVR_RETURN_FAILURE;
-  }
-
   // Do a call to get the information we need to construct our
   // color and depth render-to-texture buffers.
-  std::vector<osvr::renderkit::RenderInfo> renderInfo;
   osvrClientUpdate(clientContext);
   renderInfo = render->GetRenderInfo();
   for (size_t i = 0; i < renderInfo.size(); i++) {
@@ -395,7 +390,7 @@ extern "C" int EXPORT_API GetEyeHeight()
 extern "C" void EXPORT_API Shutdown()
 {
 	DebugLog("[OSVR Rendering Plugin] Shutdown.");
-	std::vector<osvr::renderkit::RenderInfo> renderInfo;
+	
 	osvrClientUpdate(clientContext);
 	renderInfo = render->GetRenderInfo();
 	
@@ -502,7 +497,6 @@ void ConstructBuffersOpenGL(void *texturePtr, int eye)
 int ConstructBuffersD3D11(void *texturePtr, int eye)
 {
 	osvrClientUpdate(clientContext);
-	std::vector<osvr::renderkit::RenderInfo> renderInfo;
 	renderInfo = render->GetRenderInfo();
 	HRESULT hr;
 	// The color buffer for this eye.  We need to put this into
@@ -515,7 +509,6 @@ int ConstructBuffersD3D11(void *texturePtr, int eye)
 	unsigned height = static_cast<int>(renderInfo[eye].viewport.height);
 
 	// Initialize a new render target texture description.
-	D3D11_TEXTURE2D_DESC textureDesc;
 	memset(&textureDesc, 0, sizeof(textureDesc));
 	textureDesc.Width = width;
 	textureDesc.Height = height;
@@ -535,7 +528,7 @@ int ConstructBuffersD3D11(void *texturePtr, int eye)
 	hr = renderInfo[eye].library.D3D11->device->CreateTexture2D(
 		&textureDesc, NULL, &D3DTexture);
 	if (FAILED(hr)) {
-		std::cerr << "Can't create texture for eye " << eye << std::endl;
+		DebugLog("[OSVR Rendering Plugin] Can't create texture for eye");
 		return -1;
 	}
 
@@ -554,8 +547,7 @@ int ConstructBuffersD3D11(void *texturePtr, int eye)
 	hr = renderInfo[eye].library.D3D11->device->CreateRenderTargetView(
 		D3DTexture, &renderTargetViewDesc, &renderTargetView);
 	if (FAILED(hr)) {
-		std::cerr << "Could not create render target for eye " << eye
-			<< std::endl;
+		DebugLog("[OSVR Rendering Plugin] Could not create render target for eye");
 		return -2;
 	}
 
@@ -588,8 +580,7 @@ int ConstructBuffersD3D11(void *texturePtr, int eye)
 	hr = renderInfo[eye].library.D3D11->device->CreateTexture2D(
 		&textureDescription, NULL, &depthStencilBuffer);
 	if (FAILED(hr)) {
-		std::cerr << "Could not create depth/stencil texture for eye "
-			<< eye << std::endl;
+		DebugLog("Could not create depth/stencil texture for eye ");
 		return -4;
 	}
 	depthStencilTextures.push_back(depthStencilBuffer);
@@ -607,8 +598,7 @@ int ConstructBuffersD3D11(void *texturePtr, int eye)
 		&depthStencilViewDescription,
 		&depthStencilView);
 	if (FAILED(hr)) {
-		std::cerr << "Could not create depth/stencil view for eye "
-			<< eye << std::endl;
+		DebugLog("Could not create depth/stencil view for eye ");
 		return -5;
 	}
 	depthStencilViews.push_back(depthStencilView);
@@ -623,12 +613,11 @@ int ConstructBuffersD3D11(void *texturePtr, int eye)
 int CreateDepthStencilState()
 {
 	osvrClientUpdate(clientContext);
-	std::vector<osvr::renderkit::RenderInfo> renderInfo;
 	renderInfo = render->GetRenderInfo();
 	HRESULT hr;
 	// Create depth stencil state.
 	// Describe how depth and stencil tests should be performed.
-	D3D11_DEPTH_STENCIL_DESC depthStencilDescription = { 0 };
+	depthStencilDescription = { 0 };
 
 	depthStencilDescription.DepthEnable = true;
 	depthStencilDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
@@ -660,14 +649,39 @@ int CreateDepthStencilState()
 	}
 	return hr;
 }
-bool SetupRendering(osvr::renderkit::GraphicsLibrary library) {
+
+static void FillTextureFromCode(int width, int height, int stride, unsigned char* dst)
+{
+	srand(time(NULL));
+	float t = (float)rand();// g_Time * 4.0f;
 	
-	osvr::renderkit::GraphicsLibraryOpenGL *glLibrary = library.OpenGL;
 
-	// Turn on depth testing, so we get correct ordering.
-	glEnable(GL_DEPTH_TEST);
+	for (int y = 0; y < height; ++y)
+	{
+		unsigned char* ptr = dst;
+		for (int x = 0; x < width; ++x)
+		{
+			// Simple oldskool "plasma effect", a bunch of combined sine waves
+			int vv = int(
+				(127.0f + (127.0f * sinf(x / 7.0f + t))) +
+				(10.0f + (127.0f * sinf(y / 5.0f - t))) +
+				(127.0f + (127.0f * sinf((x + y) / 6.0f - t))) +
+				(127.0f + (127.0f * sinf(sqrtf(float(x*x + y*y)) / 4.0f - t)))
+				) / 4;
 
-	return true;
+			// Write the texture pixel
+			ptr[0] = vv;
+			ptr[1] = vv;
+			ptr[2] = vv;
+			ptr[3] = vv;
+
+			// To next pixel (our pixels are 4 bpp)
+			ptr += 4;
+		}
+
+		// To next image row
+		dst += stride;
+	}
 }
 
 // Callbacks to draw things in world space, left-hand space, and right-hand
@@ -675,7 +689,8 @@ bool SetupRendering(osvr::renderkit::GraphicsLibrary library) {
 void RenderViewD3D11(
 	const osvr::renderkit::RenderInfo &renderInfo   //< Info needed to render
 	, ID3D11RenderTargetView *renderTargetView
-	, ID3D11DepthStencilView *depthStencilView
+	, ID3D11DepthStencilView *depthStencilView,
+	int eyeIndex
 	)
 {
 	auto context = renderInfo.library.D3D11->context;
@@ -698,7 +713,7 @@ void RenderViewD3D11(
 	context->RSSetViewports(1, &viewport);
 
 	// Make a grey background
-	FLOAT colorRgba[4] = { 0.3f, 0.3f, 0.3f, 1.0f };
+	FLOAT colorRgba[4] = { 0.0f, 0.8f, 0.1f, 1.0f };
 	context->ClearRenderTargetView(renderTargetView, colorRgba);
 	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
@@ -731,9 +746,46 @@ void RenderViewD3D11(
 		_leftHandWorld(leftHandWorld),
 		_rightHandWorld(rightHandWorld);
 
+
 	// draw room
 	simpleShader.use(device, context, _projectionD3D, _viewD3D, identity);
 	roomCube.draw(device, context);
+
+	ID3D11DeviceContext* ctx = NULL;
+	renderInfo.library.D3D11->device->GetImmediateContext(&ctx);
+	ID3D11Texture2D* d3dtex = eyeIndex == 0 ? (ID3D11Texture2D*)leftEyeTexturePtr : (ID3D11Texture2D*)rightEyeTexturePtr;
+
+	//Fill the color buffer with random stuff
+	//@todo this should be updated by Unity rendertexture
+	unsigned char* data = new unsigned char[textureDesc.Width*textureDesc.Height * 4];
+	FillTextureFromCode(textureDesc.Width, textureDesc.Height, textureDesc.Width * 4, data);
+	ctx->UpdateSubresource(renderBuffers[eyeIndex].D3D11->colorBuffer, 0, NULL, data, textureDesc.Width * 4, 0);
+    delete[] data;
+
+	/*ID3D11Texture2D *tex = (ID3D11Texture2D*)texptr;
+	dataptr = getDataPointer(dataptr, data_num, width*height, conv, true);
+
+	D3D11_BOX box;
+	box.left = 0;
+	box.right = width;
+	box.top = 0;
+	box.bottom = ceildiv(data_num, width);
+	box.front = 0;
+	box.back = 1;
+	m_pImmediateContext->UpdateSubresource(tex, 0, &box, dataptr, getDataSize(width, conv), 0);*/
+
+
+	//ID3D11Texture2D* D3Dtexture = currentEye == 0 ? (ID3D11Texture2D*)leftEyeTexturePtr : (ID3D11Texture2D*)rightEyeTexturePtr;
+	//D3D11_TEXTURE2D_DESC desc;
+    // Initialize a new render target texture description.
+	//D3Dtexture->GetDesc(&desc);
+	//Source Row Pitch = [size of one element in bytes] * [number of elements in one row]
+	//Source Depth Pitch = [Source Row Pitch] * [number of rows(height)]
+	//DXGI_FORMAT_R8G8B8A8_UNORM
+	//Source Row Pitch = 4 * width
+	//Source Depth Pitch = [Source Row Pitch] * [number of rows(height)]
+	//context->UpdateSubresource(renderBuffers[currentEye].D3D11->colorBuffer, 0, NULL, D3Dtexture, desc.Width * 4, 0);
+	//context->Release();
 
 	// draw left hand
 	//simpleShader.use(device, context, _projectionD3D, _viewD3D, _leftHandWorld);
@@ -816,6 +868,15 @@ extern "C" int EXPORT_API SetColorBufferFromUnity(void *texturePtr, int eye) {
   if (g_DeviceType == -1)
     return OSVR_RETURN_FAILURE;
 
+  if (eye == 0)
+  {
+	  leftEyeTexturePtr = texturePtr;
+  }
+  else
+  {
+	  rightEyeTexturePtr = texturePtr;
+  }
+
   switch (g_DeviceType)
   {
   case kGfxRendererD3D11:
@@ -833,29 +894,6 @@ extern "C" int EXPORT_API SetColorBufferFromUnity(void *texturePtr, int eye) {
   } 
   return OSVR_RETURN_SUCCESS;
 }
-
-//This isn't being used
-extern "C" int EXPORT_API SetDepthBufferFromUnity(void *texturePtr, int eye) {
-	if (g_DeviceType == -1)
-		return OSVR_RETURN_FAILURE;
-
-	depthBuffers[eye] = (GLuint)(size_t)texturePtr;
-
-	return OSVR_RETURN_SUCCESS;
-}
-
-//this isn't being used
-extern "C" int EXPORT_API GetPixels(void* buffer, int x, int y, int width, int height) {
-	if (glGetError())
-		return -1;
-
-	glReadPixels(x, y, width, height, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, buffer);
-
-	if (glGetError())
-		return -2;
-	return 0;
-}
-
 
 // Actual setup/teardown functions defined below
 #if SUPPORT_D3D9
@@ -890,8 +928,8 @@ extern "C" void EXPORT_API UnitySetGraphicsDevice(void *device, int deviceType,
   if (deviceType == kGfxRendererD3D11) {
     DebugLog("[OSVR Rendering Plugin] Set D3D11 graphics device");
     g_DeviceType = deviceType;
-    SetGraphicsDeviceD3D11((ID3D11Device *)device,
-                           (GfxDeviceEventType)eventType);
+    //SetGraphicsDeviceD3D11((ID3D11Device *)device,
+                          // (GfxDeviceEventType)eventType);
   }
 #endif
 
@@ -907,6 +945,13 @@ extern "C" void EXPORT_API UnitySetGraphicsDevice(void *device, int deviceType,
 #endif
 }
 
+static void ClearBuffers()
+{
+	renderBuffers.clear();
+	depthStencilViews.clear();
+	depthStencilTextures.clear();
+}
+
 
 // --------------------------------------------------------------------------
 // UnityRenderEvent
@@ -918,7 +963,6 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID) {
   if (g_DeviceType == -1)
     return;
 
-  std::vector<osvr::renderkit::RenderInfo> renderInfo;
   // Update the system state so the GetRenderInfo will have up-to-date
   // information about the tracker state.  Then get the RenderInfo
   // @todo Check that we won't need to adjust any of our buffers.
@@ -932,11 +976,12 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID) {
   case kOsvrEventID_Render:  
 	  if (g_DeviceType == kGfxRendererD3D11)
 	  {
+		  //ClearBuffers();
 		  // Render into each buffer using the specified information.
 		  for (size_t i = 0; i < renderInfo.size(); i++) {
 			  renderInfo[i].library.D3D11->context->OMSetDepthStencilState(depthStencilState, 1);
 			  RenderViewD3D11(renderInfo[i], renderBuffers[i].D3D11->colorBufferView,
-				  depthStencilViews[i]);
+				  depthStencilViews[i], i);
 		  }
 
 		  // Send the rendered results to the screen
@@ -1151,7 +1196,7 @@ bool LoadFileIntoBuffer(const char *fileName, Buffer &data) {
 }
 
 #endif
-static D3D11_INPUT_ELEMENT_DESC s_DX11InputElementDesc[] = {
+/*static D3D11_INPUT_ELEMENT_DESC s_DX11InputElementDesc[] = {
     {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
      D3D11_INPUT_PER_VERTEX_DATA, 0},
     {"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12, D3D11_INPUT_PER_VERTEX_DATA,
@@ -1282,16 +1327,16 @@ static void ReleaseD3D11Resources() {
   SAFE_RELEASE(g_D3D11BlendState);
   SAFE_RELEASE(g_D3D11DepthState);
 }
-
+*/
 static void SetGraphicsDeviceD3D11(ID3D11Device *device,
                                    GfxDeviceEventType eventType) {
   DebugLog("[OSVR Rendering Plugin] Set D3D11 graphics device");
   g_D3D11Device = device;
 
-  if (eventType == kGfxDeviceEventInitialize)
+ /* if (eventType == kGfxDeviceEventInitialize)
     CreateD3D11Resources();
   if (eventType == kGfxDeviceEventShutdown)
-    ReleaseD3D11Resources();
+    ReleaseD3D11Resources();*/
 }
 
 #endif // #if SUPPORT_D3D11
@@ -1307,7 +1352,7 @@ static void SetGraphicsDeviceD3D11(ID3D11Device *device,
 //
 // Here, we set culling off, lighting off, alpha blend & test off, Z
 // comparison to less equal, and Z writes off.
-
+/*
 static void SetDefaultGraphicsState() {
 	DebugLog("[OSVR Rendering Plugin] Set default graphics state");
 #if SUPPORT_D3D9
@@ -1346,5 +1391,5 @@ static void SetDefaultGraphicsState() {
     glDepthMask(GL_FALSE);
   }
 #endif
-}
+}*/
 
