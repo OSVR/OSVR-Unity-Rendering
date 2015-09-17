@@ -52,9 +52,10 @@
     <OutDir>$(SolutionDir)build/$(Configuration)\</OutDir>
     <IntDir>build/$(Configuration)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Users\Sensics\OSVR\Dependencies\boost_1_58_0;C:\Users\Sensics\OSVR\DirectRender</IncludePath>
-    <LibraryPath>C:\Users\Sensics\OSVR\Dependencies\SDL2-2.0.3\lib\x86;C:\Users\Sensics\OSVR\Dependencies\jsoncpp-binaries\lib;C:\Users\Sensics\OSVR\DirectMode\2015-07-20-gameworks-vr-for-headset-developers-beta-1\direct_mode\DirectModeSample;C:\Users\Sensics\OSVR\DirectRenderBuild\Release;$(WindowsSDK_LibraryPath_x86);C:\Users\Sensics\OSVR\Core\OSVR-Core-Snapshot-v0.2-338-ga848a4c-build122-vs12-32bit\lib;C:\UsersSDL2-devel-2.0.3-VC\SDL2-2.0.3\lib\x86;C:\Users\Sensics\OSVR\Dependencies\vrpn-windows-binaries-master\lib;$(VC_LibraryPath_x86)</LibraryPath>
+    <IncludePath>C:\Program Files\GLEW\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Users\DuFF\Documents\OSVR\boost_1_58_0;C:\Users\DuFF\Documents\OSVR\DirectRender</IncludePath>
+    <LibraryPath>C:\Program Files\GLEW\lib\Release\Win32;C:\Program Files\SDL2-2.0.3\lib\x86;C:\Users\DuFF\Documents\OSVR\jsoncpp-binaries\lib;C:\Users\DuFF\Documents\OSVR\DirectMode\2015-07-20-gameworks-vr-for-headset-developers-beta-1\direct_mode\DirectModeSample;C:\Users\DuFF\Documents\OSVR\DirectRenderBuild\Release;$(WindowsSDK_LibraryPath_x86);C:\Users\DuFF\Documents\OSVR\Core\x86\OSVR-Core-Snapshot-v0.2-472-gd61d6ff-build128-vs12-32bit\lib;C:\Users\DuFF\Documents\OSVR\vrpn-windows-binaries-master\lib;$(VC_LibraryPath_x86)</LibraryPath>
     <TargetExt>.dll</TargetExt>
+    <ExecutablePath>$(VC_ExecutablePath_x86);$(WindowsSDK_ExecutablePath);$(VS_ExecutablePath);$(MSBuild_ExecutablePath);$(SystemRoot)\SysWow64;$(FxCopDir);$(PATH)</ExecutablePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -84,10 +85,10 @@
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>C:\Users\Sensics\OSVR\Core\OSVR-Core-Snapshot-v0.2-338-ga848a4c-build122-vs12-32bit\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\DuFF\Documents\OSVR\Core\x86\OSVR-Core-Snapshot-v0.2-472-gd61d6ff-build128-vs12-32bit\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>opengl32.lib;%(AdditionalDependencies);osvrRenderManager.lib;nvapi.lib;jsoncpp.lib;C:\Users\Sensics\OSVR\Dependencies\GLEW\lib\Release\Win32\glew32.lib;SDL2.lib;SDL2main.lib;osvrClient.lib;osvrClientKit.lib;osvrCommon.lib;osvrUtil.lib;quat.lib</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;%(AdditionalDependencies);osvrRenderManager.lib;nvapi.lib;jsoncpp.lib;glew32.lib;SDL2.lib;SDL2main.lib;osvrClient.lib;osvrClientKit.lib;osvrCommon.lib;osvrUtil.lib;quat.lib</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -99,7 +100,12 @@
     <ClCompile Include="..\OsvrRenderingPlugin.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\UnityPluginInterface.h" />
+    <ClInclude Include="..\OsvrRenderingPlugin.h" />
+    <ClInclude Include="..\Unity\IUnityGraphics.h" />
+    <ClInclude Include="..\Unity\IUnityGraphicsD3D11.h" />
+    <ClInclude Include="..\Unity\IUnityGraphicsD3D12.h" />
+    <ClInclude Include="..\Unity\IUnityGraphicsD3D9.h" />
+    <ClInclude Include="..\Unity\IUnityInterface.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
