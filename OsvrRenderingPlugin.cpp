@@ -109,6 +109,7 @@ static ID3D11DepthStencilState *depthStencilState;
 static D3D11_DEPTH_STENCIL_DESC depthStencilDescription;
 static D3D11_TEXTURE2D_DESC textureDesc;
 static ID3D11Device *myDevice;
+static ID3D11DeviceContext *myContext;
 #endif
 
 // --------------------------------------------------------------------------
@@ -232,6 +233,11 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 		DoEventGraphicsDeviceOpenGL(eventType);
 #endif
 
+#if SUPPORT_D3D11
+	if (currentDeviceType == kUnityGfxRendererD3D11)
+		DoEventGraphicsDeviceD3D11(eventType);
+#endif
+
 #if SUPPORT_D3D12
 	if (currentDeviceType == kUnityGfxRendererD3D12)
 		DoEventGraphicsDeviceD3D12(eventType);
@@ -251,19 +257,10 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
   //@todo Get the display config file from the display path
   //std::string displayConfigJsonFileName = "";// clientContext.getStringParameter("/display");
   //use local display config for now until we can pass in OSVR_ClientContext
-  std::string displayConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_display_config.json"; 
+  std::string displayConfigJsonFileName = "C:/Users/Sensics/OSVR/DirectRender/test_display_config.json"; 
   //std::string displayConfigJsonFileName = "C:/Users/Sensics/OSVR/DirectRender/test_display_config.json";
-  std::string pipelineConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_rendermanager_config.json";
+  std::string pipelineConfigJsonFileName = "C:/Users/Sensics/OSVR/DirectRender/test_rendermanager_config.json";
 
-  if (init)
-  {
-	  DebugLog("Init!");
-  }
-  else
-  {
-	  DebugLog("No init :(");
-  }
- 
   render = osvr::renderkit::createRenderManager(context, displayConfigJsonFileName,
 	  pipelineConfigJsonFileName, library);
   if ((render == nullptr) || (!render->doingOkay())) {
@@ -322,9 +319,11 @@ bool SetupRendering(osvr::renderkit::GraphicsLibrary library)
 	}
 #endif
 #if SUPPORT_D3D11
-	//@todo
+	return true;
+	//@todo might want to move the code from UnityPluginLoad here
 #endif
 #if SUPPORT_D3D12
+	return true;
 	//@todo
 #endif
 }
@@ -459,6 +458,7 @@ void ConstructBuffersOpenGL(void *texturePtr, int eye)
 }
 int ConstructBuffersD3D11(void *texturePtr, int eye)
 {
+	DebugLog("[OSVR Rendering Plugin] ConstructBuffersD3D11");
 	osvrClientUpdate(clientContext);
 	renderInfo = render->GetRenderInfo();
 	HRESULT hr;
@@ -1150,6 +1150,15 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 	{
 		IUnityGraphicsD3D11* d3d11 = s_UnityInterfaces->Get<IUnityGraphicsD3D11>();
 		g_D3D11Device = d3d11->GetDevice();
+
+		// Put the device and context into a structure to let RenderManager
+		// know to use this one rather than creating its own.
+		library.D3D11 = new osvr::renderkit::GraphicsLibraryD3D11;
+		library.D3D11->device = d3d11->GetDevice();
+		ID3D11DeviceContext *ctx = NULL;
+		library.D3D11->device->GetImmediateContext(&ctx);
+		library.D3D11->context = ctx;
+		DebugLog("[OSVR Rendering Plugin] Passed Unity device/context to RenderManager library.");
 
 		EnsureD3D11ResourcesAreCreated();
 	}
