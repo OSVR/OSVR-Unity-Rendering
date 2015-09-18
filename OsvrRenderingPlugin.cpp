@@ -47,20 +47,20 @@ using namespace DirectX;
 // Helper utilities
 
 // Allow writing to the Unity debug console from inside DLL land.
-extern "C" { 
-	void(_stdcall *debugLog)(char *) = NULL;
+extern "C" {
+	void(_stdcall *debugLog)(const char *) = NULL;
 
-	void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API LinkDebug(void(_stdcall *d)(char *))
+	void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API LinkDebug(void(_stdcall *d)(const char *))
 	{
 		debugLog = d;
 	}
 }
 
-static inline void DebugLog(char *str) {
-	//#if _DEBUG
+static inline void DebugLog(const char *str) {
+	#if _DEBUG
 	if (debugLog)
 		debugLog(str);
-	//#endif
+	#endif
 }
 
 
