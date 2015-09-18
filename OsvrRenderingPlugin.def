@@ -4,6 +4,13 @@ EXPORTS
    UnityPluginLoad
    UnityPluginUnload
    SetTimeFromUnity
-   SetTextureFromUnity
    SetUnityStreamingAssetsPath
+   CreateRenderManagerFromUnity
+   GetEyeWidth
+   GetEyeHeight
+   Shutdown
+   SetColorBufferFromUnity
+   OnRenderEvent
+   LinkDebug
+   GetEventID
    GetRenderEventFunc

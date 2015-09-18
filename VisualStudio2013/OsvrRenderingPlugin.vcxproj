@@ -20,7 +20,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <PlatformToolset>v120</PlatformToolset>
-    <CharacterSet>NotSet</CharacterSet>
+    <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -94,6 +94,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <TargetMachine>MachineX86</TargetMachine>
+      <ModuleDefinitionFile>..\OsvrRenderingPlugin.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -101,11 +102,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\OsvrRenderingPlugin.h" />
-    <ClInclude Include="..\Unity\IUnityGraphics.h" />
-    <ClInclude Include="..\Unity\IUnityGraphicsD3D11.h" />
-    <ClInclude Include="..\Unity\IUnityGraphicsD3D12.h" />
-    <ClInclude Include="..\Unity\IUnityGraphicsD3D9.h" />
-    <ClInclude Include="..\Unity\IUnityInterface.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\OsvrRenderingPlugin.def" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
