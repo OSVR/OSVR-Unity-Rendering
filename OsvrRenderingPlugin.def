@@ -14,3 +14,4 @@ EXPORTS
    LinkDebug
    GetEventID
    GetRenderEventFunc
+   UpdateTexture

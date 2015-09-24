@@ -57,10 +57,10 @@ extern "C" {
 }
 
 static inline void DebugLog(const char *str) {
-	#if _DEBUG
+	//#if _DEBUG
 	if (debugLog)
 		debugLog(str);
-	#endif
+	//#endif
 }
 
 
@@ -84,9 +84,10 @@ static unsigned int eyeWidth = 0;
 static unsigned int eyeHeight = 0;
 static osvr::renderkit::GraphicsLibrary library;
 static bool init = false;
-static ID3D11Texture2D *leftEyeTexturePtr = NULL;
-static ID3D11Texture2D *rightEyeTexturePtr = NULL;
-static int loaded = -1;
+static void *leftEyeTexturePtr = NULL;
+static void *rightEyeTexturePtr = NULL;
+static void *leftPixelData = NULL;
+static void *rightPixelData = NULL;
 
 //OpenGL vars
 #if SUPPORT_OPENGL
@@ -135,6 +136,21 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEventID()
 	return s_DeviceType;
 }
 
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateTexture(void* colors, int index)
+{
+	DebugLog("[OSVR Rendering Plugin] UpdateTexture");
+	if (index == 0)
+	{
+		leftPixelData = colors;
+	}
+	else
+	{
+		rightPixelData = colors;
+	}
+	
+	DebugLog("[OSVR Rendering Plugin] UpdatedTexture");
+}
+
 // --------------------------------------------------------------------------
 // SetTimeFromUnity. Would probably be passed Time.time:
 // Which is the time in seconds since the start of the game.
@@ -161,7 +177,6 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 
 extern "C" void	UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* unityInterfaces)
 {
-	loaded = 5;
 	s_UnityInterfaces = unityInterfaces;
 	s_Graphics = s_UnityInterfaces->Get<IUnityGraphics>();
 	s_Graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
@@ -262,9 +277,9 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 	//@todo Get the display config file from the display path
 	//std::string displayConfigJsonFileName = "";// clientContext.getStringParameter("/display");
 	//use local display config for now until we can pass in OSVR_ClientContext
-	std::string displayConfigJsonFileName = "C:/Users/Sensics/OSVR/DirectRender/test_display_config.json";
+	std::string displayConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_display_config.json";
 	//std::string displayConfigJsonFileName = "C:/Users/Sensics/OSVR/DirectRender/test_display_config.json";
-	std::string pipelineConfigJsonFileName = "C:/Users/Sensics/OSVR/DirectRender/test_rendermanager_config.json";
+	std::string pipelineConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_rendermanager_config.json";
 
 	render = osvr::renderkit::createRenderManager(context, displayConfigJsonFileName,
 		pipelineConfigJsonFileName, library);
@@ -461,7 +476,7 @@ void ConstructBuffersOpenGL(void *texturePtr, int eye)
 		depthBuffers.push_back(rightEyeDepthBuffer);
 	}
 }
-int ConstructBuffersD3D11(ID3D11Texture2D *texturePtr, int eye)
+int ConstructBuffersD3D11(void *texturePtr, int eye)
 {
 	DebugLog("[OSVR Rendering Plugin] ConstructBuffersD3D11");
 	osvrClientUpdate(clientContext);
@@ -472,7 +487,7 @@ int ConstructBuffersD3D11(ID3D11Texture2D *texturePtr, int eye)
 	// to fill in the Direct3D portion.
 	//  Note that this texture format must be RGBA and unsigned byte,
 	// so that we can present it to Direct3D for DirectMode.
-	ID3D11Texture2D *D3DTexture = nullptr;
+	ID3D11Texture2D* D3DTexture = NULL;
 	unsigned width = static_cast<int>(renderInfo[eye].viewport.width);
 	unsigned height = static_cast<int>(renderInfo[eye].viewport.height);
 
@@ -661,6 +676,7 @@ void RenderViewD3D11(
 	int eyeIndex
 	)
 {
+	//DebugLog("RenderView");
 	auto context = renderInfo.library.D3D11->context;
 	auto device = renderInfo.library.D3D11->device;
 	float projectionD3D[16];
@@ -681,7 +697,7 @@ void RenderViewD3D11(
 	context->RSSetViewports(1, &viewport);
 
 	// Make a grey background
-	FLOAT colorRgba[4] = { 0.3f, 0.8f, 0.3f, 1.0f };
+	FLOAT colorRgba[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
 	context->ClearRenderTargetView(renderTargetView, colorRgba);
 	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
@@ -690,31 +706,11 @@ void RenderViewD3D11(
 
 	XMMATRIX _projectionD3D(projectionD3D), _viewD3D(viewD3D);
 
-	// draw room
-	//simpleShader.use(device, context, _projectionD3D, _viewD3D, identity);
-	//roomCube.draw(device, context);
-
-
 	ID3D11DeviceContext* ctx = NULL;
 	renderInfo.library.D3D11->device->GetImmediateContext(&ctx);
-	ID3D11Texture2D* d3dtex = eyeIndex == 0 ? leftEyeTexturePtr : rightEyeTexturePtr;
-	D3D11_TEXTURE2D_DESC desc;
-	leftEyeTexturePtr->GetDesc(&desc);
-	DebugLog("Unity texture desc is ");
-	std::string s = std::to_string(desc.Format);
-	char const *pchar = s.c_str();  //use char const* as target type
-	DebugLog(pchar);
-	//unsigned char* data = new unsigned char[textureDesc.Width*textureDesc.Height * 4];
-	//FillTextureFromCode(textureDesc.Width, textureDesc.Height, textureDesc.Width * 4, data);
-	D3D11_BOX box;
-	box.front = 0;
-	box.back = 1;
-	box.left = 0;
-	box.right = textureDesc.Width;
-	box.top = 0;
-	box.bottom = textureDesc.Height;
-	ctx->UpdateSubresource(renderBuffers[eyeIndex].D3D11->colorBuffer, 0, &box, d3dtex, textureDesc.Width * 4, textureDesc.Width * textureDesc.Height * 4);
-	//delete[] data;
+	ID3D11Texture2D* d3dtex = eyeIndex == 0 ? reinterpret_cast<ID3D11Texture2D*>(leftEyeTexturePtr) : reinterpret_cast<ID3D11Texture2D*>(rightEyeTexturePtr);
+	ctx->CopyResource(renderBuffers[eyeIndex].D3D11->colorBuffer, d3dtex);
+
 }
 
 // Render the world from the specified point of view.
@@ -801,18 +797,18 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetColorBufferFromUnit
 		return OSVR_RETURN_FAILURE;
 
 	
-
+	DebugLog("SetColorBufferFromUnity");
 	switch (s_DeviceType)
 	{
 	case kUnityGfxRendererD3D11:
 		if (eye == 0)
 		{
-			leftEyeTexturePtr = (ID3D11Texture2D*)texturePtr;
+			leftEyeTexturePtr = texturePtr;			
 			ConstructBuffersD3D11(leftEyeTexturePtr, eye);
 		}
 		else
 		{
-			rightEyeTexturePtr = (ID3D11Texture2D*)texturePtr;
+			rightEyeTexturePtr = texturePtr;
 			ConstructBuffersD3D11(rightEyeTexturePtr, eye);
 		}
 		
