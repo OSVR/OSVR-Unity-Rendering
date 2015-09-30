@@ -6,12 +6,9 @@ EXPORTS
    SetTimeFromUnity
    SetUnityStreamingAssetsPath
    CreateRenderManagerFromUnity
-   GetEyeWidth
-   GetEyeHeight
+   GetViewport
    Shutdown
    SetColorBufferFromUnity
    OnRenderEvent
    LinkDebug
-   GetEventID
    GetRenderEventFunc
-   UpdateTexture

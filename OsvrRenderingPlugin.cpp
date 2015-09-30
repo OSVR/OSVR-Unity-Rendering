@@ -48,7 +48,7 @@ using namespace DirectX;
 
 // Allow writing to the Unity debug console from inside DLL land.
 extern "C" {
-	void(_stdcall *debugLog)(const char *) = NULL;
+	void(_stdcall *debugLog)(const char *) = nullptr;
 
 	void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API LinkDebug(void(_stdcall *d)(const char *))
 	{
@@ -67,12 +67,12 @@ static inline void DebugLog(const char *str) {
 
 // COM-like Release macro
 #ifndef SAFE_RELEASE
-#define SAFE_RELEASE(a) if (a) { a->Release(); a = NULL; }
+#define SAFE_RELEASE(a) if (a) { a->Release(); a = nullptr; }
 #endif
 
 //VARIABLES
-static IUnityInterfaces* s_UnityInterfaces = NULL;
-static IUnityGraphics* s_Graphics = NULL;
+static IUnityInterfaces* s_UnityInterfaces = nullptr;
+static IUnityGraphics* s_Graphics = nullptr;
 static UnityGfxRenderer s_DeviceType = kUnityGfxRendererNull;
 
 static osvr::renderkit::RenderManager *render;
@@ -83,19 +83,8 @@ static std::vector<osvr::renderkit::RenderInfo> renderInfo;
 static unsigned int eyeWidth = 0;
 static unsigned int eyeHeight = 0;
 static osvr::renderkit::GraphicsLibrary library;
-static bool init = false;
-static void *leftEyeTexturePtr = NULL;
-static void *rightEyeTexturePtr = NULL;
-static void *leftPixelData = NULL;
-static void *rightPixelData = NULL;
-
-//OpenGL vars
-#if SUPPORT_OPENGL
-GLuint frameBuffer;               //< Groups a color buffer and a depth buffer
-GLuint leftEyeColorBuffer;
-GLuint rightEyeColorBuffer;
-std::vector<GLuint> depthBuffers; //< Depth/stencil buffers to render into
-#endif
+static void *leftEyeTexturePtr = nullptr;
+static void *rightEyeTexturePtr = nullptr;
 
 //D3D11 vars
 #if SUPPORT_D3D11
@@ -110,15 +99,20 @@ static std::vector<ID3D11DepthStencilView *> depthStencilViews;
 static ID3D11DepthStencilState *depthStencilState;
 static D3D11_DEPTH_STENCIL_DESC depthStencilDescription;
 static D3D11_TEXTURE2D_DESC textureDesc;
-static ID3D11Device *myDevice;
-static ID3D11DeviceContext *myContext;
+#endif
+
+
+//OpenGL vars
+#if SUPPORT_OPENGL
+GLuint frameBuffer;               //< Groups a color buffer and a depth buffer
+GLuint leftEyeColorBuffer;
+GLuint rightEyeColorBuffer;
+std::vector<GLuint> depthBuffers; //< Depth/stencil buffers to render into
 #endif
 
 // --------------------------------------------------------------------------
 // Forward function declarations of functions defined below
-static void SetDefaultGraphicsState();
-static void draw_cube(double radius);
-static int CreateDepthStencilState();
+static int CreateDepthStencilState(int eye);
 bool SetupRendering(osvr::renderkit::GraphicsLibrary library);
 
 // --------------------------------------------------------------------------
@@ -127,29 +121,6 @@ bool SetupRendering(osvr::renderkit::GraphicsLibrary library);
 // RenderEvents
 // If we ever decide to add more events, here's the place for it.
 enum RenderEvents { kOsvrEventID_Render = 0 };
-
-// GetEventID, returns the event code used when raising the render event for
-// this plugin.
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEventID()
-{
-	DebugLog("[OSVR Rendering Plugin] GetEventID");
-	return s_DeviceType;
-}
-
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateTexture(void* colors, int index)
-{
-	DebugLog("[OSVR Rendering Plugin] UpdateTexture");
-	if (index == 0)
-	{
-		leftPixelData = colors;
-	}
-	else
-	{
-		rightPixelData = colors;
-	}
-	
-	DebugLog("[OSVR Rendering Plugin] UpdatedTexture");
-}
 
 // --------------------------------------------------------------------------
 // SetTimeFromUnity. Would probably be passed Time.time:
@@ -188,6 +159,7 @@ extern "C" void	UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnit
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 {
 	s_Graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
+	OnGraphicsDeviceEvent(kUnityGfxDeviceEventShutdown);
 }
 
 // --------------------------------------------------------------------------
@@ -215,7 +187,7 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 	{
 	case kUnityGfxDeviceEventInitialize:
 	{
-		DebugLog("OnGraphicsDeviceEvent(Initialize).\n");
+		DebugLog("[OSVR Rendering Plugin] OnGraphicsDeviceEvent(Initialize).\n");
 		s_DeviceType = s_Graphics->GetRenderer();
 		currentDeviceType = s_DeviceType;
 		break;
@@ -223,31 +195,24 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 
 	case kUnityGfxDeviceEventShutdown:
 	{
-		DebugLog("OnGraphicsDeviceEvent(Shutdown).\n");
+		DebugLog("[OSVR Rendering Plugin] OnGraphicsDeviceEvent(Shutdown).\n");
 		s_DeviceType = kUnityGfxRendererNull;
-		frameBuffer = NULL;
-		leftEyeTexturePtr = NULL;
-		rightEyeTexturePtr = NULL;
 		break;
 	}
 
 	case kUnityGfxDeviceEventBeforeReset:
 	{
-		DebugLog("OnGraphicsDeviceEvent(BeforeReset).\n");
+		DebugLog("[OSVR Rendering Plugin] OnGraphicsDeviceEvent(BeforeReset).\n");
 		break;
 	}
 
 	case kUnityGfxDeviceEventAfterReset:
 	{
-		DebugLog("OnGraphicsDeviceEvent(AfterReset).\n");
+		DebugLog("[OSVR Rendering Plugin] OnGraphicsDeviceEvent(AfterReset).\n");
 		break;
 	}
 	};
 
-	DebugLog("Current device type is ");
-	std::string s = std::to_string(currentDeviceType);
-	char const *pchar = s.c_str();  //use char const* as target type
-	DebugLog(pchar);
 #if SUPPORT_OPENGL
 	if (currentDeviceType == kUnityGfxRendererOpenGL)
 		DoEventGraphicsDeviceOpenGL(eventType);
@@ -273,12 +238,19 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRenderManagerFromUnity(OSVR_ClientContext context) {
+	DoEventGraphicsDeviceD3D11(kUnityGfxDeviceEventInitialize);
 	clientContext = context;
 	//@todo Get the display config file from the display path
 	//std::string displayConfigJsonFileName = "";// clientContext.getStringParameter("/display");
 	//use local display config for now until we can pass in OSVR_ClientContext
 	std::string displayConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_display_config.json";
 	//std::string displayConfigJsonFileName = "C:/Users/Sensics/OSVR/DirectRender/test_display_config.json";
+	/*const char *path = "/display";
+	size_t length;
+	osvrClientGetStringParameterLength(clientContext, path, &length);
+	char *displayDescription = (char* )malloc(length);
+	osvrClientGetStringParameter(clientContext, path, displayDescription, length);
+	std::string displayConfigJsonFileName = path;*/
 	std::string pipelineConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_rendermanager_config.json";
 
 	render = osvr::renderkit::createRenderManager(context, displayConfigJsonFileName,
@@ -348,39 +320,43 @@ bool SetupRendering(osvr::renderkit::GraphicsLibrary library)
 #endif
 }
 
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEyeWidth()
+extern "C" osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetViewport(int eye)
 {
-	return eyeWidth;
-}
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEyeHeight()
-{
-	return eyeHeight;
+	return renderInfo[eye].viewport;
 }
 
 //Shutdown
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API Shutdown()
 {
 	DebugLog("[OSVR Rendering Plugin] Shutdown.");
+	switch (s_DeviceType)
+	{
+	case kUnityGfxRendererD3D11:
 
-	osvrClientUpdate(clientContext);
-	renderInfo = render->GetRenderInfo();
-
-#if SUPPORT_OPENGL
-	// Clean up after ourselves.
-	glDeleteFramebuffers(1, &frameBuffer);
-	for (size_t i = 0; i < renderInfo.size(); i++) {
-		glDeleteTextures(1, &renderBuffers[i].OpenGL->colorBufferName);
-		delete renderBuffers[i].OpenGL;
-		glDeleteRenderbuffers(1, &depthBuffers[i]);
-	}
-#endif
-#if SUPPORT_D3D11
-	//@todo cleanup d3d11
-#endif
-	DebugLog("[OSVR Rendering Plugin] delete render now.");
-
-	// Close the Renderer interface cleanly.
-	delete render;
+		for (size_t i = 0; i < renderInfo.size(); i++) {
+			SAFE_RELEASE(depthStencilViews[i]);
+			SAFE_RELEASE(depthStencilTextures[i]);
+			SAFE_RELEASE(renderBuffers[i].D3D11->colorBuffer);
+			SAFE_RELEASE(renderBuffers[i].D3D11->colorBufferView);			
+		}
+		renderBuffers.clear();
+		SAFE_RELEASE(depthStencilState);
+		rightEyeTexturePtr = nullptr;
+		leftEyeTexturePtr = nullptr;
+		break;
+	case kUnityGfxRendererOpenGL:
+		// Clean up after ourselves.
+		glDeleteFramebuffers(1, &frameBuffer);
+		for (size_t i = 0; i < renderInfo.size(); i++) {
+			glDeleteTextures(1, &renderBuffers[i].OpenGL->colorBufferName);
+			delete renderBuffers[i].OpenGL;
+			glDeleteRenderbuffers(1, &depthBuffers[i]);
+		}
+		break;
+	default:
+		DebugLog("Device type not supported.");
+		break;
+	}	
 }
 
 void ConstructBuffersOpenGL(void *texturePtr, int eye)
@@ -586,14 +562,12 @@ int ConstructBuffersD3D11(void *texturePtr, int eye)
 	}
 	depthStencilViews.push_back(depthStencilView);
 
-	if (eye == 1)//do this once after the last eye 
-	{
-		CreateDepthStencilState();
-	}
+	CreateDepthStencilState(eye);
+	
 	return hr;
 }
 
-int CreateDepthStencilState()
+int CreateDepthStencilState(int eye)
 {
 	osvrClientUpdate(clientContext);
 	renderInfo = render->GetRenderInfo();
@@ -602,11 +576,11 @@ int CreateDepthStencilState()
 	// Describe how depth and stencil tests should be performed.
 	depthStencilDescription = { 0 };
 
-	depthStencilDescription.DepthEnable = true;
+	depthStencilDescription.DepthEnable = false;
 	depthStencilDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	depthStencilDescription.DepthFunc = D3D11_COMPARISON_LESS;
 
-	depthStencilDescription.StencilEnable = true;
+	depthStencilDescription.StencilEnable = false;
 	depthStencilDescription.StencilReadMask = 0xFF;
 	depthStencilDescription.StencilWriteMask = 0xFF;
 
@@ -622,7 +596,7 @@ int CreateDepthStencilState()
 	depthStencilDescription.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
 	depthStencilDescription.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 
-	hr = renderInfo[0].library.D3D11->device->CreateDepthStencilState(
+	hr = renderInfo[eye].library.D3D11->device->CreateDepthStencilState(
 		&depthStencilDescription,
 		&depthStencilState);
 	if (FAILED(hr)) {
@@ -633,6 +607,7 @@ int CreateDepthStencilState()
 	return hr;
 }
 
+/**
 static void FillTextureFromCode(int width, int height, int stride, unsigned char* dst)
 {
 	srand(time(NULL));
@@ -666,6 +641,7 @@ static void FillTextureFromCode(int width, int height, int stride, unsigned char
 		dst += stride;
 	}
 }
+**/
 
 // Callbacks to draw things in world space, left-hand space, and right-hand
 // space.
@@ -676,41 +652,14 @@ void RenderViewD3D11(
 	int eyeIndex
 	)
 {
-	//DebugLog("RenderView");
+	DebugLog("Renderd3d11");
 	auto context = renderInfo.library.D3D11->context;
-	auto device = renderInfo.library.D3D11->device;
-	float projectionD3D[16];
-	float viewD3D[16];
-	XMMATRIX identity = XMMatrixIdentity();
-	float leftHandWorld[16];
-	float rightHandWorld[16];
-
 	// Set up to render to the textures for this eye
 	context->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
 
-	// Set up the viewport we're going to draw into.
-	CD3D11_VIEWPORT viewport(
-		static_cast<float>(renderInfo.viewport.left),
-		static_cast<float>(renderInfo.viewport.lower),
-		static_cast<float>(renderInfo.viewport.width),
-		static_cast<float>(renderInfo.viewport.height));
-	context->RSSetViewports(1, &viewport);
-
-	// Make a grey background
-	FLOAT colorRgba[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
-	context->ClearRenderTargetView(renderTargetView, colorRgba);
-	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
-
-	osvr::renderkit::OSVR_PoseState_to_D3D(viewD3D, renderInfo.pose);
-	osvr::renderkit::OSVR_Projection_to_D3D(projectionD3D, renderInfo.projection);
-
-	XMMATRIX _projectionD3D(projectionD3D), _viewD3D(viewD3D);
-
-	ID3D11DeviceContext* ctx = NULL;
-	renderInfo.library.D3D11->device->GetImmediateContext(&ctx);
 	ID3D11Texture2D* d3dtex = eyeIndex == 0 ? reinterpret_cast<ID3D11Texture2D*>(leftEyeTexturePtr) : reinterpret_cast<ID3D11Texture2D*>(rightEyeTexturePtr);
-	ctx->CopyResource(renderBuffers[eyeIndex].D3D11->colorBuffer, d3dtex);
-
+	context->CopyResource(renderBuffers[eyeIndex].D3D11->colorBuffer, d3dtex);
+	DebugLog("copied");
 }
 
 // Render the world from the specified point of view.
@@ -776,10 +725,12 @@ void RenderViewOpenGL(
 	glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &texWidth);
 	glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &texHeight);
 
-	unsigned char* data = new unsigned char[texWidth*texHeight * 4];
-	FillTextureFromCode(texWidth, texHeight, texHeight * 4, data);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texWidth, texHeight, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	delete[] data;
+	GLuint glTex = eyeIndex == 0 ? (GLuint)leftEyeTexturePtr : (GLuint)rightEyeTexturePtr;
+
+	//unsigned char* data = new unsigned char[texWidth*texHeight * 4];
+	//FillTextureFromCode(texWidth, texHeight, texHeight * 4, data);
+	//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texWidth, texHeight, GL_RGBA, GL_UNSIGNED_BYTE, (GLuint));
+	//delete[] data;
 	// Draw a cube with a 5-meter radius as the room we are floating in.
 	//draw_cube(5.0);
 }
@@ -795,9 +746,8 @@ void RenderViewOpenGL(
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
 	if (s_DeviceType == -1)
 		return OSVR_RETURN_FAILURE;
-
 	
-	DebugLog("SetColorBufferFromUnity");
+	DebugLog("[OSVR Renderingg Plugin] SetColorBufferFromUnity");
 	switch (s_DeviceType)
 	{
 	case kUnityGfxRendererD3D11:
@@ -857,7 +807,8 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 			}
 
 			// Send the rendered results to the screen
-			if (!render->PresentRenderBuffers(renderBuffers)) {
+			// Flip Y because Unity RenderTextures are upside-down on D3D11
+			if (!render->PresentRenderBuffers(renderBuffers, true)) {
 				DebugLog("[OSVR Rendering Plugin] PresentRenderBuffers() returned false, maybe because it was asked to quit");
 			}
 		}
@@ -896,116 +847,6 @@ extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRen
 	return OnRenderEvent;
 }
 
-//draw a simple cube scene
-static GLfloat matspec[4] = { 0.5, 0.5, 0.5, 0.0 };
-static float red_col[] = { 1.0, 0.0, 0.0 };
-static float grn_col[] = { 0.0, 1.0, 0.0 };
-static float blu_col[] = { 0.0, 0.0, 1.0 };
-static float yel_col[] = { 1.0, 1.0, 0.0 };
-static float lightblu_col[] = { 0.0, 1.0, 1.0 };
-static float pur_col[] = { 1.0, 0.0, 1.0 };
-void draw_cube(double radius)
-{
-	GLfloat matspec[4] = { 0.5, 0.5, 0.5, 0.0 };
-	glPushMatrix();
-	glScaled(radius, radius, radius);
-	glMaterialfv(GL_FRONT, GL_SPECULAR, matspec);
-	glMaterialf(GL_FRONT, GL_SHININESS, 64.0);
-	glBegin(GL_POLYGON);
-	glColor3fv(lightblu_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, lightblu_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, lightblu_col);
-	glNormal3f(0.0, 0.0, -1.0);
-	glVertex3f(1.0, 1.0, -1.0);
-	glVertex3f(1.0, -1.0, -1.0);
-	glVertex3f(-1.0, -1.0, -1.0);
-	glVertex3f(-1.0, 1.0, -1.0);
-	glEnd();
-	glBegin(GL_POLYGON);
-	glColor3fv(blu_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blu_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, blu_col);
-	glNormal3f(0.0, 0.0, 1.0);
-	glVertex3f(-1.0, 1.0, 1.0);
-	glVertex3f(-1.0, -1.0, 1.0);
-	glVertex3f(1.0, -1.0, 1.0);
-	glVertex3f(1.0, 1.0, 1.0);
-	glEnd();
-	glBegin(GL_POLYGON);
-	glColor3fv(yel_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, yel_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, yel_col);
-	glNormal3f(0.0, -1.0, 0.0);
-	glVertex3f(1.0, -1.0, 1.0);
-	glVertex3f(-1.0, -1.0, 1.0);
-	glVertex3f(-1.0, -1.0, -1.0);
-	glVertex3f(1.0, -1.0, -1.0);
-	glEnd();
-	glBegin(GL_POLYGON);
-	glColor3fv(grn_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, grn_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, grn_col);
-	glNormal3f(0.0, 1.0, 0.0);
-	glVertex3f(1.0, 1.0, 1.0);
-	glVertex3f(1.0, 1.0, -1.0);
-	glVertex3f(-1.0, 1.0, -1.0);
-	glVertex3f(-1.0, 1.0, 1.0);
-	glEnd();
-	glBegin(GL_POLYGON);
-	glColor3fv(pur_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, pur_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, pur_col);
-	glNormal3f(-1.0, 0.0, 0.0);
-	glVertex3f(-1.0, 1.0, 1.0);
-	glVertex3f(-1.0, 1.0, -1.0);
-	glVertex3f(-1.0, -1.0, -1.0);
-	glVertex3f(-1.0, -1.0, 1.0);
-	glEnd();
-	glBegin(GL_POLYGON);
-	glColor3fv(red_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, red_col);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, red_col);
-	glNormal3f(1.0, 0.0, 0.0);
-	glVertex3f(1.0, -1.0, 1.0);
-	glVertex3f(1.0, -1.0, -1.0);
-	glVertex3f(1.0, 1.0, -1.0);
-	glVertex3f(1.0, 1.0, 1.0);
-	glEnd();
-	glPopMatrix();
-}
-
-// -------------------------------------------------------------------
-// Shared code
-
-#if SUPPORT_D3D11
-typedef std::vector<unsigned char> Buffer;
-bool LoadFileIntoBuffer(const std::string& fileName, Buffer& data)
-{
-	FILE* fp;
-	fopen_s(&fp, fileName.c_str(), "rb");
-	if (fp)
-	{
-		fseek(fp, 0, SEEK_END);
-		int size = ftell(fp);
-		fseek(fp, 0, SEEK_SET);
-		data.resize(size);
-
-		fread(&data[0], size, 1, fp);
-
-		fclose(fp);
-
-		return true;
-	}
-	else
-	{
-		//std::string errorMessage = "Failed to find ";
-		//errorMessage += fileName;
-		DebugLog("Failed to find file.");
-		return false;
-	}
-}
-#endif
-
 
 // -------------------------------------------------------------------
 //  Direct3D 11 setup/teardown code
@@ -1013,116 +854,12 @@ bool LoadFileIntoBuffer(const std::string& fileName, Buffer& data)
 
 #if SUPPORT_D3D11
 
-static ID3D11Device* g_D3D11Device = NULL;
-static ID3D11Buffer* g_D3D11VB = NULL; // vertex buffer
-static ID3D11Buffer* g_D3D11CB = NULL; // constant buffer
-static ID3D11VertexShader* g_D3D11VertexShader = NULL;
-static ID3D11PixelShader* g_D3D11PixelShader = NULL;
-static ID3D11InputLayout* g_D3D11InputLayout = NULL;
-static ID3D11RasterizerState* g_D3D11RasterState = NULL;
-static ID3D11BlendState* g_D3D11BlendState = NULL;
-static ID3D11DepthStencilState* g_D3D11DepthState = NULL;
-
-static D3D11_INPUT_ELEMENT_DESC s_DX11InputElementDesc[] = {
-	{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	{ "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-};
-
-static bool EnsureD3D11ResourcesAreCreated()
-{
-	if (g_D3D11VertexShader)
-		return true;
-
-	// D3D11 has to load resources. Wait for Unity to provide the streaming assets path first.
-	if (s_UnityStreamingAssetsPath.empty())
-		return false;
-
-	D3D11_BUFFER_DESC desc;
-	memset(&desc, 0, sizeof(desc));
-
-	// vertex buffer
-	desc.Usage = D3D11_USAGE_DEFAULT;
-	desc.ByteWidth = 1024;
-	desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	g_D3D11Device->CreateBuffer(&desc, NULL, &g_D3D11VB);
-
-	// constant buffer
-	desc.Usage = D3D11_USAGE_DEFAULT;
-	desc.ByteWidth = 64; // hold 1 matrix
-	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	desc.CPUAccessFlags = 0;
-	g_D3D11Device->CreateBuffer(&desc, NULL, &g_D3D11CB);
-
-
-	HRESULT hr = -1;
-	Buffer vertexShader;
-	Buffer pixelShader;
-	std::string vertexShaderPath(s_UnityStreamingAssetsPath);
-	vertexShaderPath += "/Shaders/DX11_9_1/SimpleVertexShader.cso";
-	std::string fragmentShaderPath(s_UnityStreamingAssetsPath);
-	fragmentShaderPath += "/Shaders/DX11_9_1/SimplePixelShader.cso";
-	LoadFileIntoBuffer(vertexShaderPath, vertexShader);
-	LoadFileIntoBuffer(fragmentShaderPath, pixelShader);
-
-	if (vertexShader.size() > 0 && pixelShader.size() > 0)
-	{
-		hr = g_D3D11Device->CreateVertexShader(&vertexShader[0], vertexShader.size(), nullptr, &g_D3D11VertexShader);
-		if (FAILED(hr)) DebugLog("Failed to create vertex shader.\n");
-		hr = g_D3D11Device->CreatePixelShader(&pixelShader[0], pixelShader.size(), nullptr, &g_D3D11PixelShader);
-		if (FAILED(hr)) DebugLog("Failed to create pixel shader.\n");
-	}
-	else
-	{
-		DebugLog("Failed to load vertex or pixel shader.\n");
-	}
-	// input layout
-	if (g_D3D11VertexShader && vertexShader.size() > 0)
-	{
-		g_D3D11Device->CreateInputLayout(s_DX11InputElementDesc, 2, &vertexShader[0], vertexShader.size(), &g_D3D11InputLayout);
-	}
-
-	// render states
-	D3D11_RASTERIZER_DESC rsdesc;
-	memset(&rsdesc, 0, sizeof(rsdesc));
-	rsdesc.FillMode = D3D11_FILL_SOLID;
-	rsdesc.CullMode = D3D11_CULL_NONE;
-	rsdesc.DepthClipEnable = TRUE;
-	g_D3D11Device->CreateRasterizerState(&rsdesc, &g_D3D11RasterState);
-
-	D3D11_DEPTH_STENCIL_DESC dsdesc;
-	memset(&dsdesc, 0, sizeof(dsdesc));
-	dsdesc.DepthEnable = TRUE;
-	dsdesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	dsdesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
-	g_D3D11Device->CreateDepthStencilState(&dsdesc, &g_D3D11DepthState);
-
-	D3D11_BLEND_DESC bdesc;
-	memset(&bdesc, 0, sizeof(bdesc));
-	bdesc.RenderTarget[0].BlendEnable = FALSE;
-	bdesc.RenderTarget[0].RenderTargetWriteMask = 0xF;
-	g_D3D11Device->CreateBlendState(&bdesc, &g_D3D11BlendState);
-
-	return true;
-}
-
-static void ReleaseD3D11Resources()
-{
-	SAFE_RELEASE(g_D3D11VB);
-	SAFE_RELEASE(g_D3D11CB);
-	SAFE_RELEASE(g_D3D11VertexShader);
-	SAFE_RELEASE(g_D3D11PixelShader);
-	SAFE_RELEASE(g_D3D11InputLayout);
-	SAFE_RELEASE(g_D3D11RasterState);
-	SAFE_RELEASE(g_D3D11BlendState);
-	SAFE_RELEASE(g_D3D11DepthState);
-}
 
 static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 {
 	if (eventType == kUnityGfxDeviceEventInitialize)
 	{
 		IUnityGraphicsD3D11* d3d11 = s_UnityInterfaces->Get<IUnityGraphicsD3D11>();
-		g_D3D11Device = d3d11->GetDevice();
 
 		// Put the device and context into a structure to let RenderManager
 		// know to use this one rather than creating its own.
@@ -1132,12 +869,12 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 		library.D3D11->device->GetImmediateContext(&ctx);
 		library.D3D11->context = ctx;
 		DebugLog("[OSVR Rendering Plugin] Passed Unity device/context to RenderManager library.");
-
-		EnsureD3D11ResourcesAreCreated();
 	}
 	else if (eventType == kUnityGfxDeviceEventShutdown)
 	{
-		ReleaseD3D11Resources();
+		// Close the Renderer interface cleanly.
+		DebugLog("[OSVR Rendering Plugin] Close the Renderer interface cleanly..");
+		delete render;
 	}
 }
 
@@ -1150,204 +887,10 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 
 
 #if SUPPORT_D3D12
-const UINT kNodeMask = 0;
-
-static IUnityGraphicsD3D12* s_D3D12 = NULL;
-static ID3D12Resource* s_D3D12Upload = NULL;
-
-static ID3D12CommandAllocator* s_D3D12CmdAlloc = NULL;
-static ID3D12GraphicsCommandList* s_D3D12CmdList = NULL;
-
-static ID3D12Fence* s_D3D12Fence = NULL;
-static UINT64 s_D3D12FenceValue = 1;
-static HANDLE s_D3D12Event = NULL;
-
-ID3D12Resource* GetD3D12UploadResource(UINT64 size)
-{
-	if (s_D3D12Upload)
-	{
-		D3D12_RESOURCE_DESC desc = s_D3D12Upload->GetDesc();
-		if (desc.Width == size)
-			return s_D3D12Upload;
-		else
-			s_D3D12Upload->Release();
-	}
-
-	// Texture upload buffer
-	D3D12_HEAP_PROPERTIES heapProps = {};
-	heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
-	heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-	heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-	heapProps.CreationNodeMask = kNodeMask;
-	heapProps.VisibleNodeMask = kNodeMask;
-
-	D3D12_RESOURCE_DESC heapDesc = {};
-	heapDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	heapDesc.Alignment = 0;
-	heapDesc.Width = size;
-	heapDesc.Height = 1;
-	heapDesc.DepthOrArraySize = 1;
-	heapDesc.MipLevels = 1;
-	heapDesc.Format = DXGI_FORMAT_UNKNOWN;
-	heapDesc.SampleDesc.Count = 1;
-	heapDesc.SampleDesc.Quality = 0;
-	heapDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	heapDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-	ID3D12Device* device = s_D3D12->GetDevice();
-	HRESULT hr = device->CreateCommittedResource(
-		&heapProps,
-		D3D12_HEAP_FLAG_NONE,
-		&heapDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&s_D3D12Upload));
-	if (FAILED(hr)) DebugLog("Failed to CreateCommittedResource.\n");
-
-	return s_D3D12Upload;
-}
-
-static void CreateD3D12Resources()
-{
-	ID3D12Device* device = s_D3D12->GetDevice();
-
-	HRESULT hr = E_FAIL;
-
-	// Command list
-	hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&s_D3D12CmdAlloc));
-	if (FAILED(hr)) DebugLog("Failed to CreateCommandAllocator.\n");
-	hr = device->CreateCommandList(kNodeMask, D3D12_COMMAND_LIST_TYPE_DIRECT, s_D3D12CmdAlloc, nullptr, IID_PPV_ARGS(&s_D3D12CmdList));
-	if (FAILED(hr)) DebugLog("Failed to CreateCommandList.\n");
-	s_D3D12CmdList->Close();
-
-	// Fence
-	s_D3D12FenceValue = 1;
-	device->CreateFence(s_D3D12FenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&s_D3D12Fence));
-	if (FAILED(hr)) DebugLog("Failed to CreateFence.\n");
-	s_D3D12Event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-}
-
-static void ReleaseD3D12Resources()
-{
-	SAFE_RELEASE(s_D3D12Upload);
-
-	if (s_D3D12Event)
-		CloseHandle(s_D3D12Event);
-
-	SAFE_RELEASE(s_D3D12Fence);
-	SAFE_RELEASE(s_D3D12CmdList);
-	SAFE_RELEASE(s_D3D12CmdAlloc);
-}
-
-static void DoEventGraphicsDeviceD3D12(UnityGfxDeviceEventType eventType)
-{
-	if (eventType == kUnityGfxDeviceEventInitialize)
-	{
-		s_D3D12 = s_UnityInterfaces->Get<IUnityGraphicsD3D12>();
-		CreateD3D12Resources();
-	}
-	else if (eventType == kUnityGfxDeviceEventShutdown)
-	{
-		ReleaseD3D12Resources();
-	}
-}
 #endif // #if SUPPORT_D3D12
 
-
-
 // -------------------------------------------------------------------
-// GLES setup/teardown code
-
-
-#if SUPPORT_OPENGLES
-
-#define VPROG_SRC(ver, attr, varying)								\
-	ver																\
-	attr " highp vec3 pos;\n"										\
-	attr " lowp vec4 color;\n"										\
-	"\n"															\
-	varying " lowp vec4 ocolor;\n"									\
-	"\n"															\
-	"uniform highp mat4 worldMatrix;\n"								\
-	"uniform highp mat4 projMatrix;\n"								\
-	"\n"															\
-	"void main()\n"													\
-	"{\n"															\
-	"	gl_Position = (projMatrix * worldMatrix) * vec4(pos,1);\n"	\
-	"	ocolor = color;\n"											\
-	"}\n"															\
-
-static const char* kGlesVProgTextGLES2 = VPROG_SRC("\n", "attribute", "varying");
-static const char* kGlesVProgTextGLES3 = VPROG_SRC("#version 300 es\n", "in", "out");
-
-#undef VPROG_SRC
-
-#define FSHADER_SRC(ver, varying, outDecl, outVar)	\
-	ver												\
-	outDecl											\
-	varying " lowp vec4 ocolor;\n"					\
-	"\n"											\
-	"void main()\n"									\
-	"{\n"											\
-	"	" outVar " = ocolor;\n"						\
-	"}\n"											\
-
-static const char* kGlesFShaderTextGLES2 = FSHADER_SRC("\n", "varying", "\n", "gl_FragColor");
-static const char* kGlesFShaderTextGLES3 = FSHADER_SRC("#version 300 es\n", "in", "out lowp vec4 fragColor;\n", "fragColor");
-
-#undef FSHADER_SRC
-
-static GLuint	g_VProg;
-static GLuint	g_FShader;
-static GLuint	g_Program;
-static int		g_WorldMatrixUniformIndex;
-static int		g_ProjMatrixUniformIndex;
-
-static GLuint CreateShader(GLenum type, const char* text)
-{
-	GLuint ret = glCreateShader(type);
-	glShaderSource(ret, 1, &text, NULL);
-	glCompileShader(ret);
-
-	return ret;
-}
-
-static void DoEventGraphicsDeviceGLES(UnityGfxDeviceEventType eventType)
-{
-	if (eventType == kUnityGfxDeviceEventInitialize)
-	{
-		if (s_DeviceType == kUnityGfxRendererOpenGLES20)
-		{
-			::printf("OpenGLES 2.0 device\n");
-			g_VProg = CreateShader(GL_VERTEX_SHADER, kGlesVProgTextGLES2);
-			g_FShader = CreateShader(GL_FRAGMENT_SHADER, kGlesFShaderTextGLES2);
-		}
-		else if (s_DeviceType == kUnityGfxRendererOpenGLES30)
-		{
-			::printf("OpenGLES 3.0 device\n");
-			g_VProg = CreateShader(GL_VERTEX_SHADER, kGlesVProgTextGLES3);
-			g_FShader = CreateShader(GL_FRAGMENT_SHADER, kGlesFShaderTextGLES3);
-		}
-
-		g_Program = glCreateProgram();
-		glBindAttribLocation(g_Program, 1, "pos");
-		glBindAttribLocation(g_Program, 2, "color");
-		glAttachShader(g_Program, g_VProg);
-		glAttachShader(g_Program, g_FShader);
-		glLinkProgram(g_Program);
-
-		g_WorldMatrixUniformIndex = glGetUniformLocation(g_Program, "worldMatrix");
-		g_ProjMatrixUniformIndex = glGetUniformLocation(g_Program, "projMatrix");
-	}
-	else if (eventType == kUnityGfxDeviceEventShutdown)
-	{
-
-	}
-}
-#endif
-
-// -------------------------------------------------------------------
-// GLES setup/teardown code
+// OpenGL setup/teardown code
 
 
 #if SUPPORT_OPENGL
@@ -1371,72 +914,4 @@ static void DoEventGraphicsDeviceOpenGL(UnityGfxDeviceEventType eventType)
 	}
 }
 #endif
-
-// --------------------------------------------------------------------------
-// SetDefaultGraphicsState
-//
-// Helper function to setup some "sane" graphics state. Rendering state
-// upon call into our plugin can be almost completely arbitrary depending
-// on what was rendered in Unity before.
-// Before calling into the plugin, Unity will set shaders to null,
-// and will unbind most of "current" objects (e.g. VBOs in OpenGL case).
-//
-// Here, we set culling off, lighting off, alpha blend & test off, Z
-// comparison to less equal, and Z writes off.
-
-static void SetDefaultGraphicsState() {
-	DebugLog("[OSVR Rendering Plugin] Set default graphics state");
-
-
-#if SUPPORT_D3D11
-	// D3D11 case
-	if (s_DeviceType == kUnityGfxRendererD3D11)
-	{
-		ID3D11DeviceContext* ctx = NULL;
-		g_D3D11Device->GetImmediateContext(&ctx);
-		ctx->OMSetDepthStencilState(g_D3D11DepthState, 0);
-		ctx->RSSetState(g_D3D11RasterState);
-		ctx->OMSetBlendState(g_D3D11BlendState, NULL, 0xFFFFFFFF);
-		ctx->Release();
-	}
-#endif
-
-
-#if SUPPORT_D3D12
-	// D3D12 case
-	if (s_DeviceType == kUnityGfxRendererD3D12)
-	{
-		// Stateless. Nothing to do.
-	}
-#endif
-
-
-#if SUPPORT_OPENGL
-	// OpenGL case
-	if (s_DeviceType == kUnityGfxRendererOpenGL)
-	{
-		glDisable(GL_CULL_FACE);
-		glDisable(GL_LIGHTING);
-		glDisable(GL_BLEND);
-		glDisable(GL_ALPHA_TEST);
-		glDepthFunc(GL_LEQUAL);
-		glEnable(GL_DEPTH_TEST);
-		glDepthMask(GL_FALSE);
-	}
-#endif
-
-
-#if SUPPORT_OPENGLES
-	// OpenGLES case
-	if (s_DeviceType == kUnityGfxRendererOpenGLES20 ||
-		s_DeviceType == kUnityGfxRendererOpenGLES30)
-	{
-		glDisable(GL_CULL_FACE);
-		glDisable(GL_BLEND);
-		glDepthFunc(GL_LEQUAL);
-		glEnable(GL_DEPTH_TEST);
-		glDepthMask(GL_FALSE);
-	}
-#endif
-}
 
