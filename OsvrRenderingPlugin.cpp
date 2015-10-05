@@ -658,14 +658,12 @@ void RenderViewD3D11(
 	int eyeIndex
 	)
 {
-	DebugLog("Renderd3d11");
 	auto context = renderInfo.library.D3D11->context;
 	// Set up to render to the textures for this eye
 	context->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
 
 	ID3D11Texture2D* d3dtex = eyeIndex == 0 ? reinterpret_cast<ID3D11Texture2D*>(leftEyeTexturePtr) : reinterpret_cast<ID3D11Texture2D*>(rightEyeTexturePtr);
 	context->CopyResource(renderBuffers[eyeIndex].D3D11->colorBuffer, d3dtex);
-	DebugLog("copied");
 }
 
 // Render the world from the specified point of view.
