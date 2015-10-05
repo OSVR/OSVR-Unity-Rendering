@@ -7,7 +7,7 @@ EXPORTS
    SetUnityStreamingAssetsPath
    CreateRenderManagerFromUnity
    GetViewport
-   Shutdown
+   GetProjectionMatrix
    SetColorBufferFromUnity
    OnRenderEvent
    LinkDebug
