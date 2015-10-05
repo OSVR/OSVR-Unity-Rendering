@@ -329,8 +329,13 @@ extern "C" osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_EXPORT UNIT
 	return renderInfo[eye].viewport;
 }
 
+extern "C" osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetProjectionMatrix(int eye)
+{
+	return renderInfo[eye].projection;
+}
+
 //Shutdown
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API Shutdown()
+void Shutdown()
 {
 	DebugLog("[OSVR Rendering Plugin] Shutdown.");
 	switch (s_DeviceType)
