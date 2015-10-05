@@ -792,17 +792,19 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 	// Update the system state so the GetRenderInfo will have up-to-date
 	// information about the tracker state.  Then get the RenderInfo
 	// @todo Check that we won't need to adjust any of our buffers.
-	osvrClientUpdate(clientContext);
-	renderInfo = render->GetRenderInfo();
+	
 
 	// @todo Define more events that we might want to send
 	// BeginFrame, EndFrame, DrawUILayer?
 	// Call the Render loop
 	switch (eventID) {
 	case kOsvrEventID_Render:
+		osvrClientUpdate(clientContext);
+		renderInfo = render->GetRenderInfo();
+
 		if (s_DeviceType == kUnityGfxRendererD3D11)
 		{
-			//ClearBuffers();
+			
 			// Render into each buffer using the specified information.
 			for (size_t i = 0; i < renderInfo.size(); i++) {
 				renderInfo[i].library.D3D11->context->OMSetDepthStencilState(depthStencilState, 1);
@@ -838,6 +840,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 			}
 
 		}
+		break;
+	case kOsvrEventID_Shutdown:
+		Shutdown();
 		break;
 	default:
 		break;
