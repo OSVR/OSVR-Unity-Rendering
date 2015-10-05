@@ -337,16 +337,18 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API Shutdown()
 	{
 	case kUnityGfxRendererD3D11:
 
-		for (size_t i = 0; i < renderInfo.size(); i++) {
+		/*for (size_t i = 0; i < renderInfo.size(); i++) {
 			SAFE_RELEASE(depthStencilViews[i]);
 			SAFE_RELEASE(depthStencilTextures[i]);
 			SAFE_RELEASE(renderBuffers[i].D3D11->colorBuffer);
 			SAFE_RELEASE(renderBuffers[i].D3D11->colorBufferView);			
 		}
 		renderBuffers.clear();
-		SAFE_RELEASE(depthStencilState);
+		SAFE_RELEASE(depthStencilState);*/
 		rightEyeTexturePtr = nullptr;
 		leftEyeTexturePtr = nullptr;
+		delete render;
+		DebugLog("[OSVR Rendering Plugin] Shut it down.");
 		break;
 	case kUnityGfxRendererOpenGL:
 		// Clean up after ourselves.
