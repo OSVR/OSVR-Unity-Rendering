@@ -120,7 +120,11 @@ bool SetupRendering(osvr::renderkit::GraphicsLibrary library);
 
 // RenderEvents
 // If we ever decide to add more events, here's the place for it.
-enum RenderEvents { kOsvrEventID_Render = 0 };
+enum RenderEvents 
+{ 
+	kOsvrEventID_Render = 0,
+	kOsvrEventID_Shutdown = 1
+};
 
 // --------------------------------------------------------------------------
 // SetTimeFromUnity. Would probably be passed Time.time:
