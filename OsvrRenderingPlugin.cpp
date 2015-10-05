@@ -334,6 +334,11 @@ extern "C" osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_EXPORT UNITY_I
 	return renderInfo[eye].projection;
 }
 
+extern "C" OSVR_Pose3 UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEyePose(int eye)
+{
+	return renderInfo[eye].pose;
+}
+
 //Shutdown
 void Shutdown()
 {
