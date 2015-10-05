@@ -8,6 +8,7 @@ EXPORTS
    CreateRenderManagerFromUnity
    GetViewport
    GetProjectionMatrix
+   GetEyePose
    SetColorBufferFromUnity
    OnRenderEvent
    LinkDebug
