@@ -280,7 +280,6 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 
 	// Do a call to get the information we need to construct our
 	// color and depth render-to-texture buffers.
-	osvrClientUpdate(clientContext);
 	renderInfo = render->GetRenderInfo();
 	for (size_t i = 0; i < renderInfo.size(); i++) {
 		// Determine the appropriate size for the frame buffer to be used for
@@ -471,7 +470,6 @@ void ConstructBuffersOpenGL(void *texturePtr, int eye)
 int ConstructBuffersD3D11(void *texturePtr, int eye)
 {
 	DebugLog("[OSVR Rendering Plugin] ConstructBuffersD3D11");
-	osvrClientUpdate(clientContext);
 	renderInfo = render->GetRenderInfo();
 	HRESULT hr;
 	// The color buffer for this eye.  We need to put this into
@@ -585,7 +583,6 @@ int ConstructBuffersD3D11(void *texturePtr, int eye)
 
 int CreateDepthStencilState(int eye)
 {
-	osvrClientUpdate(clientContext);
 	renderInfo = render->GetRenderInfo();
 	HRESULT hr;
 	// Create depth stencil state.
@@ -799,17 +796,11 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 	if (s_DeviceType == -1)
 		return;
 
-	// Update the system state so the GetRenderInfo will have up-to-date
-	// information about the tracker state.  Then get the RenderInfo
-	// @todo Check that we won't need to adjust any of our buffers.
-	
-
 	// @todo Define more events that we might want to send
 	// BeginFrame, EndFrame, DrawUILayer?
 	// Call the Render loop
 	switch (eventID) {
 	case kOsvrEventID_Render:
-		osvrClientUpdate(clientContext);
 		renderInfo = render->GetRenderInfo();
 
 		if (s_DeviceType == kUnityGfxRendererD3D11)
@@ -835,7 +826,6 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 			// Update the system state so the GetRenderInfo will have up-to-date
 			// information about the tracker state.  Then get the RenderInfo
 			// @todo Check that we won't need to adjust any of our buffers.
-			osvrClientUpdate(clientContext);
 			renderInfo = render->GetRenderInfo();
 			// Render into each buffer using the specified information.
 			for (size_t i = 0; i < renderInfo.size(); i++) {
