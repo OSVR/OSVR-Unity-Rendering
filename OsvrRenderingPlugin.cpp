@@ -325,16 +325,19 @@ bool SetupRendering(osvr::renderkit::GraphicsLibrary library)
 
 extern "C" osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetViewport(int eye)
 {
+	renderInfo = render->GetRenderInfo();
 	return renderInfo[eye].viewport;
 }
 
 extern "C" osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetProjectionMatrix(int eye)
 {
+	renderInfo = render->GetRenderInfo();
 	return renderInfo[eye].projection;
 }
 
 extern "C" OSVR_Pose3 UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEyePose(int eye)
 {
+	renderInfo = render->GetRenderInfo();
 	return renderInfo[eye].pose;
 }
 
