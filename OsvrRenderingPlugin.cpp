@@ -377,7 +377,7 @@ void Shutdown()
 	}	
 }
 
-void ConstructBuffersOpenGL(void *texturePtr, int eye)
+void ConstructBuffersOpenGL(int eye)
 {
 	//Init glew
 	glewExperimental = true;
@@ -401,7 +401,7 @@ void ConstructBuffersOpenGL(void *texturePtr, int eye)
 	// to fill in the OpenGL portion.
 	if (eye == 0) //left eye
 	{
-		leftEyeColorBuffer = (GLuint)(size_t)texturePtr;
+		leftEyeColorBuffer = 0;
 		glGenRenderbuffers(1, &leftEyeColorBuffer);
 		osvr::renderkit::RenderBuffer rb;
 		rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
@@ -420,7 +420,7 @@ void ConstructBuffersOpenGL(void *texturePtr, int eye)
 	}
 	else //right eye
 	{
-		rightEyeColorBuffer = (GLuint)(size_t)texturePtr;
+		rightEyeColorBuffer = 0;
 		glGenRenderbuffers(1, &rightEyeColorBuffer);
 		osvr::renderkit::RenderBuffer rb;
 		rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
@@ -470,7 +470,7 @@ void ConstructBuffersOpenGL(void *texturePtr, int eye)
 		depthBuffers.push_back(rightEyeDepthBuffer);
 	}
 }
-int ConstructBuffersD3D11(void *texturePtr, int eye)
+int ConstructBuffersD3D11(int eye)
 {
 	DebugLog("[OSVR Rendering Plugin] ConstructBuffersD3D11");
 	renderInfo = render->GetRenderInfo();
@@ -768,18 +768,18 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetColorBufferFromUnit
 		if (eye == 0)
 		{
 			leftEyeTexturePtr = texturePtr;			
-			ConstructBuffersD3D11(leftEyeTexturePtr, eye);
+			ConstructBuffersD3D11(eye);
 		}
 		else
 		{
 			rightEyeTexturePtr = texturePtr;
-			ConstructBuffersD3D11(rightEyeTexturePtr, eye);
+			ConstructBuffersD3D11(eye);
 		}
 		
 		break;
 	case kUnityGfxRendererOpenGL:
 		//texturePtr points to "name"
-		ConstructBuffersOpenGL(texturePtr, eye);
+		ConstructBuffersOpenGL(eye);
 		break;
 	default:
 		DebugLog("Device type not supported.");
