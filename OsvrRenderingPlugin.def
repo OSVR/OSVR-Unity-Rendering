@@ -3,7 +3,6 @@ LIBRARY
 EXPORTS
    UnityPluginLoad
    UnityPluginUnload
-   SetTimeFromUnity
    SetUnityStreamingAssetsPath
    CreateRenderManagerFromUnity
    GetViewport

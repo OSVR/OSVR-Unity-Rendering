@@ -34,9 +34,9 @@ using namespace DirectX;
 // when we open the display.
 #include <GL/glew.h>
 #include <GL/gl.h>
-
 #include "osvr/RenderKit/GraphicsLibraryOpenGL.h"
 #include "osvr/RenderKit/RenderKitGraphicsTransforms.h"
+
 #else
 #include <OpenGL/OpenGL.h>
 #endif
@@ -76,12 +76,9 @@ static IUnityGraphics* s_Graphics = nullptr;
 static UnityGfxRenderer s_DeviceType = kUnityGfxRendererNull;
 
 static osvr::renderkit::RenderManager *render;
-static float g_Time;
 static OSVR_ClientContext clientContext;
 static std::vector<osvr::renderkit::RenderBuffer> renderBuffers;
 static std::vector<osvr::renderkit::RenderInfo> renderInfo;
-static unsigned int eyeWidth = 0;
-static unsigned int eyeHeight = 0;
 static osvr::renderkit::GraphicsLibrary library;
 static void *leftEyeTexturePtr = nullptr;
 static void *rightEyeTexturePtr = nullptr;
@@ -104,10 +101,8 @@ static D3D11_TEXTURE2D_DESC textureDesc;
 
 //OpenGL vars
 #if SUPPORT_OPENGL
-GLuint frameBuffer;               //< Groups a color buffer and a depth buffer
-GLuint leftEyeColorBuffer;
-GLuint rightEyeColorBuffer;
 std::vector<GLuint> depthBuffers; //< Depth/stencil buffers to render into
+GLuint frameBuffer;
 #endif
 
 // --------------------------------------------------------------------------
@@ -126,15 +121,6 @@ enum RenderEvents
 	kOsvrEventID_Shutdown = 1
 };
 
-// --------------------------------------------------------------------------
-// SetTimeFromUnity. Would probably be passed Time.time:
-// Which is the time in seconds since the start of the game.
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetTimeFromUnity(float t)
-{
-	long seconds = (long)t;
-	int microseconds = t - seconds;
-	g_Time = t;// OSVR_TimeValue{ seconds, microseconds };
-}
 
 // --------------------------------------------------------------------------
 // SetUnityStreamingAssetsPath, an example function we export which is called by one of the scripts.
@@ -247,7 +233,7 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 	//@todo Get the display config file from the display path
 	//std::string displayConfigJsonFileName = "";// clientContext.getStringParameter("/display");
 	//use local display config for now until we can pass in OSVR_ClientContext
-	std::string displayConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_display_config.json";
+	std::string displayConfigJsonFileName = "C:/Users/Greg/Documents/OSVR/DirectRender/test_display_config.json";
 	//std::string displayConfigJsonFileName = "C:/Users/Sensics/OSVR/DirectRender/test_display_config.json";
 	/*const char *path = "/display";
 	size_t length;
@@ -255,7 +241,7 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 	char *displayDescription = (char* )malloc(length);
 	osvrClientGetStringParameter(clientContext, path, displayDescription, length);
 	std::string displayConfigJsonFileName = path;*/
-	std::string pipelineConfigJsonFileName = "C:/Users/DuFF/Documents/OSVR/DirectRender/test_rendermanager_config.json";
+	std::string pipelineConfigJsonFileName = "C:/Users/Greg/Documents/OSVR/DirectRender/test_rendermanager_config.json";
 
 	render = osvr::renderkit::createRenderManager(context, displayConfigJsonFileName,
 		pipelineConfigJsonFileName, library);
@@ -281,12 +267,6 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 	// Do a call to get the information we need to construct our
 	// color and depth render-to-texture buffers.
 	renderInfo = render->GetRenderInfo();
-	for (size_t i = 0; i < renderInfo.size(); i++) {
-		// Determine the appropriate size for the frame buffer to be used for
-		// this eye.
-		eyeWidth = static_cast<int>(renderInfo[i].viewport.width);
-		eyeHeight = static_cast<int>(renderInfo[i].viewport.height);
-	}
 
 	DebugLog("[OSVR Rendering Plugin] Success!");
 	return OSVR_RETURN_SUCCESS;
@@ -388,6 +368,7 @@ void ConstructBuffersOpenGL(int eye)
 	}
 
 	osvrClientUpdate(clientContext);
+	renderInfo = render->GetRenderInfo();
 
 	if (eye == 0)
 	{
@@ -401,7 +382,7 @@ void ConstructBuffersOpenGL(int eye)
 	// to fill in the OpenGL portion.
 	if (eye == 0) //left eye
 	{
-		leftEyeColorBuffer = 0;
+		GLuint leftEyeColorBuffer = 0;
 		glGenRenderbuffers(1, &leftEyeColorBuffer);
 		osvr::renderkit::RenderBuffer rb;
 		rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
@@ -413,14 +394,14 @@ void ConstructBuffersOpenGL(int eye)
 
 		// Give an empty image to OpenGL ( the last "0" means "empty" )
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-			eyeWidth,
-			eyeHeight,
+			renderInfo[eye].viewport.width,
+			renderInfo[eye].viewport.height,
 			0,
 			GL_RGB, GL_UNSIGNED_BYTE, &leftEyeColorBuffer);
 	}
 	else //right eye
 	{
-		rightEyeColorBuffer = 0;
+		GLuint rightEyeColorBuffer = 0;
 		glGenRenderbuffers(1, &rightEyeColorBuffer);
 		osvr::renderkit::RenderBuffer rb;
 		rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
@@ -432,15 +413,11 @@ void ConstructBuffersOpenGL(int eye)
 
 		// Give an empty image to OpenGL ( the last "0" means "empty" )
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-			eyeWidth,
-			eyeHeight,
+			renderInfo[eye].viewport.width,
+			renderInfo[eye].viewport.height,
 			0,
 			GL_RGB, GL_UNSIGNED_BYTE, &rightEyeColorBuffer);
 	}
-
-
-
-
 
 	// Bilinear filtering
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -455,8 +432,8 @@ void ConstructBuffersOpenGL(int eye)
 		glGenRenderbuffers(1, &leftEyeDepthBuffer);
 		glBindRenderbuffer(GL_RENDERBUFFER, leftEyeDepthBuffer);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
-			eyeWidth,
-			eyeHeight);
+			renderInfo[eye].viewport.width,
+			renderInfo[eye].viewport.height);
 		depthBuffers.push_back(leftEyeDepthBuffer);
 	}
 	else //right eye
@@ -465,11 +442,12 @@ void ConstructBuffersOpenGL(int eye)
 		glGenRenderbuffers(1, &rightEyeDepthBuffer);
 		glBindRenderbuffer(GL_RENDERBUFFER, rightEyeDepthBuffer);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
-			eyeWidth,
-			eyeHeight);
+			renderInfo[eye].viewport.width,
+			renderInfo[eye].viewport.height);
 		depthBuffers.push_back(rightEyeDepthBuffer);
 	}
 }
+
 int ConstructBuffersD3D11(int eye)
 {
 	DebugLog("[OSVR Rendering Plugin] ConstructBuffersD3D11");
@@ -505,9 +483,9 @@ int ConstructBuffersD3D11(int eye)
 		&textureDesc, NULL, &D3DTexture);
 	if (FAILED(hr)) {
 		DebugLog("[OSVR Rendering Plugin] Can't create texture for eye");
-		return -1;
+		return OSVR_RETURN_FAILURE;
 	}
-	DebugLog("[OSVR Rendering Plugin] Created texture from texturePtr");
+
 	// Fill in the resource view for your render texture buffer here
 	D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc;
 	memset(&renderTargetViewDesc, 0, sizeof(renderTargetViewDesc));
@@ -524,7 +502,7 @@ int ConstructBuffersD3D11(int eye)
 		D3DTexture, &renderTargetViewDesc, &renderTargetView);
 	if (FAILED(hr)) {
 		DebugLog("[OSVR Rendering Plugin] Could not create render target for eye");
-		return -2;
+		return OSVR_RETURN_FAILURE;
 	}
 
 	// Push the filled-in RenderBuffer onto the stack.
@@ -557,7 +535,7 @@ int ConstructBuffersD3D11(int eye)
 		&textureDescription, NULL, &depthStencilBuffer);
 	if (FAILED(hr)) {
 		DebugLog("Could not create depth/stencil texture for eye ");
-		return -4;
+		return OSVR_RETURN_FAILURE;
 	}
 	depthStencilTextures.push_back(depthStencilBuffer);
 
@@ -575,13 +553,13 @@ int ConstructBuffersD3D11(int eye)
 		&depthStencilView);
 	if (FAILED(hr)) {
 		DebugLog("Could not create depth/stencil view for eye ");
-		return -5;
+		return OSVR_RETURN_FAILURE;
 	}
 	depthStencilViews.push_back(depthStencilView);
 
-	CreateDepthStencilState(eye);
+	hr = CreateDepthStencilState(eye);
 	
-	return hr;
+	return OSVR_RETURN_SUCCESS;
 }
 
 int CreateDepthStencilState(int eye)
@@ -616,11 +594,10 @@ int CreateDepthStencilState(int eye)
 		&depthStencilDescription,
 		&depthStencilState);
 	if (FAILED(hr)) {
-		std::cerr << "Could not create depth/stencil state"
-			<< std::endl;
-		return -3;
+		DebugLog("Could not create depth/stencil state.");
+		return OSVR_RETURN_FAILURE;
 	}
-	return hr;
+	return OSVR_RETURN_SUCCESS;
 }
 
 /**
@@ -761,7 +738,7 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetColorBufferFromUnit
 	if (s_DeviceType == -1)
 		return OSVR_RETURN_FAILURE;
 	
-	DebugLog("[OSVR Renderingg Plugin] SetColorBufferFromUnity");
+	DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity");
 	switch (s_DeviceType)
 	{
 	case kUnityGfxRendererD3D11:
@@ -774,8 +751,7 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetColorBufferFromUnit
 		{
 			rightEyeTexturePtr = texturePtr;
 			ConstructBuffersD3D11(eye);
-		}
-		
+		}		
 		break;
 	case kUnityGfxRendererOpenGL:
 		//texturePtr points to "name"
@@ -862,7 +838,6 @@ extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRen
 
 // -------------------------------------------------------------------
 //  Direct3D 11 setup/teardown code
-
 
 #if SUPPORT_D3D11
 
