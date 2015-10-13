@@ -63,8 +63,6 @@ static inline void DebugLog(const char *str) {
 	//#endif
 }
 
-
-
 // COM-like Release macro
 #ifndef SAFE_RELEASE
 #define SAFE_RELEASE(a) if (a) { a->Release(); a = nullptr; }
@@ -85,33 +83,13 @@ static void *rightEyeTexturePtr = nullptr;
 
 //D3D11 vars
 #if SUPPORT_D3D11
-// Set up the vector of textures to render to and any framebuffer
-// we need to group them.
-// Create a D3D11 device and context to be used, rather than
-// having RenderManager make one for us.  This is an example
-// of using an external one, which would be needed for clients
-// that already have a rendering pipeline, like Unity.
-static std::vector<ID3D11Texture2D *> depthStencilTextures;
-static std::vector<ID3D11DepthStencilView *> depthStencilViews;
-static ID3D11DepthStencilState *depthStencilState;
-static D3D11_DEPTH_STENCIL_DESC depthStencilDescription;
 static D3D11_TEXTURE2D_DESC textureDesc;
 #endif
 
-
 //OpenGL vars
 #if SUPPORT_OPENGL
-std::vector<GLuint> depthBuffers; //< Depth/stencil buffers to render into
 GLuint frameBuffer;
 #endif
-
-// --------------------------------------------------------------------------
-// Forward function declarations of functions defined below
-static int CreateDepthStencilState(int eye);
-bool SetupRendering(osvr::renderkit::GraphicsLibrary library);
-
-// --------------------------------------------------------------------------
-// C API and internal function implementation
 
 // RenderEvents
 // If we ever decide to add more events, here's the place for it.
@@ -258,49 +236,12 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 		return OSVR_RETURN_FAILURE;
 	}
 
-	// Set up the rendering state we need.
-	if (!SetupRendering(ret.library)) {
-		DebugLog("[OSVR Rendering Plugin] Could not SetupRendering");
-		return OSVR_RETURN_FAILURE;
-	}
-
 	// Do a call to get the information we need to construct our
 	// color and depth render-to-texture buffers.
 	renderInfo = render->GetRenderInfo();
 
 	DebugLog("[OSVR Rendering Plugin] Success!");
 	return OSVR_RETURN_SUCCESS;
-}
-
-
-bool SetupRendering(osvr::renderkit::GraphicsLibrary library)
-{
-#if SUPPORT_OPENGL
-	if (s_DeviceType == kUnityGfxRendererOpenGL)
-	{
-		// Make sure our pointers are filled in correctly.  The config file selects
-		// the graphics library to use, and may not match our needs.
-		if (library.OpenGL == nullptr) {
-			std::cerr << "SetupRendering: No OpenGL GraphicsLibrary, check config file" << std::endl;
-			return false;
-		}
-
-		osvr::renderkit::GraphicsLibraryOpenGL *glLibrary = library.OpenGL;
-
-		// Turn on depth testing, so we get correct ordering.
-		glEnable(GL_DEPTH_TEST);
-
-		return true;
-	}
-#endif
-#if SUPPORT_D3D11
-	return true;
-	//@todo might want to move the code from UnityPluginLoad here
-#endif
-#if SUPPORT_D3D12
-	return true;
-	//@todo
-#endif
 }
 
 extern "C" osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetViewport(int eye)
@@ -328,15 +269,6 @@ void Shutdown()
 	switch (s_DeviceType)
 	{
 	case kUnityGfxRendererD3D11:
-
-		/*for (size_t i = 0; i < renderInfo.size(); i++) {
-			SAFE_RELEASE(depthStencilViews[i]);
-			SAFE_RELEASE(depthStencilTextures[i]);
-			SAFE_RELEASE(renderBuffers[i].D3D11->colorBuffer);
-			SAFE_RELEASE(renderBuffers[i].D3D11->colorBufferView);			
-		}
-		renderBuffers.clear();
-		SAFE_RELEASE(depthStencilState);*/
 		rightEyeTexturePtr = nullptr;
 		leftEyeTexturePtr = nullptr;
 		delete render;
@@ -348,7 +280,7 @@ void Shutdown()
 		for (size_t i = 0; i < renderInfo.size(); i++) {
 			glDeleteTextures(1, &renderBuffers[i].OpenGL->colorBufferName);
 			delete renderBuffers[i].OpenGL;
-			glDeleteRenderbuffers(1, &depthBuffers[i]);
+			//glDeleteRenderbuffers(1, &depthBuffers[i]);
 		}
 		break;
 	default:
@@ -434,7 +366,6 @@ void ConstructBuffersOpenGL(int eye)
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
 			renderInfo[eye].viewport.width,
 			renderInfo[eye].viewport.height);
-		depthBuffers.push_back(leftEyeDepthBuffer);
 	}
 	else //right eye
 	{
@@ -444,7 +375,6 @@ void ConstructBuffersOpenGL(int eye)
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
 			renderInfo[eye].viewport.width,
 			renderInfo[eye].viewport.height);
-		depthBuffers.push_back(rightEyeDepthBuffer);
 	}
 }
 
@@ -512,91 +442,7 @@ int ConstructBuffersD3D11(int eye)
 	osvr::renderkit::RenderBuffer rb;
 	rb.D3D11 = rbD3D;
 	renderBuffers.push_back(rb);
-
-	//==================================================================
-	// Create a depth buffer
-
-	// Make the depth/stencil texture.
-	D3D11_TEXTURE2D_DESC textureDescription = { 0 };
-	textureDescription.SampleDesc.Count = 1;
-	textureDescription.SampleDesc.Quality = 0;
-	textureDescription.Usage = D3D11_USAGE_DEFAULT;
-	textureDescription.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-	textureDescription.Width = width;
-	textureDescription.Height = height;
-	textureDescription.MipLevels = 1;
-	textureDescription.ArraySize = 1;
-	textureDescription.CPUAccessFlags = 0;
-	textureDescription.MiscFlags = 0;
-	/// @todo Make this a parameter
-	textureDescription.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	ID3D11Texture2D *depthStencilBuffer;
-	hr = renderInfo[eye].library.D3D11->device->CreateTexture2D(
-		&textureDescription, NULL, &depthStencilBuffer);
-	if (FAILED(hr)) {
-		DebugLog("Could not create depth/stencil texture for eye ");
-		return OSVR_RETURN_FAILURE;
-	}
-	depthStencilTextures.push_back(depthStencilBuffer);
-
-	// Create the depth/stencil view description
-	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDescription;
-	memset(&depthStencilViewDescription, 0, sizeof(depthStencilViewDescription));
-	depthStencilViewDescription.Format = textureDescription.Format;
-	depthStencilViewDescription.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-	depthStencilViewDescription.Texture2D.MipSlice = 0;
-
-	ID3D11DepthStencilView *depthStencilView;
-	hr = renderInfo[eye].library.D3D11->device->CreateDepthStencilView(
-		depthStencilBuffer,
-		&depthStencilViewDescription,
-		&depthStencilView);
-	if (FAILED(hr)) {
-		DebugLog("Could not create depth/stencil view for eye ");
-		return OSVR_RETURN_FAILURE;
-	}
-	depthStencilViews.push_back(depthStencilView);
-
-	hr = CreateDepthStencilState(eye);
 	
-	return OSVR_RETURN_SUCCESS;
-}
-
-int CreateDepthStencilState(int eye)
-{
-	renderInfo = render->GetRenderInfo();
-	HRESULT hr;
-	// Create depth stencil state.
-	// Describe how depth and stencil tests should be performed.
-	depthStencilDescription = { 0 };
-
-	depthStencilDescription.DepthEnable = false;
-	depthStencilDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	depthStencilDescription.DepthFunc = D3D11_COMPARISON_LESS;
-
-	depthStencilDescription.StencilEnable = false;
-	depthStencilDescription.StencilReadMask = 0xFF;
-	depthStencilDescription.StencilWriteMask = 0xFF;
-
-	// Front-facing stencil operations
-	depthStencilDescription.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	depthStencilDescription.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
-	depthStencilDescription.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	depthStencilDescription.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-
-	// Back-facing stencil operations
-	depthStencilDescription.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	depthStencilDescription.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
-	depthStencilDescription.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	depthStencilDescription.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-
-	hr = renderInfo[eye].library.D3D11->device->CreateDepthStencilState(
-		&depthStencilDescription,
-		&depthStencilState);
-	if (FAILED(hr)) {
-		DebugLog("Could not create depth/stencil state.");
-		return OSVR_RETURN_FAILURE;
-	}
 	return OSVR_RETURN_SUCCESS;
 }
 
@@ -638,16 +484,11 @@ static void FillTextureFromCode(int width, int height, int stride, unsigned char
 
 // Callbacks to draw things in world space, left-hand space, and right-hand
 // space.
-void RenderViewD3D11(
-	const osvr::renderkit::RenderInfo &renderInfo   //< Info needed to render
-	, ID3D11RenderTargetView *renderTargetView
-	, ID3D11DepthStencilView *depthStencilView,
-	int eyeIndex
-	)
+void RenderViewD3D11(const osvr::renderkit::RenderInfo &renderInfo, ID3D11RenderTargetView *renderTargetView, int eyeIndex)
 {
 	auto context = renderInfo.library.D3D11->context;
 	// Set up to render to the textures for this eye
-	context->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
+	context->OMSetRenderTargets(1, &renderTargetView, NULL);
 
 	ID3D11Texture2D* d3dtex = eyeIndex == 0 ? reinterpret_cast<ID3D11Texture2D*>(leftEyeTexturePtr) : reinterpret_cast<ID3D11Texture2D*>(rightEyeTexturePtr);
 	context->CopyResource(renderBuffers[eyeIndex].D3D11->colorBuffer, d3dtex);
@@ -658,7 +499,6 @@ void RenderViewOpenGL(
 	const osvr::renderkit::RenderInfo &renderInfo,  //< Info needed to render
 	GLuint frameBuffer, //< Frame buffer object to bind our buffers to
 	GLuint colorBuffer, //< Color buffer to render into
-	GLuint depthBuffer,  //< Depth buffer to render into
 	int eyeIndex
 	)
 {
@@ -668,8 +508,8 @@ void RenderViewOpenGL(
 	// Set color and depth buffers for the frame buffer
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 		colorBuffer, 0);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-		GL_RENDERBUFFER, depthBuffer);
+	//glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+		//GL_RENDERBUFFER, depthBuffer);
 
 	// Set the list of draw buffers.
 	GLenum DrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
@@ -739,22 +579,20 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetColorBufferFromUnit
 		return OSVR_RETURN_FAILURE;
 	
 	DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity");
+	if (eye == 0)
+	{
+		leftEyeTexturePtr = texturePtr;		
+	}
+	else
+	{
+		rightEyeTexturePtr = texturePtr;
+	}
 	switch (s_DeviceType)
 	{
 	case kUnityGfxRendererD3D11:
-		if (eye == 0)
-		{
-			leftEyeTexturePtr = texturePtr;			
-			ConstructBuffersD3D11(eye);
-		}
-		else
-		{
-			rightEyeTexturePtr = texturePtr;
-			ConstructBuffersD3D11(eye);
-		}		
+		ConstructBuffersD3D11(eye);
 		break;
 	case kUnityGfxRendererOpenGL:
-		//texturePtr points to "name"
 		ConstructBuffersOpenGL(eye);
 		break;
 	default:
@@ -783,13 +621,10 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 		renderInfo = render->GetRenderInfo();
 
 		if (s_DeviceType == kUnityGfxRendererD3D11)
-		{
-			
+		{			
 			// Render into each buffer using the specified information.
 			for (size_t i = 0; i < renderInfo.size(); i++) {
-				renderInfo[i].library.D3D11->context->OMSetDepthStencilState(depthStencilState, 1);
-				RenderViewD3D11(renderInfo[i], renderBuffers[i].D3D11->colorBufferView,
-					depthStencilViews[i], i);
+				RenderViewD3D11(renderInfo[i], renderBuffers[i].D3D11->colorBufferView, i);
 			}
 
 			// Send the rendered results to the screen
@@ -808,9 +643,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 			renderInfo = render->GetRenderInfo();
 			// Render into each buffer using the specified information.
 			for (size_t i = 0; i < renderInfo.size(); i++) {
-				RenderViewOpenGL(renderInfo[i], frameBuffer,
-					renderBuffers[i].OpenGL->colorBufferName,
-					depthBuffers[i], i);
+				RenderViewOpenGL(renderInfo[i], frameBuffer, renderBuffers[i].OpenGL->colorBufferName,i);
 			}
 
 			// Send the rendered results to the screen
@@ -838,10 +671,7 @@ extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRen
 
 // -------------------------------------------------------------------
 //  Direct3D 11 setup/teardown code
-
 #if SUPPORT_D3D11
-
-
 static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 {
 	if (eventType == kUnityGfxDeviceEventInitialize)
@@ -865,21 +695,11 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 	}
 }
 
-#endif // #if SUPPORT_D3D11
+#endif
 
-
-
-// -------------------------------------------------------------------
-// Direct3D 12 setup/teardown code
-
-
-#if SUPPORT_D3D12
-#endif // #if SUPPORT_D3D12
 
 // -------------------------------------------------------------------
 // OpenGL setup/teardown code
-
-
 #if SUPPORT_OPENGL
 
 static void DoEventGraphicsDeviceOpenGL(UnityGfxDeviceEventType eventType)
