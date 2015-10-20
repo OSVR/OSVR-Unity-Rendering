@@ -3,7 +3,6 @@ LIBRARY
 EXPORTS
    UnityPluginLoad
    UnityPluginUnload
-   SetUnityStreamingAssetsPath
    CreateRenderManagerFromUnity
    GetViewport
    GetProjectionMatrix

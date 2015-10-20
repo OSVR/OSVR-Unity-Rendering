@@ -42,27 +42,6 @@ using namespace DirectX;
 #endif
 #endif
 
-
-// --------------------------------------------------------------------------
-// Helper utilities
-
-// Allow writing to the Unity debug console from inside DLL land.
-extern "C" {
-	void(_stdcall *debugLog)(const char *) = nullptr;
-
-	void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API LinkDebug(void(_stdcall *d)(const char *))
-	{
-		debugLog = d;
-	}
-}
-
-static inline void DebugLog(const char *str) {
-	//#if _DEBUG
-	if (debugLog)
-		debugLog(str);
-	//#endif
-}
-
 // COM-like Release macro
 #ifndef SAFE_RELEASE
 #define SAFE_RELEASE(a) if (a) { a->Release(); a = nullptr; }
@@ -101,18 +80,28 @@ enum RenderEvents
 
 
 // --------------------------------------------------------------------------
-// SetUnityStreamingAssetsPath, an example function we export which is called by one of the scripts.
+// Helper utilities
 
-static std::string s_UnityStreamingAssetsPath;
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetUnityStreamingAssetsPath(const char* path)
-{
-	s_UnityStreamingAssetsPath = path;
+// Allow writing to the Unity debug console from inside DLL land.
+extern "C" {
+	void(_stdcall *debugLog)(const char *) = nullptr;
+
+	void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API LinkDebug(void(_stdcall *d)(const char *))
+	{
+		debugLog = d;
+	}
+}
+
+static inline void DebugLog(const char *str) {
+	//#if _DEBUG
+	if (debugLog)
+		debugLog(str);
+	//#endif
 }
 
 // --------------------------------------------------------------------------
 // UnitySetInterfaces
 static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType);
-
 
 extern "C" void	UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* unityInterfaces)
 {
@@ -131,18 +120,13 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 }
 
 // --------------------------------------------------------------------------
-// GraphicsDeviceEvent
+// GraphicsDeviceEvents
 
 // Actual setup/teardown functions defined below
 #if SUPPORT_D3D11
 static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType);
 #endif
-#if SUPPORT_D3D12
-static void DoEventGraphicsDeviceD3D12(UnityGfxDeviceEventType eventType);
-#endif
-#if SUPPORT_OPENGLES
-static void DoEventGraphicsDeviceGLES(UnityGfxDeviceEventType eventType);
-#endif
+
 #if SUPPORT_OPENGL
 static void DoEventGraphicsDeviceOpenGL(UnityGfxDeviceEventType eventType);
 #endif
@@ -190,23 +174,11 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 	if (currentDeviceType == kUnityGfxRendererD3D11)
 		DoEventGraphicsDeviceD3D11(eventType);
 #endif
-
-#if SUPPORT_D3D12
-	if (currentDeviceType == kUnityGfxRendererD3D12)
-		DoEventGraphicsDeviceD3D12(eventType);
-#endif
-
-#if SUPPORT_OPENGLES
-	if (currentDeviceType == kUnityGfxRendererOpenGLES20 ||
-		currentDeviceType == kUnityGfxRendererOpenGLES30)
-		DoEventGraphicsDeviceGLES(eventType);
-#endif
 }
 
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRenderManagerFromUnity(OSVR_ClientContext context) {
-	DoEventGraphicsDeviceD3D11(kUnityGfxDeviceEventInitialize);
 	clientContext = context;
 	//@todo Get the display config file from the display path
 	//std::string displayConfigJsonFileName = "";// clientContext.getStringParameter("/display");
