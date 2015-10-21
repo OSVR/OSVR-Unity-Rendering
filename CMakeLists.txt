@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.1.0)
 project(osvrUnityRenderingPlugin)
-set(CMAKE_BUILD_TYPE Release)
 
 #-----------------------------------------------------------------------------
 # Local CMake Modules
@@ -23,6 +22,7 @@ find_package(GLEW)
 find_package(SDL2)
 find_package(Boost 1.58.0) 
 find_package(osvrRenderManager REQUIRED)
+
 include_directories(${osvrRenderManager_INCLUDE_DIR})
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
@@ -32,6 +32,7 @@ set (osvrUnityRenderingPlugin_SOURCES
 	OsvrRenderingPlugin.cpp
 )
 add_library(osvrUnityRenderingPlugin SHARED OsvrRenderingPlugin.cpp)
+set_target_properties(osvrUnityRenderingPlugin PROPERTIES LINK_FLAGS "/DEF:\"osvrUnityRenderingPlugin.def\"")
 target_link_libraries(osvrUnityRenderingPlugin osvr::osvrClientKit)
 target_link_libraries(osvrUnityRenderingPlugin osvrRenderManager)
 if(Boost_FOUND)
