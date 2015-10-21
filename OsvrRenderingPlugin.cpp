@@ -24,10 +24,7 @@ using namespace DirectX;
 #include "Unity/IUnityGraphicsD3D11.h"
 #include "GraphicsLibraryD3D11.h"
 #endif
-#if SUPPORT_D3D12
-#include <d3d12.h>
-#include "Unity/IUnityGraphicsD3D12.h"
-#endif
+
 #if SUPPORT_OPENGL
 #if UNITY_WIN || UNITY_LINUX
 // Needed for render buffer calls.  OSVR will have called glewInit() for us
