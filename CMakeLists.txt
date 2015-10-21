@@ -21,33 +21,26 @@ find_package(osvr REQUIRED)
 find_package(OpenGL)
 find_package(GLEW)
 find_package(SDL2)
+find_package(Boost 1.58.0) 
+find_package(osvrRenderManager REQUIRED)
+include_directories(${osvrRenderManager_INCLUDE_DIR})
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/Unity")
-
-# RenderManager
-find_path(RENDERMANAGER_INCLUDE_DIR RenderManager.h)
-find_library(RENDERMANAGER_LIBRARY osvrRenderManager)
-
-if (RENDERMANAGER_INCLUDE_DIR AND RENDERMANAGER_LIBRARY)
-    set(RENDERMANAGER_FOUND TRUE)
-    include_directories(${RENDERMANAGER_INCLUDE_DIR})
-endif ()
-
-# RenderManagerExport
-find_path(RENDERMANAGEREXPORT_INCLUDE_DIR osvrRenderManager_Export.h)
-if (RENDERMANAGEREXPORT_INCLUDE_DIR)
-    set(RENDERMANAGEREXPORT_FOUND TRUE)
-    include_directories(${RENDERMANAGEREXPORT_INCLUDE_DIR})
-endif ()
 
 set (osvrUnityRenderingPlugin_SOURCES
 	OsvrRenderingPlugin.cpp
 )
 add_library(osvrUnityRenderingPlugin SHARED OsvrRenderingPlugin.cpp)
-if (OPENGL_FOUND AND GLEW_FOUND AND SDL2_FOUND AND RM_FOUND)
+target_link_libraries(osvrUnityRenderingPlugin osvr::osvrClientKit)
+target_link_libraries(osvrUnityRenderingPlugin osvrRenderManager)
+if(Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIRS}) 
+    target_link_libraries(osvrUnityRenderingPlugin ${Boost_LIBRARIES})
+endif()
+if (OPENGL_FOUND AND GLEW_FOUND AND SDL2_FOUND)
 	target_include_directories(osvrUnityRenderingPlugin PRIVATE ${OPENGL_INCLUDE_DIRS})
-	target_link_libraries(osvrUnityRenderingPlugin PRIVATE ${OPENGL_LIBRARY} ${RENDERMANAGER_LIBRARY} GLEW::GLEW SDL2::SDL2)
+	target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} GLEW::GLEW SDL2::SDL2)
 	# Handle static glew.
 	if(GLEW_LIBRARY MATCHES ".*s.lib")
 		target_compile_definitions(osvrUnityRenderingPlugin PRIVATE GLEW_STATIC)
