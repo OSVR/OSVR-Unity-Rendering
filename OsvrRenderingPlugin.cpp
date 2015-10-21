@@ -2,7 +2,7 @@
 #include "Unity/IUnityGraphics.h"
 #include <osvr/ClientKit/Context.h>
 #include <osvr/ClientKit/Interface.h>
-#include "osvr\RenderKit\RenderManager.h"
+#include "RenderManager.h"
 #include <osvr/Util/MatrixConventionsC.h>
 
 //standard includes
@@ -22,7 +22,7 @@
 using namespace DirectX;
 #include <d3d11.h>
 #include "Unity/IUnityGraphicsD3D11.h"
-#include "osvr\RenderKit\GraphicsLibraryD3D11.h"
+#include "GraphicsLibraryD3D11.h"
 #endif
 #if SUPPORT_D3D12
 #include <d3d12.h>
@@ -34,8 +34,8 @@ using namespace DirectX;
 // when we open the display.
 #include <GL/glew.h>
 #include <GL/gl.h>
-#include "osvr/RenderKit/GraphicsLibraryOpenGL.h"
-#include "osvr/RenderKit/RenderKitGraphicsTransforms.h"
+#include "GraphicsLibraryOpenGL.h"
+#include "RenderKitGraphicsTransforms.h"
 
 #else
 #include <OpenGL/OpenGL.h>
