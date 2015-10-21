@@ -32,7 +32,7 @@ set (osvrUnityRenderingPlugin_SOURCES
 	OsvrRenderingPlugin.cpp
 )
 add_library(osvrUnityRenderingPlugin SHARED OsvrRenderingPlugin.cpp)
-set_target_properties(osvrUnityRenderingPlugin PROPERTIES LINK_FLAGS "/DEF:\"osvrUnityRenderingPlugin.def\"")
+set_target_properties(osvrUnityRenderingPlugin PROPERTIES LINK_FLAGS "/DEF:${CMAKE_CURRENT_SOURCE_DIR}/OsvrRenderingPlugin.def")
 target_link_libraries(osvrUnityRenderingPlugin osvr::osvrClientKit)
 target_link_libraries(osvrUnityRenderingPlugin osvrRenderManager)
 if(Boost_FOUND)
