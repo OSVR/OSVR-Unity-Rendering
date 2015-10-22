@@ -17,13 +17,12 @@ find_package(osvr REQUIRED)
 # Add one of these libraries for each vendor that we've got a driver
 # for and add a No driver that tells that it is unavailable when we
 # don't find the driver library.
-find_package(OpenGL)
-find_package(GLEW)
-find_package(SDL2)
-find_package(Boost 1.58.0) 
+find_package(OpenGL REQUIRED)
+find_package(GLEW REQUIRED)
+find_package(Boost REQUIRED) 
 find_package(osvrRenderManager REQUIRED)
 
-include_directories(${osvrRenderManager_INCLUDE_DIR})
+include_directories(${osvrRenderManager_INCLUDE_DIR} ${GLEW_INCLUDE_DIR})
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/Unity")
@@ -39,9 +38,9 @@ if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS}) 
     target_link_libraries(osvrUnityRenderingPlugin ${Boost_LIBRARIES})
 endif()
-if (OPENGL_FOUND AND GLEW_FOUND AND SDL2_FOUND)
+if (OPENGL_FOUND AND GLEW_FOUND)
 	target_include_directories(osvrUnityRenderingPlugin PRIVATE ${OPENGL_INCLUDE_DIRS})
-	target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} GLEW::GLEW SDL2::SDL2)
+	target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} GLEW::GLEW)
 	# Handle static glew.
 	if(GLEW_LIBRARY MATCHES ".*s.lib")
 		target_compile_definitions(osvrUnityRenderingPlugin PRIVATE GLEW_STATIC)
