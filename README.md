@@ -14,5 +14,5 @@ The osvrUnityRenderingPlugin.dll library built by this project goes into the Plu
 - glew32.dll
 - osvrRenderManager.dll
 
-to be present in order to successully load the pluigin.
+to be present in order to successully load the plugin.
 
