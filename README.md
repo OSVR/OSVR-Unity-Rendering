@@ -13,5 +13,6 @@ The osvrUnityRenderingPlugin.dll library built by this project goes into the Plu
 - SDL2.dll 
 - glew32.dll
 - osvrRenderManager.dll
+
 to be present in order to successully load the pluigin.
 
