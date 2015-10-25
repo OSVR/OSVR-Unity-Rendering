@@ -177,21 +177,8 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 // Called from Unity to create a RenderManager, passing in a ClientContext
 extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 	clientContext = context;
-	//@todo Get the display config file from the display path
-	//std::string displayConfigJsonFileName = "";// clientContext.getStringParameter("/display");
-	//use local display config for now until we can pass in OSVR_ClientContext
-	std::string displayConfigJsonFileName = "C:/Users/Greg/Documents/OSVR/DirectRender/test_display_config.json";
-	//std::string displayConfigJsonFileName = "C:/Users/Sensics/OSVR/DirectRender/test_display_config.json";
-	/*const char *path = "/display";
-	size_t length;
-	osvrClientGetStringParameterLength(clientContext, path, &length);
-	char *displayDescription = (char* )malloc(length);
-	osvrClientGetStringParameter(clientContext, path, displayDescription, length);
-	std::string displayConfigJsonFileName = path;*/
-	std::string pipelineConfigJsonFileName = "C:/Users/Greg/Documents/OSVR/DirectRender/test_rendermanager_config.json";
 
-	render = osvr::renderkit::createRenderManager(context, displayConfigJsonFileName,
-		pipelineConfigJsonFileName, library);
+	render = osvr::renderkit::createRenderManager(context, "Direct3D11", library);
 	if ((render == nullptr) || (!render->doingOkay())) {
 		DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
 
@@ -240,7 +227,8 @@ void Shutdown()
 	case kUnityGfxRendererD3D11:
 		rightEyeTexturePtr = nullptr;
 		leftEyeTexturePtr = nullptr;
-		delete render;
+    DebugLog("[OSVR Rendering Plugin] Deleting RenderManager.");
+    delete render;
 		DebugLog("[OSVR Rendering Plugin] Shut it down.");
 		break;
 	case kUnityGfxRendererOpenGL:
@@ -255,7 +243,7 @@ void Shutdown()
 	default:
 		DebugLog("Device type not supported.");
 		break;
-	}	
+	}
 }
 
 void ConstructBuffersOpenGL(int eye)
