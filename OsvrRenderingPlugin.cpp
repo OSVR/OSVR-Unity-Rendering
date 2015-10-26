@@ -670,7 +670,9 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 	{
 		// Close the Renderer interface cleanly.
 		DebugLog("[OSVR Rendering Plugin] Close the Renderer interface cleanly..");
-		delete render;
+		//delete render;
+    DebugLog("[OSVR Rendering Plugin] @todo Replace the call to exit() here with something less ham-fisted");
+    exit(0);
 	}
 }
 
