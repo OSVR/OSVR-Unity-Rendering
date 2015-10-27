@@ -11,3 +11,4 @@ EXPORTS
    OnRenderEvent
    LinkDebug
    GetRenderEventFunc
+   ShutdownRenderManager

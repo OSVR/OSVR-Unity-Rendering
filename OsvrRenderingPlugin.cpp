@@ -138,6 +138,20 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 	OnGraphicsDeviceEvent(kUnityGfxDeviceEventShutdown);
 }
 
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ShutdownRenderManager()
+{
+	DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
+	
+	if (render != nullptr)
+	{
+		delete render;
+		render = nullptr;
+		rightEyeTexturePtr = nullptr;
+		leftEyeTexturePtr = nullptr;
+	}	
+}
+
+
 // --------------------------------------------------------------------------
 // GraphicsDeviceEvents
 
@@ -238,34 +252,6 @@ extern "C" OSVR_Pose3 UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEyePose(int 
 {
 	renderInfo = render->GetRenderInfo();
 	return renderInfo[eye].pose;
-}
-
-//Shutdown
-void Shutdown()
-{
-	DebugLog("[OSVR Rendering Plugin] Shutdown.");
-	switch (s_DeviceType)
-	{
-	case kUnityGfxRendererD3D11:
-		rightEyeTexturePtr = nullptr;
-		leftEyeTexturePtr = nullptr;
-    DebugLog("[OSVR Rendering Plugin] Deleting RenderManager.");
-    delete render;
-		DebugLog("[OSVR Rendering Plugin] Shut it down.");
-		break;
-	case kUnityGfxRendererOpenGL:
-		// Clean up after ourselves.
-		glDeleteFramebuffers(1, &frameBuffer);
-		for (size_t i = 0; i < renderInfo.size(); i++) {
-			glDeleteTextures(1, &renderBuffers[i].OpenGL->colorBufferName);
-			delete renderBuffers[i].OpenGL;
-			//glDeleteRenderbuffers(1, &depthBuffers[i]);
-		}
-		break;
-	default:
-		DebugLog("Device type not supported.");
-		break;
-	}
 }
 
 void ConstructBuffersOpenGL(int eye)
@@ -633,7 +619,6 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 		}
 		break;
 	case kOsvrEventID_Shutdown:
-		Shutdown();
 		break;
 	default:
 		break;
@@ -671,8 +656,8 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 		// Close the Renderer interface cleanly.
 		DebugLog("[OSVR Rendering Plugin] Close the Renderer interface cleanly..");
 		//delete render;
-    DebugLog("[OSVR Rendering Plugin] @todo Replace the call to exit() here with something less ham-fisted");
-    exit(0);
+		DebugLog("[OSVR Rendering Plugin] @todo Replace the call to exit() here with something less ham-fisted");
+		exit(0);
 	}
 }
 
