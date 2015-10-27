@@ -94,7 +94,8 @@ GLuint frameBuffer;
 enum RenderEvents 
 { 
 	kOsvrEventID_Render = 0,
-	kOsvrEventID_Shutdown = 1
+	kOsvrEventID_Shutdown = 1,
+	kOsvrEventID_Update = 2
 };
 
 
@@ -613,6 +614,9 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 		}
 		break;
 	case kOsvrEventID_Shutdown:
+		break;
+	case kOsvrEventID_Update:
+		UpdateRenderInfo();
 		break;
 	default:
 		break;
