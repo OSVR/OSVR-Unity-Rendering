@@ -241,19 +241,16 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 
 extern "C" osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetViewport(int eye)
 {
-	renderInfo = render->GetRenderInfo();
 	return renderInfo[eye].viewport;
 }
 
 extern "C" osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetProjectionMatrix(int eye)
 {
-	renderInfo = render->GetRenderInfo();
 	return renderInfo[eye].projection;
 }
 
 extern "C" OSVR_Pose3 UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEyePose(int eye)
 {
-	renderInfo = render->GetRenderInfo();
 	return renderInfo[eye].pose;
 }
 
@@ -267,8 +264,7 @@ void ConstructBuffersOpenGL(int eye)
 		DebugLog("glewInit failed, aborting.");
 	}
 
-	osvrClientUpdate(clientContext);
-	renderInfo = render->GetRenderInfo();
+	//UpdateRenderInfo();
 
 	if (eye == 0)
 	{
@@ -349,7 +345,7 @@ void ConstructBuffersOpenGL(int eye)
 int ConstructBuffersD3D11(int eye)
 {
 	DebugLog("[OSVR Rendering Plugin] ConstructBuffersD3D11");
-	renderInfo = render->GetRenderInfo();
+	//UpdateRenderInfo();
 	HRESULT hr;
 	// The color buffer for this eye.  We need to put this into
 	// a generic structure for the Present function, but we only need
@@ -586,7 +582,6 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 	// Call the Render loop
 	switch (eventID) {
 	case kOsvrEventID_Render:
-		renderInfo = render->GetRenderInfo();
 
 		if (s_DeviceType == kUnityGfxRendererD3D11)
 		{			
@@ -594,21 +589,17 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 			for (size_t i = 0; i < renderInfo.size(); i++) {
 				RenderViewD3D11(renderInfo[i], renderBuffers[i].D3D11->colorBufferView, i);
 			}
-
+			//DebugLog("[OSVR Rendering Plugin] before PresentRenderBuffers()");
 			// Send the rendered results to the screen
 			// Flip Y because Unity RenderTextures are upside-down on D3D11
 			if (!render->PresentRenderBuffers(renderBuffers, true)) {
 				DebugLog("[OSVR Rendering Plugin] PresentRenderBuffers() returned false, maybe because it was asked to quit");
 			}
+			//DebugLog("[OSVR Rendering Plugin] after PresentRenderBuffers()");
 		}
 		// OpenGL
 		else if (s_DeviceType == kUnityGfxRendererOpenGL)
 		{
-
-			// Update the system state so the GetRenderInfo will have up-to-date
-			// information about the tracker state.  Then get the RenderInfo
-			// @todo Check that we won't need to adjust any of our buffers.
-			renderInfo = render->GetRenderInfo();
 			// Render into each buffer using the specified information.
 			for (size_t i = 0; i < renderInfo.size(); i++) {
 				RenderViewOpenGL(renderInfo[i], frameBuffer, renderBuffers[i].OpenGL->colorBufferName,i);
