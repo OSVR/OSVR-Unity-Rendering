@@ -209,6 +209,11 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 #endif
 }
 
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateRenderInfo()
+{
+	//DebugLog("[OSVR Rendering Plugin] UpdateRenderInfo");
+	renderInfo = render->GetRenderInfo();
+}
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRenderManagerFromUnity(OSVR_ClientContext context) {
@@ -228,9 +233,7 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 		return OSVR_RETURN_FAILURE;
 	}
 
-	// Do a call to get the information we need to construct our
-	// color and depth render-to-texture buffers.
-	renderInfo = render->GetRenderInfo();
+	UpdateRenderInfo();
 
 	DebugLog("[OSVR Rendering Plugin] Success!");
 	return OSVR_RETURN_SUCCESS;
