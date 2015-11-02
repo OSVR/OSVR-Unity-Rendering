@@ -113,10 +113,10 @@ extern "C" {
 }
 
 static inline void DebugLog(const char *str) {
-	//#if _DEBUG
+	#if _DEBUG
 	if (debugLog)
 		debugLog(str);
-	//#endif
+	#endif
 }
 
 // --------------------------------------------------------------------------
