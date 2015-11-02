@@ -79,6 +79,10 @@ static osvr::renderkit::GraphicsLibrary library;
 static void *leftEyeTexturePtr = nullptr;
 static void *rightEyeTexturePtr = nullptr;
 
+//forward function declarations
+int ConstructBuffersD3D11(int eye);
+int ConstructBuffersOpenGL(int eye);
+
 //D3D11 vars
 #if SUPPORT_D3D11
 static D3D11_TEXTURE2D_DESC textureDesc;
@@ -142,14 +146,14 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ShutdownRenderManager()
 {
 	DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
-	
 	if (render != nullptr)
 	{
 		delete render;
 		render = nullptr;
 		rightEyeTexturePtr = nullptr;
 		leftEyeTexturePtr = nullptr;
-	}	
+	}
+	
 }
 
 
@@ -212,14 +216,12 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateRenderInfo()
 {
-	//DebugLog("[OSVR Rendering Plugin] UpdateRenderInfo");
 	renderInfo = render->GetRenderInfo();
 }
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 	clientContext = context;
-
 	render = osvr::renderkit::createRenderManager(context, "Direct3D11", library);
 	if ((render == nullptr) || (!render->doingOkay())) {
 		DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
@@ -235,6 +237,22 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 	}
 
 	UpdateRenderInfo();
+
+	//construct color buffers
+	for (size_t i = 0; i < renderInfo.size(); i++) {
+		switch (s_DeviceType)
+		{
+		case kUnityGfxRendererD3D11:
+			ConstructBuffersD3D11(i);
+			break;
+		case kUnityGfxRendererOpenGL:
+			ConstructBuffersOpenGL(i);
+			break;
+		default:
+			DebugLog("Device type not supported.");
+			return OSVR_RETURN_FAILURE;
+		}
+	}
 
 	DebugLog("[OSVR Rendering Plugin] Success!");
 	return OSVR_RETURN_SUCCESS;
@@ -255,7 +273,7 @@ extern "C" OSVR_Pose3 UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEyePose(int 
 	return renderInfo[eye].pose;
 }
 
-void ConstructBuffersOpenGL(int eye)
+int ConstructBuffersOpenGL(int eye)
 {
 	//Init glew
 	glewExperimental = true;
@@ -264,8 +282,6 @@ void ConstructBuffersOpenGL(int eye)
 	{
 		DebugLog("glewInit failed, aborting.");
 	}
-
-	//UpdateRenderInfo();
 
 	if (eye == 0)
 	{
@@ -322,25 +338,8 @@ void ConstructBuffersOpenGL(int eye)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-	// The depth buffer
-	if (eye == 0) //left eye
-	{
-		GLuint leftEyeDepthBuffer = 0;
-		glGenRenderbuffers(1, &leftEyeDepthBuffer);
-		glBindRenderbuffer(GL_RENDERBUFFER, leftEyeDepthBuffer);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
-			renderInfo[eye].viewport.width,
-			renderInfo[eye].viewport.height);
-	}
-	else //right eye
-	{
-		GLuint rightEyeDepthBuffer = 0;
-		glGenRenderbuffers(1, &rightEyeDepthBuffer);
-		glBindRenderbuffer(GL_RENDERBUFFER, rightEyeDepthBuffer);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
-			renderInfo[eye].viewport.width,
-			renderInfo[eye].viewport.height);
-	}
+	return OSVR_RETURN_SUCCESS;
+
 }
 
 int ConstructBuffersD3D11(int eye)
@@ -411,55 +410,20 @@ int ConstructBuffersD3D11(int eye)
 	return OSVR_RETURN_SUCCESS;
 }
 
-/**
-static void FillTextureFromCode(int width, int height, int stride, unsigned char* dst)
-{
-	srand(time(NULL));
-	float t = (float)rand();// g_Time * 4.0f;
-
-
-	for (int y = 0; y < height; ++y)
-	{
-		unsigned char* ptr = dst;
-		for (int x = 0; x < width; ++x)
-		{
-			// Simple oldskool "plasma effect", a bunch of combined sine waves
-			int vv = int(
-				(127.0f + (127.0f * sinf(x / 7.0f + t))) +
-				(10.0f + (127.0f * sinf(y / 5.0f - t))) +
-				(127.0f + (127.0f * sinf((x + y) / 6.0f - t))) +
-				(127.0f + (127.0f * sinf(sqrtf(float(x*x + y*y)) / 4.0f - t)))
-				) / 4;
-
-			// Write the texture pixel
-			ptr[0] = vv;
-			ptr[1] = vv;
-			ptr[2] = vv;
-			ptr[3] = vv;
-
-			// To next pixel (our pixels are 4 bpp)
-			ptr += 4;
-		}
-
-		// To next image row
-		dst += stride;
-	}
-}
-**/
-
-// Callbacks to draw things in world space, left-hand space, and right-hand
-// space.
+// Renders the view from our Unity cameras by copying data at Unity.RenderTexture.GetNativeTexturePtr() to RenderManager colorBuffers
 void RenderViewD3D11(const osvr::renderkit::RenderInfo &renderInfo, ID3D11RenderTargetView *renderTargetView, int eyeIndex)
 {
 	auto context = renderInfo.library.D3D11->context;
 	// Set up to render to the textures for this eye
 	context->OMSetRenderTargets(1, &renderTargetView, NULL);
 
+	//copy the updated RenderTexture from Unity to RenderManager colorBuffer
 	ID3D11Texture2D* d3dtex = eyeIndex == 0 ? reinterpret_cast<ID3D11Texture2D*>(leftEyeTexturePtr) : reinterpret_cast<ID3D11Texture2D*>(rightEyeTexturePtr);
 	context->CopyResource(renderBuffers[eyeIndex].D3D11->colorBuffer, d3dtex);
 }
 
 // Render the world from the specified point of view.
+//@todo This is not functional yet.
 void RenderViewOpenGL(
 	const osvr::renderkit::RenderInfo &renderInfo,  //< Info needed to render
 	GLuint frameBuffer, //< Frame buffer object to bind our buffers to
@@ -538,7 +502,7 @@ void RenderViewOpenGL(
 // type to get it. On platforms that do not support native code plugins, this function always returns NULL.
 // Note that calling this function when using multi - threaded rendering will synchronize with the rendering 
 // thread(a slow operation), so best practice is to set up needed texture pointers only at initialization time.
-//http://docs.unity3d.com/ScriptReference/Texture.GetNativeTexturePtr.html
+// For more reference, see: http://docs.unity3d.com/ScriptReference/Texture.GetNativeTexturePtr.html
 extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
 	if (s_DeviceType == -1)
 		return OSVR_RETURN_FAILURE;
@@ -552,18 +516,7 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetColorBufferFromUnit
 	{
 		rightEyeTexturePtr = texturePtr;
 	}
-	switch (s_DeviceType)
-	{
-	case kUnityGfxRendererD3D11:
-		ConstructBuffersD3D11(eye);
-		break;
-	case kUnityGfxRendererOpenGL:
-		ConstructBuffersOpenGL(eye);
-		break;
-	default:
-		DebugLog("Device type not supported.");
-		return OSVR_RETURN_FAILURE;
-	}
+	
 	return OSVR_RETURN_SUCCESS;
 }
 
@@ -571,34 +524,31 @@ extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetColorBufferFromUnit
 // --------------------------------------------------------------------------
 // UnityRenderEvent
 // This will be called for GL.IssuePluginEvent script calls; eventID will
-// be the integer passed to IssuePluginEvent. In this example, we just ignore
-// that value.
+// be the integer passed to IssuePluginEvent.
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eventID) {
 	// Unknown graphics device type? Do nothing.
 	if (s_DeviceType == -1)
 		return;
 
-	// @todo Define more events that we might want to send
-	// BeginFrame, EndFrame, DrawUILayer?
-	// Call the Render loop
-	switch (eventID) {
-	case kOsvrEventID_Render:
 
+	switch (eventID) {
+		// Call the Render loop
+	case kOsvrEventID_Render:
 		if (s_DeviceType == kUnityGfxRendererD3D11)
-		{			
+		{
 			// Render into each buffer using the specified information.
 			for (size_t i = 0; i < renderInfo.size(); i++) {
 				RenderViewD3D11(renderInfo[i], renderBuffers[i].D3D11->colorBufferView, i);
 			}
-			//DebugLog("[OSVR Rendering Plugin] before PresentRenderBuffers()");
+
 			// Send the rendered results to the screen
 			// Flip Y because Unity RenderTextures are upside-down on D3D11
 			if (!render->PresentRenderBuffers(renderBuffers, true)) {
 				DebugLog("[OSVR Rendering Plugin] PresentRenderBuffers() returned false, maybe because it was asked to quit");
 			}
-			//DebugLog("[OSVR Rendering Plugin] after PresentRenderBuffers()");
 		}
 		// OpenGL
+		//@todo OpenGL path is not working yet
 		else if (s_DeviceType == kUnityGfxRendererOpenGL)
 		{
 			// Render into each buffer using the specified information.
@@ -652,10 +602,7 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 	else if (eventType == kUnityGfxDeviceEventShutdown)
 	{
 		// Close the Renderer interface cleanly.
-		DebugLog("[OSVR Rendering Plugin] Close the Renderer interface cleanly..");
-		//delete render;
-		DebugLog("[OSVR Rendering Plugin] @todo Replace the call to exit() here with something less ham-fisted");
-		exit(0);
+		// This should be handled in ShutdownRenderManager
 	}
 }
 
@@ -664,6 +611,7 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType)
 
 // -------------------------------------------------------------------
 // OpenGL setup/teardown code
+//@todo OpenGL path not implemented yet
 #if SUPPORT_OPENGL
 
 static void DoEventGraphicsDeviceOpenGL(UnityGfxDeviceEventType eventType)
@@ -685,4 +633,3 @@ static void DoEventGraphicsDeviceOpenGL(UnityGfxDeviceEventType eventType)
 	}
 }
 #endif
-
