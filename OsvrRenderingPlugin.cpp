@@ -543,7 +543,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 
 			// Send the rendered results to the screen
 			// Flip Y because Unity RenderTextures are upside-down on D3D11
-			if (!render->PresentRenderBuffers(renderBuffers, true)) {
+			if (!render->PresentRenderBuffers(renderBuffers, std::vector<osvr::renderkit::OSVR_ViewportDescription>(), true)) {
 				DebugLog("[OSVR Rendering Plugin] PresentRenderBuffers() returned false, maybe because it was asked to quit");
 			}
 		}
