@@ -411,6 +411,7 @@ int ConstructBuffersD3D11(int eye)
 	// presentation.
 	if (!render->RegisterRenderBuffers(renderBuffers)) {
 		DebugLog("RegisterRenderBuffers() returned false, cannot continue");
+		return OSVR_RETURN_FAILURE;
 	}
 	
 	return OSVR_RETURN_SUCCESS;
