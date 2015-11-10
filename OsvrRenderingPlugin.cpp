@@ -406,6 +406,12 @@ int ConstructBuffersD3D11(int eye)
 	osvr::renderkit::RenderBuffer rb;
 	rb.D3D11 = rbD3D;
 	renderBuffers.push_back(rb);
+
+	// Register our constructed buffers so that we can use them for
+	// presentation.
+	if (!render->RegisterRenderBuffers(renderBuffers)) {
+		DebugLog("RegisterRenderBuffers() returned false, cannot continue");
+	}
 	
 	return OSVR_RETURN_SUCCESS;
 }
