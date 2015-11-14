@@ -425,8 +425,7 @@ void RenderViewD3D11(const osvr::renderkit::RenderInfo &renderInfo, ID3D11Render
 	context->OMSetRenderTargets(1, &renderTargetView, NULL);
 
 	//copy the updated RenderTexture from Unity to RenderManager colorBuffer
-	ID3D11Texture2D* d3dtex = eyeIndex == 0 ? reinterpret_cast<ID3D11Texture2D*>(leftEyeTexturePtr) : reinterpret_cast<ID3D11Texture2D*>(rightEyeTexturePtr);
-	context->CopyResource(renderBuffers[eyeIndex].D3D11->colorBuffer, d3dtex);
+	renderBuffers[eyeIndex].D3D11->colorBuffer = eyeIndex == 0 ? reinterpret_cast<ID3D11Texture2D*>(leftEyeTexturePtr) : reinterpret_cast<ID3D11Texture2D*>(rightEyeTexturePtr);
 }
 
 // Render the world from the specified point of view.
@@ -550,7 +549,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 
 			// Send the rendered results to the screen
 			// Flip Y because Unity RenderTextures are upside-down on D3D11
-			if (!render->PresentRenderBuffers(renderBuffers, std::vector<osvr::renderkit::OSVR_ViewportDescription>(), true)) {
+			if (!render->PresentRenderBuffers(renderBuffers, renderInfo, osvr::renderkit::RenderManager::RenderParams(), std::vector<osvr::renderkit::OSVR_ViewportDescription>(), true)) {
 				DebugLog("[OSVR Rendering Plugin] PresentRenderBuffers() returned false, maybe because it was asked to quit");
 			}
 		}
@@ -564,7 +563,7 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 			}
 
 			// Send the rendered results to the screen
-			if (!render->PresentRenderBuffers(renderBuffers)) {
+			if (!render->PresentRenderBuffers(renderBuffers, renderInfo)) {
 				DebugLog("PresentRenderBuffers() returned false, maybe because it was asked to quit");
 			}
 
