@@ -219,6 +219,34 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateRenderInfo()
 	renderInfo = render->GetRenderInfo();
 }
 
+extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDistortionMesh(float distanceScale[2], float centerOfProjection[2], float *polynomial, int desiredTriangles = 12800)
+{
+	std::vector<osvr::renderkit::RenderManager::DistortionParameters> dp;
+	osvr::renderkit::RenderManager::DistortionParameters distortion;
+	distortion.m_desiredTriangles = desiredTriangles;
+	std::vector<float> Ds;
+	Ds.push_back(distanceScale[0]);
+	Ds.push_back(distanceScale[1]);
+	distortion.m_distortionD = Ds;
+	std::vector<float> poly;
+	int len = sizeof(polynomial) / sizeof(int);
+	for (size_t i = 0; i < len; i++){
+		poly.push_back(polynomial[i]);
+	}
+	//assume each color is the same for now
+	distortion.m_distortionPolynomialRed = poly;
+	distortion.m_distortionPolynomialGreen = poly;
+	distortion.m_distortionPolynomialBlue = poly;
+	for (size_t i = 0; i < renderInfo.size(); i++) {
+		std::vector<float> COP = {
+			static_cast<float>(centerOfProjection[0]),
+			static_cast<float>(centerOfProjection[1]) };
+		distortion.m_distortionCOP = COP;
+		dp.push_back(distortion);
+	}
+	return render->UpdateDistortionMesh(osvr::renderkit::RenderManager::DistortionMeshType::SQUARE, dp);
+}
+
 // Called from Unity to create a RenderManager, passing in a ClientContext
 extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 	clientContext = context;

@@ -4,6 +4,7 @@ EXPORTS
    UnityPluginLoad
    UnityPluginUnload
    CreateRenderManagerFromUnity
+   UpdateDistortionMesh
    GetViewport
    GetProjectionMatrix
    GetEyePose
