@@ -22,8 +22,6 @@ find_package(GLEW REQUIRED)
 find_package(Boost REQUIRED) 
 find_package(osvrRenderManager REQUIRED)
 
-include_directories(${osvrRenderManager_INCLUDE_DIR} ${GLEW_INCLUDE_DIR})
-
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/Unity")
 
