@@ -9,6 +9,9 @@ EXPORTS
    GetProjectionMatrix
    GetEyePose
    SetColorBufferFromUnity
+   SetNearClipDistance
+   SetFarClipDistance
+   SetIPD
    OnRenderEvent
    LinkDebug
    GetRenderEventFunc

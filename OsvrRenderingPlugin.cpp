@@ -71,6 +71,7 @@ static IUnityInterfaces* s_UnityInterfaces = nullptr;
 static IUnityGraphics* s_Graphics = nullptr;
 static UnityGfxRenderer s_DeviceType = kUnityGfxRendererNull;
 
+static osvr::renderkit::RenderManager::RenderParams renderParams;
 static osvr::renderkit::RenderManager *render;
 static OSVR_ClientContext clientContext;
 static std::vector<osvr::renderkit::RenderBuffer> renderBuffers;
@@ -78,6 +79,9 @@ static std::vector<osvr::renderkit::RenderInfo> renderInfo;
 static osvr::renderkit::GraphicsLibrary library;
 static void *leftEyeTexturePtr = nullptr;
 static void *rightEyeTexturePtr = nullptr;
+double nearClipDistance = 0.1;
+double farClipDistance = 1000.0;
+double ipd = 0.063;
 
 //forward function declarations
 int ConstructBuffersD3D11(int eye);
@@ -214,10 +218,11 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 #endif
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateRenderInfo()
+void UpdateRenderInfo()
 {
-	renderInfo = render->GetRenderInfo();
+	renderInfo = render->GetRenderInfo(renderParams);
 }
+
 
 extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDistortionMesh(float distanceScale[2], float centerOfProjection[2], float *polynomial, int desiredTriangles = 12800)
 {
@@ -264,6 +269,9 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 		return OSVR_RETURN_FAILURE;
 	}
 
+	//create a new set of RenderParams for passing to GetRenderInfo()
+	renderParams = osvr::renderkit::RenderManager::RenderParams();
+
 	UpdateRenderInfo();
 
 	//construct color buffers
@@ -284,6 +292,24 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 
 	DebugLog("[OSVR Rendering Plugin] Success!");
 	return OSVR_RETURN_SUCCESS;
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetNearClipDistance(double distance)
+{
+	nearClipDistance = distance;
+	renderParams.nearClipDistanceMeters = nearClipDistance;		
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetFarClipDistance(double distance)
+{
+	farClipDistance = distance;
+	renderParams.farClipDistanceMeters = farClipDistance;
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetIPD(double ipdMeters)
+{
+	ipd = ipdMeters;
+	renderParams.IPDMeters = ipd;
 }
 
 extern "C" osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetViewport(int eye)
@@ -373,7 +399,6 @@ int ConstructBuffersOpenGL(int eye)
 int ConstructBuffersD3D11(int eye)
 {
 	DebugLog("[OSVR Rendering Plugin] ConstructBuffersD3D11");
-	//UpdateRenderInfo();
 	HRESULT hr;
 	// The color buffer for this eye.  We need to put this into
 	// a generic structure for the Present function, but we only need
