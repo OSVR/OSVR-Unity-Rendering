@@ -249,7 +249,7 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDistortionMesh(
 		distortion.m_distortionCOP = COP;
 		dp.push_back(distortion);
 	}
-	return render->UpdateDistortionMesh(osvr::renderkit::RenderManager::DistortionMeshType::SQUARE, dp);
+	return render->UpdateDistortionMeshes(osvr::renderkit::RenderManager::DistortionMeshType::SQUARE, dp);
 }
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
