@@ -103,7 +103,9 @@ enum RenderEvents
 { 
 	kOsvrEventID_Render = 0,
 	kOsvrEventID_Shutdown = 1,
-	kOsvrEventID_Update = 2
+	kOsvrEventID_Update = 2,
+	kOsvrEventID_SetRoomRotationUsingHead = 3,
+	kOsvrEventID_ClearRoomToWorldTransform = 4
 };
 
 
@@ -250,6 +252,26 @@ extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UpdateDistortionMesh(
 		dp.push_back(distortion);
 	}
 	return render->UpdateDistortionMeshes(osvr::renderkit::RenderManager::DistortionMeshType::SQUARE, dp);
+}
+
+// Updates the internal "room to world" transformation (applied to all
+// tracker data for this client context instance) based on the user's head
+// orientation, so that the direction the user is facing becomes -Z to your
+// application. Only rotates about the Y axis (yaw).
+// 
+// Note that this method internally calls osvrClientUpdate() to get a head pose
+// so your callbacks may be called during its execution!
+void SetRoomRotationUsingHead()
+{
+	render->SetRoomRotationUsingHead();
+}
+
+// Clears/resets the internal "room to world" transformation back to an
+// identity transformation - that is, clears the effect of any other
+// manipulation of the room to world transform.
+void ClearRoomToWorldTransform()
+{
+	render->ClearRoomToWorldTransform();
 }
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
@@ -626,6 +648,12 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 		break;
 	case kOsvrEventID_Update:
 		UpdateRenderInfo();
+		break;
+	case kOsvrEventID_SetRoomRotationUsingHead:
+		SetRoomRotationUsingHead();
+		break;
+	case kOsvrEventID_ClearRoomToWorldTransform:
+		ClearRoomToWorldTransform();
 		break;
 	default:
 		break;
