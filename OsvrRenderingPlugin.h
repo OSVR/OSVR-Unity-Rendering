@@ -38,7 +38,7 @@ Sensics, Inc.
 // Which graphics device APIs we possibly support?
 #if UNITY_WIN
 #define SUPPORT_D3D11 1
-#define SUPPORT_OPENGL 1
+#define SUPPORT_OPENGL_CORE 1
 #elif UNITY_OSX || UNITY_LINUX
 #define SUPPORT_OPENGL 1
 #endif
