@@ -24,11 +24,11 @@ After installing RenderManager, you can run **EnableOSVRDirectMode.exe** and the
 
 ![Enable-Disable](https://github.com/OSVR/OSVR-Unity-Rendering/blob/rendermanager_docs/images/enable_disable_directmode.png?raw=true)
 
-From the Windows Start Menu, run one of the RenderManager demos such as *RenderManagerD3DExample3D.exe*. If it works, you should scene that looks like:
+From the Windows Start Menu, run one of the RenderManager demos such as **RenderManagerD3DExample3D.exe**. If it works, you should scene that looks like:
 
 ![Cube Room](https://github.com/OSVR/OSVR-Unity-Rendering/blob/rendermanager_docs/images/cube_room.png?raw=true)
 
-An external RenderManager configuration file is referenced in the *osvr_server_config.json* file:
+An external RenderManager configuration file is referenced in the **osvr_server_config.json** file:
 
 ![OSVR server config snippet](https://github.com/OSVR/OSVR-Unity-Rendering/blob/rendermanager_docs/images/osvr_server_config_rm_snippet.png?raw=true)
 
