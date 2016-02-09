@@ -439,74 +439,73 @@ int ConstructBuffersD3D11(int eye, int frame)
 	DebugLog("[OSVR Rendering Plugin] ConstructBuffersD3D11");
 	HRESULT hr;
 
-			// The color buffer for this eye.  We need to put this into
-			// a generic structure for the Present function, but we only need
-			// to fill in the Direct3D portion.
-			//  Note that this texture format must be RGBA and unsigned byte,
-			// so that we can present it to Direct3D for DirectMode.
-			ID3D11Texture2D* D3DTexture = NULL;
-			unsigned width = static_cast<int>(renderInfo[eye].viewport.width);
-			unsigned height = static_cast<int>(renderInfo[eye].viewport.height);
+	// The color buffer for this eye.  We need to put this into
+	// a generic structure for the Present function, but we only need
+	// to fill in the Direct3D portion.
+	//  Note that this texture format must be RGBA and unsigned byte,
+	// so that we can present it to Direct3D for DirectMode.
+	ID3D11Texture2D* D3DTexture = NULL;
+	unsigned width = static_cast<int>(renderInfo[eye].viewport.width);
+	unsigned height = static_cast<int>(renderInfo[eye].viewport.height);
 
-			// Initialize a new render target texture description.
-			memset(&textureDesc, 0, sizeof(textureDesc));
-			textureDesc.Width = width;
-			textureDesc.Height = height;
-			textureDesc.MipLevels = 1;
-			textureDesc.ArraySize = 1;
-			//textureDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-			textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-			textureDesc.SampleDesc.Count = 1;
-			textureDesc.SampleDesc.Quality = 0;
-			textureDesc.Usage = D3D11_USAGE_DEFAULT;
-			// We need it to be both a render target and a shader resource
-			textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-			textureDesc.CPUAccessFlags = 0;
-			textureDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+	// Initialize a new render target texture description.
+	memset(&textureDesc, 0, sizeof(textureDesc));
+	textureDesc.Width = width;
+	textureDesc.Height = height;
+	textureDesc.MipLevels = 1;
+	textureDesc.ArraySize = 1;
+	//textureDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.SampleDesc.Quality = 0;
+	textureDesc.Usage = D3D11_USAGE_DEFAULT;
+	// We need it to be both a render target and a shader resource
+	textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	textureDesc.CPUAccessFlags = 0;
+	textureDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
 
-			// Create a new render target texture to use.
-			hr = renderInfo[eye].library.D3D11->device->CreateTexture2D(
-				&textureDesc, NULL, &D3DTexture);
-			if (FAILED(hr)) {
-				DebugLog("[OSVR Rendering Plugin] Can't create texture for eye");
-				return OSVR_RETURN_FAILURE;
-			}
+	// Create a new render target texture to use.
+	hr = renderInfo[eye].library.D3D11->device->CreateTexture2D(
+		&textureDesc, NULL, &D3DTexture);
+	if (FAILED(hr)) {
+		DebugLog("[OSVR Rendering Plugin] Can't create texture for eye");
+		return OSVR_RETURN_FAILURE;
+	}
 
-			// Fill in the resource view for your render texture buffer here
-			D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc;
-			memset(&renderTargetViewDesc, 0, sizeof(renderTargetViewDesc));
-			// This must match what was created in the texture to be rendered
-			// @todo Figure this out by introspection on the texture?
-			//renderTargetViewDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-			renderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-			renderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-			renderTargetViewDesc.Texture2D.MipSlice = 0;
+	// Fill in the resource view for your render texture buffer here
+	D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc;
+	memset(&renderTargetViewDesc, 0, sizeof(renderTargetViewDesc));
+	// This must match what was created in the texture to be rendered
+	// @todo Figure this out by introspection on the texture?
+	//renderTargetViewDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	renderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	renderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	renderTargetViewDesc.Texture2D.MipSlice = 0;
 
-			// Create the render target view.
-			ID3D11RenderTargetView *renderTargetView; //< Pointer to our render target view
-			hr = renderInfo[eye].library.D3D11->device->CreateRenderTargetView(
-				D3DTexture, &renderTargetViewDesc, &renderTargetView);
-			if (FAILED(hr)) {
-				DebugLog("[OSVR Rendering Plugin] Could not create render target for eye");
-				return OSVR_RETURN_FAILURE;
-			}
+	// Create the render target view.
+	ID3D11RenderTargetView *renderTargetView; //< Pointer to our render target view
+	hr = renderInfo[eye].library.D3D11->device->CreateRenderTargetView(
+		D3DTexture, &renderTargetViewDesc, &renderTargetView);
+	if (FAILED(hr)) {
+		DebugLog("[OSVR Rendering Plugin] Could not create render target for eye");
+		return OSVR_RETURN_FAILURE;
+	}
 
-			// Push the filled-in RenderBuffer onto the stack.
-			osvr::renderkit::RenderBufferD3D11 *rbD3D = new osvr::renderkit::RenderBufferD3D11;
-			rbD3D->colorBuffer = D3DTexture;
-			rbD3D->colorBufferView = renderTargetView;
-			osvr::renderkit::RenderBuffer rb;
-			rb.D3D11 = rbD3D;
-			frameInfo[frame].renderBuffers.push_back(rb);	
+	// Push the filled-in RenderBuffer onto the stack.
+	osvr::renderkit::RenderBufferD3D11 *rbD3D = new osvr::renderkit::RenderBufferD3D11;
+	rbD3D->colorBuffer = D3DTexture;
+	rbD3D->colorBufferView = renderTargetView;
+	osvr::renderkit::RenderBuffer rb;
+	rb.D3D11 = rbD3D;
+	frameInfo[frame].renderBuffers.push_back(rb);	
 	
 	// Register our constructed buffers so that we can use them for
 	// presentation.
 
-		if (!render->RegisterRenderBuffers(frameInfo[frame].renderBuffers)) {
-			DebugLog("RegisterRenderBuffers() returned false, cannot continue");
-			return OSVR_RETURN_FAILURE;
-		}
-	
+	if (!render->RegisterRenderBuffers(frameInfo[frame].renderBuffers)) {
+		DebugLog("RegisterRenderBuffers() returned false, cannot continue");
+		return OSVR_RETURN_FAILURE;
+	}	
 	
 	return OSVR_RETURN_SUCCESS;
 }
