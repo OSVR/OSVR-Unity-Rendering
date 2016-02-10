@@ -518,7 +518,16 @@ void RenderViewD3D11(const osvr::renderkit::RenderInfo &renderInfo, ID3D11Render
 	context->OMSetRenderTargets(1, &renderTargetView, NULL);
 
 	//copy the updated RenderTexture from Unity to RenderManager colorBuffer
-	frameInfo[frame].renderBuffers[eyeIndex].D3D11->colorBuffer = eyeIndex == 0 ? reinterpret_cast<ID3D11Texture2D*>(leftEyeTexturePtr1) : reinterpret_cast<ID3D11Texture2D*>(rightEyeTexturePtr1);
+	if (frame == 0)
+	{
+		frameInfo[frame].renderBuffers[eyeIndex].D3D11->colorBuffer = eyeIndex == 0 ? reinterpret_cast<ID3D11Texture2D*>(leftEyeTexturePtr1) : reinterpret_cast<ID3D11Texture2D*>(rightEyeTexturePtr1);
+
+	}
+	else
+	{
+		frameInfo[frame].renderBuffers[eyeIndex].D3D11->colorBuffer = eyeIndex == 0 ? reinterpret_cast<ID3D11Texture2D*>(leftEyeTexturePtr2) : reinterpret_cast<ID3D11Texture2D*>(rightEyeTexturePtr2);
+
+	}
 }
 
 // Render the world from the specified point of view.
