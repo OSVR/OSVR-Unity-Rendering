@@ -50,4 +50,9 @@ if (OPENGL_FOUND AND GLEW_FOUND)
 	endif()
 endif()
 
+# Install docs, license, sample config
+install(TARGETS
+    osvrUnityRenderingPlugin
+    DESTINATION .)
+
 
