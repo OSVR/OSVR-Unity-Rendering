@@ -98,7 +98,7 @@ GLuint frameBuffer;
 #endif
 
 // RenderEvents
-// If we ever decide to add more events, here's the place for it.
+// Called from Unity with GL.IssuePluginEvent
 enum RenderEvents 
 { 
 	kOsvrEventID_Render = 0,
@@ -122,6 +122,7 @@ extern "C" {
 	}
 }
 
+// Only for debugging purposes, as this causes some errors at shutdown
 static inline void DebugLog(const char *str) {
 	#if _DEBUG
 	if (debugLog)
