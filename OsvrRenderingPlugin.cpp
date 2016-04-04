@@ -294,10 +294,17 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 
 	//create a new set of RenderParams for passing to GetRenderInfo()
 	renderParams = osvr::renderkit::RenderManager::RenderParams();
-
 	UpdateRenderInfo();
 
-	//construct color buffers
+	DebugLog("[OSVR Rendering Plugin] Success!");
+	return OSVR_RETURN_SUCCESS;
+}
+
+extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ConstructRenderBuffers()
+{
+	UpdateRenderInfo();
+
+	//construct buffers
 	for (size_t i = 0; i < renderInfo.size(); i++) {
 		switch (s_DeviceType)
 		{
@@ -312,8 +319,6 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 			return OSVR_RETURN_FAILURE;
 		}
 	}
-
-	DebugLog("[OSVR Rendering Plugin] Success!");
 	return OSVR_RETURN_SUCCESS;
 }
 
@@ -428,33 +433,11 @@ int ConstructBuffersD3D11(int eye)
 	// to fill in the Direct3D portion.
 	//  Note that this texture format must be RGBA and unsigned byte,
 	// so that we can present it to Direct3D for DirectMode.
-	ID3D11Texture2D* D3DTexture = NULL;
+	ID3D11Texture2D* D3DTexture = eye == 0 ? reinterpret_cast<ID3D11Texture2D*>(leftEyeTexturePtr) : reinterpret_cast<ID3D11Texture2D*>(rightEyeTexturePtr);
 	unsigned width = static_cast<int>(renderInfo[eye].viewport.width);
 	unsigned height = static_cast<int>(renderInfo[eye].viewport.height);
 
-	// Initialize a new render target texture description.
-	memset(&textureDesc, 0, sizeof(textureDesc));
-	textureDesc.Width = width;
-	textureDesc.Height = height;
-	textureDesc.MipLevels = 1;
-	textureDesc.ArraySize = 1;
-	//textureDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	textureDesc.SampleDesc.Count = 1;
-	textureDesc.SampleDesc.Quality = 0;
-	textureDesc.Usage = D3D11_USAGE_DEFAULT;
-	// We need it to be both a render target and a shader resource
-	textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-	textureDesc.CPUAccessFlags = 0;
-	textureDesc.MiscFlags = 0;
-
-	// Create a new render target texture to use.
-	hr = renderInfo[eye].library.D3D11->device->CreateTexture2D(
-		&textureDesc, NULL, &D3DTexture);
-	if (FAILED(hr)) {
-		DebugLog("[OSVR Rendering Plugin] Can't create texture for eye");
-		return OSVR_RETURN_FAILURE;
-	}
+	D3DTexture->GetDesc(&textureDesc);
 
 	// Fill in the resource view for your render texture buffer here
 	D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc;
