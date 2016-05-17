@@ -1,7 +1,7 @@
 # OSVR-Unity-Rendering
 Rendering plugin for OSVR-Unity, based on the docs here: http://docs.unity3d.com/Manual/NativePluginInterface.html
 
-This plugin enables OSVR RenderManager features in OSVR-Unity projects. These features include:
+This plugin enables [OSVR-RenderManager](https://github.com/sensics/OSVR-RenderManager) features in [OSVR-Unity projects](https://github.com/OSVR/OSVR-Unity). These features include:
 * Direct Mode
 * Timewarp
 * Distortion Correction for HDK 1.3
@@ -50,4 +50,5 @@ If **directModeEnabled** is set to false, the game will render in a window. Sett
 
 **asynchronous timewarp** is coming soon.
 
-
+## Troubleshooting
+For RenderManager troubleshooting, visit: https://github.com/OSVR/OSVR-Docs/blob/master/Troubleshooting/RenderManager.md
