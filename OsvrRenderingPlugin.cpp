@@ -297,6 +297,20 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     DebugLog("[OSVR Rendering Plugin] Success!");
     return OSVR_RETURN_SUCCESS;
 }
+/// Helper function that handles doing the loop of constructing buffers, and
+/// returning failure if any of them in the loop return failure.
+template <typename F>
+inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
+                                                    F &&bufferConstructor) {
+    for (int i = 0; i < numBuffers; ++i) {
+        auto ret = bufferConstructor(i);
+        if (ret != OSVR_RETURN_SUCCESS) {
+            DebugLog("Failed in a buffer constructor!");
+            return OSVR_RETURN_FAILURE;
+        }
+    }
+    return OSVR_RETURN_SUCCESS;
+}
 
 OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
     if (!s_deviceType) {
@@ -304,23 +318,24 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
         return OSVR_RETURN_FAILURE;
     }
     UpdateRenderInfo();
-    // construct buffers
 
+    // construct buffers
     const int n = static_cast<int>(renderInfo.size());
-    for (int i = 0; i < n; ++i) {
-        switch (s_deviceType.getDeviceTypeEnum()) {
-        case kUnityGfxRendererD3D11:
-            ConstructBuffersD3D11(i);
-            break;
-        case kUnityGfxRendererOpenGL:
-            ConstructBuffersOpenGL(i);
-            break;
-        default:
-            DebugLog("Device type not supported.");
-            return OSVR_RETURN_FAILURE;
-        }
+    switch (s_deviceType.getDeviceTypeEnum()) {
+#if SUPPORT_D3D11
+    case kUnityGfxRendererD3D11:
+        return applyRenderBufferConstructor(n, ConstructBuffersD3D11);
+        break;
+#endif
+#if SUPPORT_OPENGL
+    case kUnityGfxRendererOpenGL:
+        return applyRenderBufferConstructor(n, ConstructBuffersOpenGL);
+        break;
+#endif
+    default:
+        DebugLog("Device type not supported.");
+        return OSVR_RETURN_FAILURE;
     }
-    return OSVR_RETURN_SUCCESS;
 }
 
 void UNITY_INTERFACE_API SetNearClipDistance(double distance) {
