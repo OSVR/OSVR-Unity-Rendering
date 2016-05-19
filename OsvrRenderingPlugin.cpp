@@ -78,8 +78,11 @@ static std::vector<osvr::renderkit::RenderInfo> s_renderInfo;
 static osvr::renderkit::GraphicsLibrary s_library;
 static void *s_leftEyeTexturePtr = nullptr;
 static void *s_rightEyeTexturePtr = nullptr;
+/// @todo is this redundant? (given renderParams)
 static double s_nearClipDistance = 0.1;
+/// @todo is this redundant? (given renderParams)
 static double s_farClipDistance = 1000.0;
+/// @todo is this redundant? (given renderParams)
 static double s_ipd = 0.063;
 
 // D3D11 vars
@@ -318,11 +321,13 @@ UpdateDistortionMesh(float distanceScale[2], float centerOfProjection[2],
 //
 // Note that this method internally calls osvrClientUpdate() to get a head pose
 // so your callbacks may be called during its execution!
+/// @todo does this actually get called from anywhere or is it dead code?
 void SetRoomRotationUsingHead() { s_render->SetRoomRotationUsingHead(); }
 
 // Clears/resets the internal "room to world" transformation back to an
 // identity transformation - that is, clears the effect of any other
 // manipulation of the room to world transform.
+/// @todo does this actually get called from anywhere or is it dead code?
 void ClearRoomToWorldTransform() { s_render->ClearRoomToWorldTransform(); }
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
@@ -346,7 +351,10 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
             "[OSVR Rendering Plugin] Client context already set! Replacing...");
     }
     s_clientContext = context;
+
 #if SUPPORT_D3D11
+    /// @todo can we come up with the "Direct3D11" string from
+    /// s_deviceType.getDeviceTypeEnum() at this point?
     s_render =
         osvr::renderkit::createRenderManager(context, "Direct3D11", s_library);
 #else
