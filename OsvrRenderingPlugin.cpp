@@ -275,6 +275,23 @@ void ClearRoomToWorldTransform() { render->ClearRoomToWorldTransform(); }
 // Called from Unity to create a RenderManager, passing in a ClientContext
 OSVR_ReturnCode UNITY_INTERFACE_API
 CreateRenderManagerFromUnity(OSVR_ClientContext context) {
+    /// See if we're already created/running - shouldn't happen, but might.
+    if (render != nullptr) {
+        if (render->doingOkay()) {
+            DebugLog("[OSVR Rendering Plugin] RenderManager already created "
+                     "and doing OK - will just return success without trying "
+                     "to re-initialize.");
+            return OSVR_RETURN_SUCCESS;
+        }
+
+        DebugLog("[OSVR Rendering Plugin] RenderManager already created, "
+                 "but not doing OK. Will shut down before creating again.");
+        ShutdownRenderManager();
+    }
+    if (clientContext != nullptr) {
+        DebugLog(
+            "[OSVR Rendering Plugin] Client context already set! Replacing...");
+    }
     clientContext = context;
     render =
         osvr::renderkit::createRenderManager(context, "Direct3D11", library);
