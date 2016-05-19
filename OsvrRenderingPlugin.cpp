@@ -112,10 +112,10 @@ void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) { debugLog = d; }
 
 // Only for debugging purposes, as this causes some errors at shutdown
 static inline void DebugLog(const char *str) {
-	#if _DEBUG
-	if (debugLog)
-		debugLog(str);
-	#endif
+#ifndef NDEBUG
+    if (debugLog)
+        debugLog(str);
+#endif
 }
 
 // --------------------------------------------------------------------------
