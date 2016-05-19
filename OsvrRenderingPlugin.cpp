@@ -20,6 +20,10 @@ Sensics, Inc.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Both of these need to be enabled to force-enable logging to files.
+#undef ENABLE_LOGGING
+#undef ENABLE_LOGFILE
+
 // Internal includes
 #include "OsvrRenderingPlugin.h"
 #include "Unity/IUnityGraphics.h"
@@ -32,9 +36,11 @@ Sensics, Inc.
 #include <osvr/Util/MatrixConventionsC.h>
 
 // standard includes
+#if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
+#include <fstream>
+#include <iostream>
+#endif
 #include <memory>
-
-#define ENABLE_LOGGING
 
 #if UNITY_WIN
 #define NO_MINMAX
@@ -85,6 +91,13 @@ static double s_farClipDistance = 1000.0;
 /// @todo is this redundant? (given renderParams)
 static double s_ipd = 0.063;
 
+#if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
+static std::ofstream s_debugLogFile;
+static std::ofstream s_debugLogFileRedir;
+static std::streambuf *s_oldCout = nullptr;
+static std::streambuf *s_oldCerr = nullptr;
+#endif
+
 // D3D11 vars
 #if SUPPORT_D3D11
 static D3D11_TEXTURE2D_DESC s_textureDesc;
@@ -118,6 +131,10 @@ inline void DebugLog(const char *str) {
     if (s_debugLog != nullptr) {
         s_debugLog(str);
     }
+#endif
+#if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
+    if (s_debugLogFile) {
+        s_debugLogFile << str << std::endl;
     }
 #endif
 }
@@ -266,6 +283,19 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
 // --------------------------------------------------------------------------
 // UnitySetInterfaces
 void UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces *unityInterfaces) {
+#if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
+    s_debugLogFile.open("RenderPluginLog.txt");
+    s_debugLogFileRedir.open("RenderPluginRedir.txt");
+
+    // Capture std::cout and std::cerr from RenderManager.
+    if (s_debugLogFileRedir) {
+        s_oldCout = std::cout.rdbuf();
+        std::cout.rdbuf(s_debugLogFileRedir.rdbuf());
+
+        s_oldCerr = std::cerr.rdbuf();
+        std::cerr.rdbuf(s_debugLogFileRedir.rdbuf());
+    }
+#endif
     s_UnityInterfaces = unityInterfaces;
     s_Graphics = s_UnityInterfaces->Get<IUnityGraphics>();
     s_Graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
@@ -277,6 +307,19 @@ void UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces *unityInterfaces) {
 void UNITY_INTERFACE_API UnityPluginUnload() {
     s_Graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
     OnGraphicsDeviceEvent(kUnityGfxDeviceEventShutdown);
+
+#if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
+    if (s_debugLogFile) {
+        s_debugLogFile.close();
+    }
+
+    if (s_debugLogFileRedir) {
+        // Restore the buffers
+        std::cout.rdbuf(s_oldCout);
+        std::cerr.rdbuf(s_oldCerr);
+        s_debugLogFileRedir.close();
+    }
+#endif
 }
 
 inline void UpdateRenderInfo() {
