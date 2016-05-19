@@ -19,40 +19,37 @@ find_package(osvr REQUIRED)
 # don't find the driver library.
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
-find_package(Boost REQUIRED) 
+find_package(Boost REQUIRED)
 find_package(osvrRenderManager REQUIRED)
-find_package(jsoncpp REQUIRED)
-if(TARGET jsoncpp_lib_static AND NOT TARGET jsoncpp_lib)
-    add_library(jsoncpp_lib INTERFACE)
-    target_link_libraries(jsoncpp_lib INTERFACE jsoncpp_lib_static)
-endif()
-
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/Unity")
+find_package(JsonCpp REQUIRED)
 
 set (osvrUnityRenderingPlugin_SOURCES
-	OsvrRenderingPlugin.cpp
+    OsvrRenderingPlugin.h
+    OsvrRenderingPlugin.cpp
 )
-add_library(osvrUnityRenderingPlugin SHARED OsvrRenderingPlugin.cpp)
-set_target_properties(osvrUnityRenderingPlugin PROPERTIES LINK_FLAGS "/DEF:${CMAKE_CURRENT_SOURCE_DIR}/OsvrRenderingPlugin.def")
+
+if(WIN32)
+#    list(APPEND osvrUnityRenderingPlugin_SOURCES OsvrRenderingPlugin.def)
+endif()
+
+add_library(osvrUnityRenderingPlugin MODULE ${osvrUnityRenderingPlugin_SOURCES})
+#set_target_properties(osvrUnityRenderingPlugin PROPERTIES LINK_FLAGS "/DEF:${CMAKE_CURRENT_SOURCE_DIR}/OsvrRenderingPlugin.def")
 target_link_libraries(osvrUnityRenderingPlugin osvr::osvrClientKit)
 target_link_libraries(osvrUnityRenderingPlugin osvrRenderManager)
-if(Boost_FOUND)
-    include_directories(${Boost_INCLUDE_DIRS}) 
-    target_link_libraries(osvrUnityRenderingPlugin ${Boost_LIBRARIES})
-endif()
+#if(Boost_FOUND)
+#    target_include_directories(osvrUnityRenderingPlugin PRIVATE ${Boost_INCLUDE_DIRS})
+#    target_link_libraries(osvrUnityRenderingPlugin ${Boost_LIBRARIES})
+#endif()
 if (OPENGL_FOUND AND GLEW_FOUND)
-	target_include_directories(osvrUnityRenderingPlugin PRIVATE ${OPENGL_INCLUDE_DIRS})
-	target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} GLEW::GLEW jsoncpp_lib)
-	# Handle static glew.
-	if(GLEW_LIBRARY MATCHES ".*s.lib")
-		target_compile_definitions(osvrUnityRenderingPlugin PRIVATE GLEW_STATIC)
-	endif()
+    target_include_directories(osvrUnityRenderingPlugin PRIVATE ${OPENGL_INCLUDE_DIRS})
+    target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} GLEW::GLEW JsonCpp::JsonCpp)
+    # Handle static glew.
+    if(GLEW_LIBRARY MATCHES ".*s.lib")
+        target_compile_definitions(osvrUnityRenderingPlugin PRIVATE GLEW_STATIC)
+    endif()
 endif()
 
 # Install docs, license, sample config
 install(TARGETS
     osvrUnityRenderingPlugin
     DESTINATION .)
-
-
