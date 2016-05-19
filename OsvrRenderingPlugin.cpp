@@ -109,14 +109,15 @@ enum RenderEvents {
 // Helper utilities
 
 // Allow writing to the Unity debug console from inside DLL land.
-static DebugFnPtr debugLog = nullptr;
-void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) { debugLog = d; }
+static DebugFnPtr s_debugLog = nullptr;
+void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) { s_debugLog = d; }
 
 // Only for debugging purposes, as this causes some errors at shutdown
 inline void DebugLog(const char *str) {
 #if !defined(NDEBUG) || defined(ENABLE_LOGGING)
-    if (debugLog != nullptr) {
-        debugLog(str);
+    if (s_debugLog != nullptr) {
+        s_debugLog(str);
+    }
     }
 #endif
 }
@@ -632,7 +633,7 @@ void RenderViewD3D11(const osvr::renderkit::RenderInfo &ri,
 inline void RenderViewOpenGL(
     const osvr::renderkit::RenderInfo &ri, //< Info needed to render
     GLuint frameBufferObj, //< Frame buffer object to bind our buffers to
-    GLuint colorBuffer, //< Color buffer to render into
+    GLuint colorBuffer,    //< Color buffer to render into
     int eyeIndex) {
     // Render to our framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, frameBufferObj);
