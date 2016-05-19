@@ -58,6 +58,7 @@ UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d);
 
 UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API OnRenderEvent(int eventID);
 
+/// @todo should return OSVR_ReturnCode
 UNITY_INTERFACE_EXPORT int UNITY_INTERFACE_API
 SetColorBufferFromUnity(void *texturePtr, int eye);
 
