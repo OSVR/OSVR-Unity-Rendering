@@ -168,16 +168,17 @@ inline void dispatchEventToRenderer(UnityRendererType renderer,
         return;
     }
     switch (renderer.getDeviceTypeEnum()) {
-#if SUPPORT_OPENGL
-    case kUnityGfxRendererOpenGL:
-        DoEventGraphicsDeviceOpenGL(eventType);
-        break;
-#endif
 #if SUPPORT_D3D11
-    case kUnityGfxRendererD3D11:
+    case OSVRSupportedRenderers::D3D11:
         DoEventGraphicsDeviceD3D11(eventType);
         break;
 #endif
+#if SUPPORT_OPENGL
+    case OSVRSupportedRenderers::OpenGL:
+        DoEventGraphicsDeviceOpenGL(eventType);
+        break;
+#endif
+    case OSVRSupportedRenderers::EmptyRenderer:
     default:
         break;
     }
@@ -323,15 +324,16 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
     const int n = static_cast<int>(renderInfo.size());
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
-    case kUnityGfxRendererD3D11:
+    case OSVRSupportedRenderers::D3D11:
         return applyRenderBufferConstructor(n, ConstructBuffersD3D11);
         break;
 #endif
 #if SUPPORT_OPENGL
-    case kUnityGfxRendererOpenGL:
+    case OSVRSupportedRenderers::OpenGL:
         return applyRenderBufferConstructor(n, ConstructBuffersOpenGL);
         break;
 #endif
+    case OSVRSupportedRenderers::EmptyRenderer:
     default:
         DebugLog("Device type not supported.");
         return OSVR_RETURN_FAILURE;
@@ -610,7 +612,7 @@ inline void DoRender() {
 
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
-    case kUnityGfxRendererD3D11: {
+    case OSVRSupportedRenderers::D3D11: {
         // Render into each buffer using the specified information.
         for (int i = 0; i < n; ++i) {
             RenderViewD3D11(renderInfo[i],
@@ -631,7 +633,7 @@ inline void DoRender() {
     }
 #endif
 #if SUPPORT_OPENGL
-    case kUnityGfxRendererOpenGL: {
+    case OSVRSupportedRenderers::OpenGL: {
         // OpenGL
         //@todo OpenGL path is not working yet
         // Render into each buffer using the specified information.
@@ -649,6 +651,9 @@ inline void DoRender() {
         break;
     }
 #endif
+    case OSVRSupportedRenderers::EmptyRenderer:
+    default:
+        break;
     }
 }
 
@@ -700,7 +705,7 @@ inline void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType) {
         s_deviceType,
         "Should only be able to get in here with a valid device type.");
     BOOST_ASSERT_MSG(
-        s_deviceType.getDeviceTypeEnum == kUnityGfxRendererD3D11,
+        s_deviceType.getDeviceTypeEnum() == OSVRSupportedRenderers::D3D11,
         "Should only be able to get in here if using D3D11 device type.");
 
     switch (eventType) {
@@ -738,7 +743,7 @@ inline void DoEventGraphicsDeviceOpenGL(UnityGfxDeviceEventType eventType) {
         s_deviceType,
         "Should only be able to get in here with a valid device type.");
     BOOST_ASSERT_MSG(
-        s_deviceType.getDeviceTypeEnum == kUnityGfxRendererOpenGL,
+        s_deviceType.getDeviceTypeEnum() == OSVRSupportedRenderers::OpenGL,
         "Should only be able to get in here if using OpenGL device type.");
 
     switch (eventType) {

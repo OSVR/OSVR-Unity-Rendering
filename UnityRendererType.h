@@ -34,30 +34,42 @@
 // Standard includes
 // - none
 
+/// An enum class that only contains the renderer types that we support. This
+/// avoids spurious "unhandled cases in switch" warnings".
+enum class OSVRSupportedRenderers {
+    EmptyRenderer,
+#if SUPPORT_D3D11
+    D3D11,
+#endif
+#if SUPPORT_OPENGL
+    OpenGL,
+#endif
+};
+
 /// Wrapper around UnityGfxRenderer that knows about our support capabilities.
 class UnityRendererType {
   public:
     explicit operator bool() const { return supported_; }
-    UnityGfxRenderer getDeviceTypeEnum() const {
+    OSVRSupportedRenderers getDeviceTypeEnum() const {
         BOOST_ASSERT_MSG(supported_, "Cannot get an unsupported renderer!");
         return renderer_;
     }
-    UnityGfxRenderer getDeviceTypeEnumUnconditionally() const {
+    OSVRSupportedRenderers getDeviceTypeEnumUnconditionally() const {
         return renderer_;
     }
     UnityRendererType &operator=(UnityGfxRenderer gfxRenderer) {
-        BOOST_ASSERT_MSG(renderer_ == kUnityGfxRendererNull,
+        BOOST_ASSERT_MSG(renderer_ == OSVRSupportedRenderers::EmptyRenderer,
                          "Expect to only set renderer when it's null!");
         switch (gfxRenderer) {
 #if SUPPORT_OPENGL
         case kUnityGfxRendererOpenGL:
-            renderer_ = gfxRenderer;
+            renderer_ = OSVRSupportedRenderers::OpenGL;
             supported_ = true;
             break;
 #endif
 #if SUPPORT_D3D11
         case kUnityGfxRendererD3D11:
-            renderer_ = gfxRenderer;
+            renderer_ = OSVRSupportedRenderers::D3D11;
             supported_ = true;
             break;
 #endif
@@ -73,20 +85,19 @@ class UnityRendererType {
         case kUnityGfxRendererMetal:
         case kUnityGfxRendererD3D12:
         default:
-            renderer_ = kUnityGfxRendererNull;
-            supported_ = false;
+            reset();
             break;
         }
         return *this;
     }
 
     void reset() {
-        renderer_ = kUnityGfxRendererNull;
+        renderer_ = OSVRSupportedRenderers::EmptyRenderer;
         supported_ = false;
     }
 
   private:
-    UnityGfxRenderer renderer_ = kUnityGfxRendererNull;
+    OSVRSupportedRenderers renderer_ = OSVRSupportedRenderers::EmptyRenderer;
     bool supported_ = false;
 };
 
