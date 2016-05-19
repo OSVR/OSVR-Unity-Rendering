@@ -87,12 +87,12 @@ static double s_ipd = 0.063;
 
 // D3D11 vars
 #if SUPPORT_D3D11
-static D3D11_TEXTURE2D_DESC textureDesc;
+static D3D11_TEXTURE2D_DESC s_textureDesc;
 #endif
 
 // OpenGL vars
 #if SUPPORT_OPENGL
-GLuint frameBuffer;
+GLuint s_frameBuffer;
 #endif
 
 // RenderEvents
@@ -411,8 +411,8 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
 
     if (eye == 0) {
         // do this once
-        glGenFramebuffers(1, &frameBuffer);
-        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+        glGenFramebuffers(1, &s_frameBuffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, s_frameBuffer);
     }
 
     // The color buffer for this eye.  We need to put this into
@@ -478,7 +478,7 @@ inline OSVR_ReturnCode ConstructBuffersD3D11(int eye) {
     unsigned width = static_cast<unsigned>(s_renderInfo[eye].viewport.width);
     unsigned height = static_cast<unsigned>(s_renderInfo[eye].viewport.height);
 
-    D3DTexture->GetDesc(&textureDesc);
+    D3DTexture->GetDesc(&s_textureDesc);
 
     // Fill in the resource view for your render texture buffer here
     D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {};
@@ -628,11 +628,11 @@ void RenderViewD3D11(const osvr::renderkit::RenderInfo &ri,
 //@todo This is not functional yet.
 inline void RenderViewOpenGL(
     const osvr::renderkit::RenderInfo &ri, //< Info needed to render
-    GLuint frameBuffer, //< Frame buffer object to bind our buffers to
+    GLuint frameBufferObj, //< Frame buffer object to bind our buffers to
     GLuint colorBuffer, //< Color buffer to render into
     int eyeIndex) {
     // Render to our framebuffer
-    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, frameBufferObj);
 
     // Set color and depth buffers for the frame buffer
     glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
@@ -733,7 +733,7 @@ inline void DoRender() {
         // Render into each buffer using the specified information.
 
         for (int i = 0; i < n; ++i) {
-            RenderViewOpenGL(s_renderInfo[i], frameBuffer,
+            RenderViewOpenGL(s_renderInfo[i], s_frameBuffer,
                              s_renderBuffers[i].OpenGL->colorBufferName, i);
         }
 
