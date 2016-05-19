@@ -93,7 +93,6 @@ static double s_ipd = 0.063;
 
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 static std::ofstream s_debugLogFile;
-static std::ofstream s_debugLogFileRedir;
 static std::streambuf *s_oldCout = nullptr;
 static std::streambuf *s_oldCerr = nullptr;
 #endif
@@ -285,15 +284,14 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
 void UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces *unityInterfaces) {
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
     s_debugLogFile.open("RenderPluginLog.txt");
-    s_debugLogFileRedir.open("RenderPluginRedir.txt");
 
     // Capture std::cout and std::cerr from RenderManager.
-    if (s_debugLogFileRedir) {
+    if (s_debugLogFile) {
         s_oldCout = std::cout.rdbuf();
-        std::cout.rdbuf(s_debugLogFileRedir.rdbuf());
+        std::cout.rdbuf(s_debugLogFile.rdbuf());
 
         s_oldCerr = std::cerr.rdbuf();
-        std::cerr.rdbuf(s_debugLogFileRedir.rdbuf());
+        std::cerr.rdbuf(s_debugLogFile.rdbuf());
     }
 #endif
     s_UnityInterfaces = unityInterfaces;
@@ -310,14 +308,10 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
 
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
     if (s_debugLogFile) {
-        s_debugLogFile.close();
-    }
-
-    if (s_debugLogFileRedir) {
         // Restore the buffers
         std::cout.rdbuf(s_oldCout);
         std::cerr.rdbuf(s_oldCerr);
-        s_debugLogFileRedir.close();
+        s_debugLogFile.close();
     }
 #endif
 }
