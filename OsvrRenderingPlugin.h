@@ -21,10 +21,14 @@ Sensics, Inc.
 // limitations under the License.
 #pragma once
 
+#include "Unity/IUnityGraphics.h"
 #include "Unity/IUnityInterface.h"
+#include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
+#include <osvr/Util/ClientOpaqueTypesC.h>
+#include <osvr/Util/ReturnCodesC.h>
 
 // Which platform we are on?
-#if _MSC_VER
+#ifdef _WIN32
 #define UNITY_WIN 1
 #elif defined(__APPLE__)
 #define UNITY_OSX 1
@@ -34,7 +38,6 @@ Sensics, Inc.
 #error "Unknown platform!"
 #endif
 
-
 // Which graphics device APIs we possibly support?
 #if UNITY_WIN
 #define SUPPORT_D3D11 1
@@ -42,3 +45,53 @@ Sensics, Inc.
 #elif UNITY_OSX || UNITY_LINUX
 #define SUPPORT_OPENGL 1
 #endif
+
+typedef void(UNITY_INTERFACE_API *DebugFnPtr)(const char *);
+
+extern "C" {
+
+// No apparent UpdateDistortionMeshes symbol found?
+
+UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
+ConstructRenderBuffers();
+
+UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
+CreateRenderManagerFromUnity(OSVR_ClientContext context);
+
+UNITY_INTERFACE_EXPORT OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye);
+
+UNITY_INTERFACE_EXPORT osvr::renderkit::OSVR_ProjectionMatrix
+    UNITY_INTERFACE_API
+    GetProjectionMatrix(int eye);
+
+UNITY_INTERFACE_EXPORT UnityRenderingEvent UNITY_INTERFACE_API
+GetRenderEventFunc();
+
+UNITY_INTERFACE_EXPORT osvr::renderkit::OSVR_ViewportDescription
+    UNITY_INTERFACE_API
+    GetViewport(int eye);
+
+UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d);
+
+UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API OnRenderEvent(int eventID);
+
+UNITY_INTERFACE_EXPORT int UNITY_INTERFACE_API
+SetColorBufferFromUnity(void *texturePtr, int eye);
+
+UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API
+SetFarClipDistance(double distance);
+
+UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API SetIPD(double ipdMeters);
+
+UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API
+SetNearClipDistance(double distance);
+UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API ShutdownRenderManager();
+
+UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API
+UnityPluginLoad(IUnityInterfaces *unityInterfaces);
+
+UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API UnityPluginUnload();
+
+// UpdateDistortionMesh no longer exported - buggy, not used.
+
+} // extern "C"

@@ -103,19 +103,12 @@ enum RenderEvents {
     kOsvrEventID_ClearRoomToWorldTransform = 4
 };
 
-
 // --------------------------------------------------------------------------
 // Helper utilities
 
 // Allow writing to the Unity debug console from inside DLL land.
-extern "C" {
-	void(_stdcall *debugLog)(const char *) = nullptr;
-
-	void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API LinkDebug(void(_stdcall *d)(const char *))
-	{
-		debugLog = d;
-	}
-}
+static DebugFnPtr debugLog = nullptr;
+void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) { debugLog = d; }
 
 // Only for debugging purposes, as this causes some errors at shutdown
 static inline void DebugLog(const char *str) {
@@ -127,10 +120,10 @@ static inline void DebugLog(const char *str) {
 
 // --------------------------------------------------------------------------
 // UnitySetInterfaces
-static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType);
+static void UNITY_INTERFACE_API
+OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType);
 
-extern "C" void	UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* unityInterfaces)
-{
+void UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces *unityInterfaces) {
 	s_UnityInterfaces = unityInterfaces;
 	s_Graphics = s_UnityInterfaces->Get<IUnityGraphics>();
 	s_Graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
@@ -139,14 +132,12 @@ extern "C" void	UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnit
 	OnGraphicsDeviceEvent(kUnityGfxDeviceEventInitialize);
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
-{
+void UNITY_INTERFACE_API UnityPluginUnload() {
 	s_Graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
 	OnGraphicsDeviceEvent(kUnityGfxDeviceEventShutdown);
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ShutdownRenderManager()
-{
+void UNITY_INTERFACE_API ShutdownRenderManager() {
 	DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
 	if (render != nullptr)
 	{
@@ -271,7 +262,8 @@ void ClearRoomToWorldTransform()
 }
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
-extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRenderManagerFromUnity(OSVR_ClientContext context) {
+OSVR_ReturnCode UNITY_INTERFACE_API
+CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 	clientContext = context;
 	render = osvr::renderkit::createRenderManager(context, "Direct3D11", library);
 	if ((render == nullptr) || (!render->doingOkay())) {
@@ -295,8 +287,7 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API CreateRend
 	return OSVR_RETURN_SUCCESS;
 }
 
-extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ConstructRenderBuffers()
-{
+OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 	UpdateRenderInfo();
 
 	//construct buffers
@@ -317,36 +308,32 @@ extern "C" OSVR_ReturnCode UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API ConstructR
 	return OSVR_RETURN_SUCCESS;
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetNearClipDistance(double distance)
-{
+void UNITY_INTERFACE_API SetNearClipDistance(double distance) {
 	nearClipDistance = distance;
 	renderParams.nearClipDistanceMeters = nearClipDistance;		
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetFarClipDistance(double distance)
-{
+void UNITY_INTERFACE_API SetFarClipDistance(double distance) {
 	farClipDistance = distance;
 	renderParams.farClipDistanceMeters = farClipDistance;
 }
 
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetIPD(double ipdMeters)
-{
+void UNITY_INTERFACE_API SetIPD(double ipdMeters) {
 	ipd = ipdMeters;
 	renderParams.IPDMeters = ipd;
 }
 
-extern "C" osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetViewport(int eye)
-{
+osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_API
+GetViewport(int eye) {
 	return renderInfo[eye].viewport;
 }
 
-extern "C" osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetProjectionMatrix(int eye)
-{
+osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_API
+GetProjectionMatrix(int eye) {
 	return renderInfo[eye].projection;
 }
 
-extern "C" OSVR_Pose3 UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetEyePose(int eye)
-{
+OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye) {
 	return renderInfo[eye].pose;
 }
 
@@ -556,36 +543,41 @@ void RenderViewOpenGL(
 }
 
 // --------------------------------------------------------------------------
-// Should pass in eyeRenderTexture.GetNativeTexturePtr(), which gets updated in Unity when the camera renders.
-// On Direct3D-like devices, GetNativeTexturePtr() returns a pointer to the base texture type (IDirect3DBaseTexture9 on D3D9, 
-// ID3D11Resource on D3D11). On OpenGL-like devices the texture "name" is returned; cast the pointer to integer 
-// type to get it. On platforms that do not support native code plugins, this function always returns NULL.
-// Note that calling this function when using multi - threaded rendering will synchronize with the rendering 
-// thread(a slow operation), so best practice is to set up needed texture pointers only at initialization time.
-// For more reference, see: http://docs.unity3d.com/ScriptReference/Texture.GetNativeTexturePtr.html
-extern "C" int UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
-	if (s_DeviceType == -1)
-		return OSVR_RETURN_FAILURE;
-	
-	DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity");
-	if (eye == 0)
-	{
-		leftEyeTexturePtr = texturePtr;		
-	}
-	else
-	{
-		rightEyeTexturePtr = texturePtr;
-	}
-	
-	return OSVR_RETURN_SUCCESS;
-}
+// Should pass in eyeRenderTexture.GetNativeTexturePtr(), which gets updated in
+// Unity when the camera renders.
+// On Direct3D-like devices, GetNativeTexturePtr() returns a pointer to the base
+// texture type (IDirect3DBaseTexture9 on D3D9,
+// ID3D11Resource on D3D11). On OpenGL-like devices the texture "name" is
+// returned; cast the pointer to integer
+// type to get it. On platforms that do not support native code plugins, this
+// function always returns NULL.
+// Note that calling this function when using multi - threaded rendering will
+// synchronize with the rendering
+// thread(a slow operation), so best practice is to set up needed texture
+// pointers only at initialization time.
+// For more reference, see:
+// http://docs.unity3d.com/ScriptReference/Texture.GetNativeTexturePtr.html
+int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
+    if (s_DeviceType == -1)
+        return OSVR_RETURN_FAILURE;
 
+    DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity");
+    if (eye == 0) {
+        leftEyeTexturePtr = texturePtr;
+    } else {
+        rightEyeTexturePtr = texturePtr;
+    }
+
+    return OSVR_RETURN_SUCCESS;
+}
 
 // --------------------------------------------------------------------------
 // UnityRenderEvent
 // This will be called for GL.IssuePluginEvent script calls; eventID will
 // be the integer passed to IssuePluginEvent.
-extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eventID) {
+/// @todo does this actually need to be exported? It seems like
+/// GetRenderEventFunc returning it would be sufficient...
+void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
 	// Unknown graphics device type? Do nothing.
 	if (s_DeviceType == -1)
 		return;
@@ -640,12 +632,11 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API OnRenderEvent(int eve
 }
 
 // --------------------------------------------------------------------------
-// GetRenderEventFunc, an example function we export which is used to get a rendering event callback function.
-extern "C" UnityRenderingEvent UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API GetRenderEventFunc()
-{
-	return OnRenderEvent;
+// GetRenderEventFunc, a function we export which is used to get a
+// rendering event callback function.
+UnityRenderingEvent UNITY_INTERFACE_API GetRenderEventFunc() {
+    return &OnRenderEvent;
 }
-
 
 // -------------------------------------------------------------------
 //  Direct3D 11 setup/teardown code
