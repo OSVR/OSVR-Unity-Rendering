@@ -31,19 +31,11 @@ Sensics, Inc.
 #include <osvr/Util/MatrixConventionsC.h>
 
 // standard includes
-//#include <iostream>
 #include <memory>
-//#include <stdlib.h>
-#include <string>
-//#include <time.h>
 
 #if UNITY_WIN
 #define NO_MINMAX
 #define WIN32_LEAN_AND_MEAN
-//#include <DirectXMath.h>
-//#include <initguid.h>
-//#include <windows.h>
-//#include <wrl.h>
 #endif
 
 // Include headers for the graphics APIs we support
@@ -52,7 +44,6 @@ Sensics, Inc.
 
 #include "Unity/IUnityGraphicsD3D11.h"
 #include <osvr/RenderKit/GraphicsLibraryD3D11.h>
-// using namespace DirectX;
 #endif
 
 #if SUPPORT_OPENGL
@@ -71,51 +62,45 @@ Sensics, Inc.
 #endif
 #endif
 
-// COM-like Release macro
-#ifndef SAFE_RELEASE
-#define SAFE_RELEASE(a) if (a) { a->Release(); a = nullptr; }
-#endif
-
-//VARIABLES
-static IUnityInterfaces* s_UnityInterfaces = nullptr;
-static IUnityGraphics* s_Graphics = nullptr;
+// VARIABLES
+static IUnityInterfaces *s_UnityInterfaces = nullptr;
+static IUnityGraphics *s_Graphics = nullptr;
 static UnityGfxRenderer s_DeviceType = kUnityGfxRendererNull;
 
 static osvr::renderkit::RenderManager::RenderParams renderParams;
-static osvr::renderkit::RenderManager *render;
-static OSVR_ClientContext clientContext;
+static osvr::renderkit::RenderManager *render = nullptr;
+static OSVR_ClientContext clientContext = nullptr;
 static std::vector<osvr::renderkit::RenderBuffer> renderBuffers;
 static std::vector<osvr::renderkit::RenderInfo> renderInfo;
 static osvr::renderkit::GraphicsLibrary library;
 static void *leftEyeTexturePtr = nullptr;
 static void *rightEyeTexturePtr = nullptr;
-double nearClipDistance = 0.1;
-double farClipDistance = 1000.0;
-double ipd = 0.063;
+static double nearClipDistance = 0.1;
+static double farClipDistance = 1000.0;
+static double ipd = 0.063;
 
-//forward function declarations
+// forward function declarations
 int ConstructBuffersD3D11(int eye);
 int ConstructBuffersOpenGL(int eye);
 
-//D3D11 vars
+// D3D11 vars
 #if SUPPORT_D3D11
 static D3D11_TEXTURE2D_DESC textureDesc;
 #endif
 
-//OpenGL vars
+// OpenGL vars
 #if SUPPORT_OPENGL
 GLuint frameBuffer;
 #endif
 
 // RenderEvents
 // Called from Unity with GL.IssuePluginEvent
-enum RenderEvents 
-{ 
-	kOsvrEventID_Render = 0,
-	kOsvrEventID_Shutdown = 1,
-	kOsvrEventID_Update = 2,
-	kOsvrEventID_SetRoomRotationUsingHead = 3,
-	kOsvrEventID_ClearRoomToWorldTransform = 4
+enum RenderEvents {
+    kOsvrEventID_Render = 0,
+    kOsvrEventID_Shutdown = 1,
+    kOsvrEventID_Update = 2,
+    kOsvrEventID_SetRoomRotationUsingHead = 3,
+    kOsvrEventID_ClearRoomToWorldTransform = 4
 };
 
 
