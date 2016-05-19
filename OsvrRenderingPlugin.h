@@ -21,30 +21,13 @@ Sensics, Inc.
 // limitations under the License.
 #pragma once
 
+#include "PluginConfig.h"
+
 #include "Unity/IUnityGraphics.h"
 #include "Unity/IUnityInterface.h"
 #include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
 #include <osvr/Util/ClientOpaqueTypesC.h>
 #include <osvr/Util/ReturnCodesC.h>
-
-// Which platform we are on?
-#ifdef _WIN32
-#define UNITY_WIN 1
-#elif defined(__APPLE__)
-#define UNITY_OSX 1
-#elif defined(__linux__)
-#define UNITY_LINUX 1
-#else
-#error "Unknown platform!"
-#endif
-
-// Which graphics device APIs we possibly support?
-#if UNITY_WIN
-#define SUPPORT_D3D11 1
-#define SUPPORT_OPENGL 1
-#elif UNITY_OSX || UNITY_LINUX
-#define SUPPORT_OPENGL 1
-#endif
 
 typedef void(UNITY_INTERFACE_API *DebugFnPtr)(const char *);
 

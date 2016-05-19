@@ -26,6 +26,7 @@ find_package(JsonCpp REQUIRED)
 set (osvrUnityRenderingPlugin_SOURCES
     OsvrRenderingPlugin.h
     OsvrRenderingPlugin.cpp
+    PluginConfig.h
 )
 
 if(WIN32)
