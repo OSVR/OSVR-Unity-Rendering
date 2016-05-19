@@ -23,6 +23,7 @@ Sensics, Inc.
 // Internal includes
 #include "OsvrRenderingPlugin.h"
 #include "Unity/IUnityGraphics.h"
+#include "UnityRendererType.h"
 
 // Library includes
 #include "osvr/RenderKit/RenderManager.h"
@@ -65,7 +66,7 @@ Sensics, Inc.
 // VARIABLES
 static IUnityInterfaces *s_UnityInterfaces = nullptr;
 static IUnityGraphics *s_Graphics = nullptr;
-static UnityGfxRenderer s_DeviceType = kUnityGfxRendererNull;
+static UnityRendererType s_deviceType = {};
 
 static osvr::renderkit::RenderManager::RenderParams renderParams;
 static osvr::renderkit::RenderManager *render = nullptr;
@@ -160,23 +161,50 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType);
 static void DoEventGraphicsDeviceOpenGL(UnityGfxDeviceEventType eventType);
 #endif
 
+inline void dispatchEventToRenderer(UnityRendererType renderer,
+                                    UnityGfxDeviceEventType eventType) {
+    if (!renderer) {
+        DebugLog("[OSVR Rendering Plugin] Current device type not supported");
+        return;
+    }
+    switch (renderer.getDeviceTypeEnum()) {
+#if SUPPORT_OPENGL
+    case kUnityGfxRendererOpenGL:
+        DoEventGraphicsDeviceOpenGL(eventType);
+        break;
+#endif
+#if SUPPORT_D3D11
+    case kUnityGfxRendererD3D11:
+        DoEventGraphicsDeviceD3D11(eventType);
+        break;
+#endif
+    default:
+        break;
+    }
+}
+
 static void UNITY_INTERFACE_API
 OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
-    UnityGfxRenderer currentDeviceType = s_DeviceType;
-
     switch (eventType) {
     case kUnityGfxDeviceEventInitialize: {
         DebugLog(
             "[OSVR Rendering Plugin] OnGraphicsDeviceEvent(Initialize).\n");
-        s_DeviceType = s_Graphics->GetRenderer();
-        currentDeviceType = s_DeviceType;
+        s_deviceType = s_Graphics->GetRenderer();
+        if (!s_deviceType) {
+            DebugLog("[OSVR Rendering Plugin] "
+                     "OnGraphicsDeviceEvent(Initialize): New device type is "
+                     "not supported!\n");
+        }
         break;
     }
 
     case kUnityGfxDeviceEventShutdown: {
         DebugLog("[OSVR Rendering Plugin] OnGraphicsDeviceEvent(Shutdown).\n");
-        s_DeviceType = kUnityGfxRendererNull;
-        break;
+        /// Here, we want to dispatch before we reset the device type, so the
+        /// right device type gets shut down. Thus we return instead of break.
+        dispatchEventToRenderer(s_deviceType, eventType);
+        s_deviceType.reset();
+        return;
     }
 
     case kUnityGfxDeviceEventBeforeReset: {
@@ -190,34 +218,9 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
             "[OSVR Rendering Plugin] OnGraphicsDeviceEvent(AfterReset).\n");
         break;
     }
-    };
-
-    switch (currentDeviceType) {
-#if SUPPORT_OPENGL
-    case kUnityGfxRendererOpenGL:
-        DoEventGraphicsDeviceOpenGL(eventType);
-        break;
-#endif
-#if SUPPORT_D3D11
-    case kUnityGfxRendererD3D11:
-        DoEventGraphicsDeviceD3D11(eventType);
-        break;
-#endif
-    case kUnityGfxRendererD3D9:
-    case kUnityGfxRendererGCM:
-    case kUnityGfxRendererNull:
-    case kUnityGfxRendererXenon:
-    case kUnityGfxRendererOpenGLES20:
-    case kUnityGfxRendererOpenGLES30:
-    case kUnityGfxRendererGXM:
-    case kUnityGfxRendererPS4:
-    case kUnityGfxRendererXboxOne:
-    case kUnityGfxRendererMetal:
-    case kUnityGfxRendererD3D12:
-    default:
-        DebugLog("[OSVR Rendering Plugin] Current device type not supported");
-        break;
     }
+
+    dispatchEventToRenderer(s_deviceType, eventType);
 }
 
 void UpdateRenderInfo() { renderInfo = render->GetRenderInfo(renderParams); }
@@ -296,11 +299,16 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 }
 
 OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
+    if (!s_deviceType) {
+        DebugLog("Device type not supported.");
+        return OSVR_RETURN_FAILURE;
+    }
     UpdateRenderInfo();
-    int n = static_cast<int>(renderInfo.size());
     // construct buffers
+
+    const int n = static_cast<int>(renderInfo.size());
     for (int i = 0; i < n; ++i) {
-        switch (s_DeviceType) {
+        switch (s_deviceType.getDeviceTypeEnum()) {
         case kUnityGfxRendererD3D11:
             ConstructBuffersD3D11(i);
             break;
@@ -555,19 +563,17 @@ void RenderViewOpenGL(
 // Should pass in eyeRenderTexture.GetNativeTexturePtr(), which gets updated in
 // Unity when the camera renders.
 // On Direct3D-like devices, GetNativeTexturePtr() returns a pointer to the base
-// texture type (IDirect3DBaseTexture9 on D3D9,
-// ID3D11Resource on D3D11). On OpenGL-like devices the texture "name" is
-// returned; cast the pointer to integer
-// type to get it. On platforms that do not support native code plugins, this
-// function always returns NULL.
-// Note that calling this function when using multi - threaded rendering will
-// synchronize with the rendering
-// thread(a slow operation), so best practice is to set up needed texture
-// pointers only at initialization time.
+// texture type (IDirect3DBaseTexture9 on D3D9, ID3D11Resource on D3D11). On
+// OpenGL-like devices the texture "name" is returned; cast the pointer to
+// integer type to get it. On platforms that do not support native code plugins,
+// this function always returns NULL.
+// Note that calling this function when using multi-threaded rendering will
+// synchronize with the rendering thread (a slow operation), so best practice is
+// to set up needed texture pointers only at initialization time.
 // For more reference, see:
 // http://docs.unity3d.com/ScriptReference/Texture.GetNativeTexturePtr.html
 int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
-    if (s_DeviceType == -1) {
+    if (!s_deviceType) {
         return OSVR_RETURN_FAILURE;
     }
 
@@ -581,6 +587,56 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
     return OSVR_RETURN_SUCCESS;
 }
 
+inline void DoRender() {
+    if (!s_deviceType) {
+        return;
+    }
+    const auto n = static_cast<int>(renderInfo.size());
+
+    switch (s_deviceType.getDeviceTypeEnum()) {
+#if SUPPORT_D3D11
+    case kUnityGfxRendererD3D11: {
+        // Render into each buffer using the specified information.
+        for (int i = 0; i < n; ++i) {
+            RenderViewD3D11(renderInfo[i],
+                            renderBuffers[i].D3D11->colorBufferView, i);
+        }
+
+        // Send the rendered results to the screen
+        // Flip Y because Unity RenderTextures are upside-down on D3D11
+        if (!render->PresentRenderBuffers(
+                renderBuffers, renderInfo,
+                osvr::renderkit::RenderManager::RenderParams(),
+                std::vector<osvr::renderkit::OSVR_ViewportDescription>(),
+                true)) {
+            DebugLog("[OSVR Rendering Plugin] PresentRenderBuffers() returned "
+                     "false, maybe because it was asked to quit");
+        }
+        break;
+    }
+#endif
+#if SUPPORT_OPENGL
+    case kUnityGfxRendererOpenGL: {
+        // OpenGL
+        //@todo OpenGL path is not working yet
+        // Render into each buffer using the specified information.
+
+        for (int i = 0; i < n; ++i) {
+            RenderViewOpenGL(renderInfo[i], frameBuffer,
+                             renderBuffers[i].OpenGL->colorBufferName, i);
+        }
+
+        // Send the rendered results to the screen
+        if (!render->PresentRenderBuffers(renderBuffers, renderInfo)) {
+            DebugLog("PresentRenderBuffers() returned false, maybe because "
+                     "it was asked to quit");
+        }
+        break;
+    }
+#endif
+    }
+}
+
 // --------------------------------------------------------------------------
 // UnityRenderEvent
 // This will be called for GL.IssuePluginEvent script calls; eventID will
@@ -589,51 +645,14 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
 /// GetRenderEventFunc returning it would be sufficient...
 void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
     // Unknown graphics device type? Do nothing.
-    if (s_DeviceType == -1) {
+    if (!s_deviceType) {
         return;
     }
 
     switch (eventID) {
     // Call the Render loop
     case kOsvrEventID_Render:
-        if (s_DeviceType == kUnityGfxRendererD3D11) {
-            int n = static_cast<int>(renderInfo.size());
-            // Render into each buffer using the specified information.
-            for (int i = 0; i < n; ++i) {
-                RenderViewD3D11(renderInfo[i],
-                                renderBuffers[i].D3D11->colorBufferView, i);
-            }
-
-            // Send the rendered results to the screen
-            // Flip Y because Unity RenderTextures are upside-down on D3D11
-            if (!render->PresentRenderBuffers(
-                    renderBuffers, renderInfo,
-                    osvr::renderkit::RenderManager::RenderParams(),
-                    std::vector<osvr::renderkit::OSVR_ViewportDescription>(),
-                    true)) {
-                DebugLog(
-                    "[OSVR Rendering Plugin] PresentRenderBuffers() returned "
-                    "false, maybe because it was asked to quit");
-            }
-        }
-        // OpenGL
-        //@todo OpenGL path is not working yet
-        else if (s_DeviceType == kUnityGfxRendererOpenGL) {
-            // Render into each buffer using the specified information.
-
-            int n = static_cast<int>(renderInfo.size());
-            for (int i = 0; i < n; ++i) {
-                RenderViewOpenGL(renderInfo[i], frameBuffer,
-                                 renderBuffers[i].OpenGL->colorBufferName, i);
-            }
-
-            // Send the rendered results to the screen
-            if (!render->PresentRenderBuffers(renderBuffers, renderInfo)) {
-                DebugLog("PresentRenderBuffers() returned false, maybe because "
-                         "it was "
-                         "asked to quit");
-            }
-        }
+        DoRender();
         break;
     case kOsvrEventID_Shutdown:
         break;
@@ -658,11 +677,19 @@ UnityRenderingEvent UNITY_INTERFACE_API GetRenderEventFunc() {
     return &OnRenderEvent;
 }
 
-// -------------------------------------------------------------------
-//  Direct3D 11 setup/teardown code
 #if SUPPORT_D3D11
-static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType) {
-    if (eventType == kUnityGfxDeviceEventInitialize) {
+// -------------------------------------------------------------------
+///  Direct3D 11 setup/teardown code
+inline void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType) {
+    BOOST_ASSERT_MSG(
+        s_deviceType,
+        "Should only be able to get in here with a valid device type.");
+    BOOST_ASSERT_MSG(
+        s_deviceType.getDeviceTypeEnum == kUnityGfxRendererD3D11,
+        "Should only be able to get in here if using D3D11 device type.");
+
+    switch (eventType) {
+    case kUnityGfxDeviceEventInitialize: {
         IUnityGraphicsD3D11 *d3d11 =
             s_UnityInterfaces->Get<IUnityGraphicsD3D11>();
 
@@ -675,29 +702,39 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType) {
         library.D3D11->context = ctx;
         DebugLog("[OSVR Rendering Plugin] Passed Unity device/context to "
                  "RenderManager library.");
-    } else if (eventType == kUnityGfxDeviceEventShutdown) {
+        break;
+    }
+    case kUnityGfxDeviceEventShutdown: {
         // Close the Renderer interface cleanly.
         // This should be handled in ShutdownRenderManager
+        break;
+    }
     }
 }
 
 #endif
 
-// -------------------------------------------------------------------
-// OpenGL setup/teardown code
-//@todo OpenGL path not implemented yet
 #if SUPPORT_OPENGL
+// -------------------------------------------------------------------
+/// OpenGL setup/teardown code
+/// @todo OpenGL path not implemented yet
+inline void DoEventGraphicsDeviceOpenGL(UnityGfxDeviceEventType eventType) {
+    BOOST_ASSERT_MSG(
+        s_deviceType,
+        "Should only be able to get in here with a valid device type.");
+    BOOST_ASSERT_MSG(
+        s_deviceType.getDeviceTypeEnum == kUnityGfxRendererOpenGL,
+        "Should only be able to get in here if using OpenGL device type.");
 
-static void DoEventGraphicsDeviceOpenGL(UnityGfxDeviceEventType eventType) {
-    if (eventType == kUnityGfxDeviceEventInitialize) {
-        if (s_DeviceType == kUnityGfxRendererOpenGL) {
-            DebugLog("OpenGL Initialize Event");
-        }
-
-    } else if (eventType == kUnityGfxDeviceEventShutdown) {
-        if (s_DeviceType == kUnityGfxRendererOpenGL) {
-            DebugLog("OpenGL Shutdown Event");
-        }
+    switch (eventType) {
+    case kUnityGfxDeviceEventInitialize:
+        DebugLog("OpenGL Initialize Event");
+        break;
+    case kUnityGfxDeviceEventShutdown:
+        DebugLog("OpenGL Shutdown Event");
+        break;
+    default:
+        break;
     }
 }
 #endif
