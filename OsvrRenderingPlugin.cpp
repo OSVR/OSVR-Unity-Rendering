@@ -20,31 +20,39 @@ Sensics, Inc.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Internal includes
 #include "OsvrRenderingPlugin.h"
 #include "Unity/IUnityGraphics.h"
+
+// Library includes
+#include "osvr/RenderKit/RenderManager.h"
 #include <osvr/ClientKit/Context.h>
 #include <osvr/ClientKit/Interface.h>
-#include "osvr/RenderKit/RenderManager.h"
 #include <osvr/Util/MatrixConventionsC.h>
 
-//standard includes
-#include <iostream>
+// standard includes
+//#include <iostream>
+#include <memory>
+//#include <stdlib.h>
 #include <string>
-#include <stdlib.h>
-#include <time.h>
+//#include <time.h>
 
-#include <windows.h>
-#include <initguid.h>
-#include <wrl.h>
-#include <DirectXMath.h>
-
+#if UNITY_WIN
+#define NO_MINMAX
+#define WIN32_LEAN_AND_MEAN
+//#include <DirectXMath.h>
+//#include <initguid.h>
+//#include <windows.h>
+//#include <wrl.h>
+#endif
 
 // Include headers for the graphics APIs we support
 #if SUPPORT_D3D11
-using namespace DirectX;
 #include <d3d11.h>
+
 #include "Unity/IUnityGraphicsD3D11.h"
 #include <osvr/RenderKit/GraphicsLibraryD3D11.h>
+// using namespace DirectX;
 #endif
 
 #if SUPPORT_OPENGL
@@ -52,11 +60,13 @@ using namespace DirectX;
 // Needed for render buffer calls.  OSVR will have called glewInit() for us
 // when we open the display.
 #include <GL/glew.h>
+
 #include <GL/gl.h>
+
 #include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
 #include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
-
 #else
+// Mac OpenGL include
 #include <OpenGL/OpenGL.h>
 #endif
 #endif
