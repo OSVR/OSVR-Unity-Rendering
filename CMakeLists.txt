@@ -27,6 +27,7 @@ set (osvrUnityRenderingPlugin_SOURCES
     OsvrRenderingPlugin.h
     OsvrRenderingPlugin.cpp
     PluginConfig.h
+    UnityRendererType.h
 )
 
 if(WIN32)
