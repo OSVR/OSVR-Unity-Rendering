@@ -147,6 +147,7 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
         rightEyeTexturePtr = nullptr;
         leftEyeTexturePtr = nullptr;
     }
+    clientContext = nullptr;
 }
 
 // --------------------------------------------------------------------------
@@ -298,6 +299,7 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     if ((render == nullptr) || (!render->doingOkay())) {
         DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
 
+        ShutdownRenderManager();
         return OSVR_RETURN_FAILURE;
     }
 
@@ -305,6 +307,8 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     osvr::renderkit::RenderManager::OpenResults ret = render->OpenDisplay();
     if (ret.status == osvr::renderkit::RenderManager::OpenStatus::FAILURE) {
         DebugLog("[OSVR Rendering Plugin] Could not open display");
+
+        ShutdownRenderManager();
         return OSVR_RETURN_FAILURE;
     }
 
