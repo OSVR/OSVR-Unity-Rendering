@@ -196,15 +196,32 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 	}
 	};
 
+    switch (currentDeviceType) {
 #if SUPPORT_OPENGL
-	if (currentDeviceType == kUnityGfxRendererOpenGL)
-		DoEventGraphicsDeviceOpenGL(eventType);
+    case kUnityGfxRendererOpenGL:
+        DoEventGraphicsDeviceOpenGL(eventType);
+        break;
 #endif
-
 #if SUPPORT_D3D11
-	if (currentDeviceType == kUnityGfxRendererD3D11)
-		DoEventGraphicsDeviceD3D11(eventType);
+    case kUnityGfxRendererD3D11:
+        DoEventGraphicsDeviceD3D11(eventType);
+        break;
 #endif
+    case kUnityGfxRendererD3D9:
+    case kUnityGfxRendererGCM:
+    case kUnityGfxRendererNull:
+    case kUnityGfxRendererXenon:
+    case kUnityGfxRendererOpenGLES20:
+    case kUnityGfxRendererOpenGLES30:
+    case kUnityGfxRendererGXM:
+    case kUnityGfxRendererPS4:
+    case kUnityGfxRendererXboxOne:
+    case kUnityGfxRendererMetal:
+    case kUnityGfxRendererD3D12:
+    default:
+        DebugLog("[OSVR Rendering Plugin] Current device type not supported");
+        break;
+    }
 }
 
 void UpdateRenderInfo()
