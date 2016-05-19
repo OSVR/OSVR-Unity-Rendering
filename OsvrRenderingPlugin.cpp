@@ -113,8 +113,9 @@ void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) { debugLog = d; }
 // Only for debugging purposes, as this causes some errors at shutdown
 static inline void DebugLog(const char *str) {
 #ifndef NDEBUG
-    if (debugLog)
+    if (debugLog != nullptr) {
         debugLog(str);
+    }
 #endif
 }
 
@@ -345,7 +346,7 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye) {
 
 int ConstructBuffersOpenGL(int eye) {
     // Init glew
-    glewExperimental = true;
+    glewExperimental = 1u;
     /// @todo doesn't rendermanager do this glewInit for us?
     GLenum err = glewInit();
     if (err != GLEW_OK) {
@@ -566,8 +567,9 @@ void RenderViewOpenGL(
 // For more reference, see:
 // http://docs.unity3d.com/ScriptReference/Texture.GetNativeTexturePtr.html
 int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
-    if (s_DeviceType == -1)
+    if (s_DeviceType == -1) {
         return OSVR_RETURN_FAILURE;
+    }
 
     DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity");
     if (eye == 0) {
@@ -587,8 +589,9 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
 /// GetRenderEventFunc returning it would be sufficient...
 void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
     // Unknown graphics device type? Do nothing.
-    if (s_DeviceType == -1)
+    if (s_DeviceType == -1) {
         return;
+    }
 
     switch (eventID) {
     // Call the Render loop
@@ -667,7 +670,7 @@ static void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType) {
         // know to use this one rather than creating its own.
         library.D3D11 = new osvr::renderkit::GraphicsLibraryD3D11;
         library.D3D11->device = d3d11->GetDevice();
-        ID3D11DeviceContext *ctx = NULL;
+        ID3D11DeviceContext *ctx = nullptr;
         library.D3D11->device->GetImmediateContext(&ctx);
         library.D3D11->context = ctx;
         DebugLog("[OSVR Rendering Plugin] Passed Unity device/context to "
