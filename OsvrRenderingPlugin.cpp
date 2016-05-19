@@ -483,8 +483,11 @@ inline OSVR_ReturnCode ConstructBuffersD3D11(int eye) {
     // Fill in the resource view for your render texture buffer here
     D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {};
     // This must match what was created in the texture to be rendered
-    // @todo Figure this out by introspection on the texture?
+    /// @todo Figure this out by introspection on the texture?
     // renderTargetViewDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    /// @todo Interesting - change this line to DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+    /// and not only do you not get direct mode, you get multicolored static on
+    /// the display.
     renderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     renderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
     renderTargetViewDesc.Texture2D.MipSlice = 0;
