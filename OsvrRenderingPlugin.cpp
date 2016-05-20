@@ -447,7 +447,7 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     s_renderParams = osvr::renderkit::RenderManager::RenderParams();
     UpdateRenderInfo();
 
-    DebugLog("[OSVR Rendering Plugin] Success!");
+    DebugLog("[OSVR Rendering Plugin] CreateRenderManagerFromUnity Success!");
     return OSVR_RETURN_SUCCESS;
 }
 
