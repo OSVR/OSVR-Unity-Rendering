@@ -33,6 +33,7 @@ Sensics, Inc.
 #include "osvr/RenderKit/RenderManager.h"
 #include <osvr/ClientKit/Context.h>
 #include <osvr/ClientKit/Interface.h>
+#include <osvr/Util/Finally.h>
 #include <osvr/Util/MatrixConventionsC.h>
 
 // standard includes
@@ -96,7 +97,7 @@ static double s_ipd = 0.063;
 static std::ofstream s_debugLogFile;
 static std::streambuf *s_oldCout = nullptr;
 static std::streambuf *s_oldCerr = nullptr;
-#endif
+#endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 
 // D3D11 vars
 #if SUPPORT_D3D11
@@ -452,9 +453,22 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 
 /// Helper function that handles doing the loop of constructing buffers, and
 /// returning failure if any of them in the loop return failure.
-template <typename F>
+template <typename F, typename G>
 inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
-                                                    F &&bufferConstructor) {
+                                                    F &&bufferConstructor,
+                                                    G &&bufferCleanup) {
+    /// If we bail any time before the end, we'll automatically clean up the
+    /// render buffers with this lambda.
+    auto cleanupBuffers = osvr::util::finally([&] {
+        DebugLog("[OSVR Rendering Plugin] Cleaning up render buffers.");
+        for (auto &rb : s_renderBuffers) {
+            bufferCleanup(rb);
+        }
+        s_renderBuffers.clear();
+        DebugLog("[OSVR Rendering Plugin] Render buffer cleanup complete.");
+    });
+
+    /// Construct all the buffers as isntructed
     for (int i = 0; i < numBuffers; ++i) {
         auto ret = bufferConstructor(i);
         if (ret != OSVR_RETURN_SUCCESS) {
@@ -462,6 +476,15 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
             return OSVR_RETURN_FAILURE;
         }
     }
+
+    /// Register our constructed buffers so that we can use them for
+    /// presentation.
+    if (!s_render->RegisterRenderBuffers(s_renderBuffers)) {
+        DebugLog("RegisterRenderBuffers() returned false, cannot continue");
+        return OSVR_RETURN_FAILURE;
+    }
+    /// Only if we succeed, do we cancel the cleanup and carry on.
+    cleanupBuffers.cancel();
     return OSVR_RETURN_SUCCESS;
 }
 
@@ -529,6 +552,12 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
 
     return OSVR_RETURN_SUCCESS;
 }
+
+inline void CleanupBufferOpenGL(osvr::renderkit::RenderBuffer &rb) {
+    /// @todo incomplete cleanup - but better than leaking in case of failure.
+    delete rb.OpenGL;
+    rb.OpenGL = nullptr;
+}
 #endif // SUPPORT_OPENGL
 
 #if SUPPORT_D3D11
@@ -583,16 +612,15 @@ inline OSVR_ReturnCode ConstructBuffersD3D11(int eye) {
     rb.D3D11 = rbD3D.get();
     s_renderBuffers.push_back(rb);
 
-    // Register our constructed buffers so that we can use them for
-    // presentation.
-    if (!s_render->RegisterRenderBuffers(s_renderBuffers)) {
-        DebugLog("RegisterRenderBuffers() returned false, cannot continue");
-        return OSVR_RETURN_FAILURE;
-    }
     // OK, we succeeded, must release ownership of that pointer now that it's in
     // RenderManager's hands.
     rbD3D.release();
     return OSVR_RETURN_SUCCESS;
+}
+
+inline void CleanupBufferD3D11(osvr::renderkit::RenderBuffer &rb) {
+    delete rb.D3D11;
+    rb.D3D11 = nullptr;
 }
 #endif // SUPPORT_D3D11
 
@@ -608,12 +636,14 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
     case OSVRSupportedRenderers::D3D11:
-        return applyRenderBufferConstructor(n, ConstructBuffersD3D11);
+        return applyRenderBufferConstructor(n, ConstructBuffersD3D11,
+                                            CleanupBufferD3D11);
         break;
 #endif
 #if SUPPORT_OPENGL
     case OSVRSupportedRenderers::OpenGL:
-        return applyRenderBufferConstructor(n, ConstructBuffersOpenGL);
+        return applyRenderBufferConstructor(n, ConstructBuffersOpenGL,
+                                            CleanupBufferOpenGL);
         break;
 #endif
     case OSVRSupportedRenderers::EmptyRenderer:
