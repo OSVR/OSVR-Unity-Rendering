@@ -392,14 +392,36 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     }
     s_clientContext = context;
 
+    if (!s_deviceType) {
+        DebugLog("[OSVR Rendering Plugin] Attempted to create render manager, "
+                 "but device type wasn't set (to a supported type) by the "
+                 "plugin load/init routine. Order issue?");
+        return OSVR_RETURN_FAILURE;
+    }
+
+    bool setLibraryFromOpenDisplayReturn = false;
+    /// @todo We should always have a legit value in
+    /// s_deviceType.getDeviceTypeEnum() at this point, right?
+    switch (s_deviceType.getDeviceTypeEnum()) {
+
 #if SUPPORT_D3D11
-    /// @todo can we come up with the "Direct3D11" string from
-    /// s_deviceType.getDeviceTypeEnum() at this point?
-    s_render =
-        osvr::renderkit::createRenderManager(context, "Direct3D11", s_library);
-#else
-#error "Non-d3d11-supporting path not available right now!"
-#endif
+    case OSVRSupportedRenderers::D3D11:
+        s_render = osvr::renderkit::createRenderManager(context, "Direct3D11",
+                                                        s_library);
+#ifdef ATTEMPT_D3D_SHARING
+        setLibraryFromOpenDisplayReturn = true;
+#endif // ATTEMPT_D3D_SHARING
+        break;
+#endif // SUPPORT_D3D11
+
+#if SUPPORT_OPENGL
+    case OSVRSupportedRenderers::OpenGL:
+        s_render = osvr::renderkit::createRenderManager(context, "OpenGL");
+        setLibraryFromOpenDisplayReturn = true;
+        break;
+#endif // SUPPORT_OPENGL
+    }
+
     if ((s_render == nullptr) || (!s_render->doingOkay())) {
         DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
 
@@ -414,6 +436,10 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 
         ShutdownRenderManager();
         return OSVR_RETURN_FAILURE;
+    }
+    if (setLibraryFromOpenDisplayReturn) {
+        // Set our library from the one RenderManager created.
+        s_library = ret.library;
     }
 
     // create a new set of RenderParams for passing to GetRenderInfo()
