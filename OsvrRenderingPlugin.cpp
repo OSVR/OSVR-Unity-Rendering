@@ -506,6 +506,11 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
 #endif // SUPPORT_OPENGL
 
 #if SUPPORT_D3D11
+inline ID3D11Texture2D *GetEyeTextureD3D11(int eye) {
+    return reinterpret_cast<ID3D11Texture2D *>(eye == 0 ? s_leftEyeTexturePtr
+                                                        : s_rightEyeTexturePtr);
+}
+
 inline OSVR_ReturnCode ConstructBuffersD3D11(int eye) {
     DebugLog("[OSVR Rendering Plugin] ConstructBuffersD3D11");
     HRESULT hr;
@@ -514,8 +519,7 @@ inline OSVR_ReturnCode ConstructBuffersD3D11(int eye) {
     // to fill in the Direct3D portion.
     //  Note that this texture format must be RGBA and unsigned byte,
     // so that we can present it to Direct3D for DirectMode.
-    ID3D11Texture2D *D3DTexture = reinterpret_cast<ID3D11Texture2D *>(
-        eye == 0 ? s_leftEyeTexturePtr : s_rightEyeTexturePtr);
+    ID3D11Texture2D *D3DTexture = GetEyeTextureD3D11(eye);
     unsigned width = static_cast<unsigned>(s_renderInfo[eye].viewport.width);
     unsigned height = static_cast<unsigned>(s_renderInfo[eye].viewport.height);
 
@@ -660,10 +664,7 @@ void RenderViewD3D11(const osvr::renderkit::RenderInfo &ri,
     context->OMSetRenderTargets(1, &renderTargetView, NULL);
 
     // copy the updated RenderTexture from Unity to RenderManager colorBuffer
-    s_renderBuffers[eyeIndex].D3D11->colorBuffer =
-        eyeIndex == 0
-            ? reinterpret_cast<ID3D11Texture2D *>(s_leftEyeTexturePtr)
-            : reinterpret_cast<ID3D11Texture2D *>(s_rightEyeTexturePtr);
+    s_renderBuffers[eyeIndex].D3D11->colorBuffer = GetEyeTextureD3D11(eyeIndex);
 }
 #endif // SUPPORT_D3D11
 
