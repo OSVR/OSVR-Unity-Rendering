@@ -53,7 +53,8 @@ Sensics, Inc.
 
 #include "Unity/IUnityGraphicsD3D11.h"
 #include <osvr/RenderKit/GraphicsLibraryD3D11.h>
-#endif
+
+#endif // SUPPORT_D3D11
 
 #if SUPPORT_OPENGL
 #if UNITY_WIN || UNITY_LINUX
@@ -65,11 +66,11 @@ Sensics, Inc.
 
 #include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
 #include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
-#else
+#else // UNITY_WIN || UNITY_LINUX ^ // v others (mac) //
 // Mac OpenGL include
 #include <OpenGL/OpenGL.h>
-#endif
-#endif
+#endif //
+#endif // SUPPORT_OPENGL
 
 // VARIABLES
 static IUnityInterfaces *s_UnityInterfaces = nullptr;
@@ -100,12 +101,12 @@ static std::streambuf *s_oldCerr = nullptr;
 // D3D11 vars
 #if SUPPORT_D3D11
 static D3D11_TEXTURE2D_DESC s_textureDesc;
-#endif
+#endif // SUPPORT_D3D11
 
 // OpenGL vars
 #if SUPPORT_OPENGL
 GLuint s_frameBuffer;
-#endif
+#endif // SUPPORT_OPENGL
 
 // RenderEvents
 // Called from Unity with GL.IssuePluginEvent
@@ -130,12 +131,13 @@ inline void DebugLog(const char *str) {
     if (s_debugLog != nullptr) {
         s_debugLog(str);
     }
-#endif
+#endif // !defined(NDEBUG) || defined(ENABLE_LOGGING)
+
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
     if (s_debugLogFile) {
         s_debugLogFile << str << std::endl;
     }
-#endif
+#endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 }
 
 void UNITY_INTERFACE_API ShutdownRenderManager() {
@@ -293,7 +295,7 @@ void UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces *unityInterfaces) {
         s_oldCerr = std::cerr.rdbuf();
         std::cerr.rdbuf(s_debugLogFile.rdbuf());
     }
-#endif
+#endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
     s_UnityInterfaces = unityInterfaces;
     s_Graphics = s_UnityInterfaces->Get<IUnityGraphics>();
     s_Graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
@@ -313,7 +315,7 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
         std::cerr.rdbuf(s_oldCerr);
         s_debugLogFile.close();
     }
-#endif
+#endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 }
 
 inline void UpdateRenderInfo() {
@@ -421,6 +423,7 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     DebugLog("[OSVR Rendering Plugin] Success!");
     return OSVR_RETURN_SUCCESS;
 }
+
 /// Helper function that handles doing the loop of constructing buffers, and
 /// returning failure if any of them in the loop return failure.
 template <typename F>
