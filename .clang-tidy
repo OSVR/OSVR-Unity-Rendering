@@ -1,5 +1,5 @@
 ---
-Checks:          'clang-diagnostic-*,clang-analyzer-*,-clang-analyzer-alpha*,readability-*,-readability-avoid-const-params-in-decls,performance-*,modernize-redundant-void-arg,-modernize-make-unique'
+Checks:          'clang-diagnostic-*,clang-analyzer-*,-clang-analyzer-alpha*,readability-*,-readability-avoid-const-params-in-decls,performance-*,misc-unused-*,modernize-redundant-void-arg,modernize-replace-auto-ptr,modernize-use-bool-literals,-modernize-make-unique'
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
 AnalyzeTemporaryDtors: false
