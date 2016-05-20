@@ -24,6 +24,7 @@ find_package(osvrRenderManager REQUIRED)
 find_package(JsonCpp REQUIRED)
 
 set (osvrUnityRenderingPlugin_SOURCES
+    OSVRDXGIUtils.h
     OsvrRenderingPlugin.h
     OsvrRenderingPlugin.cpp
     PluginConfig.h
