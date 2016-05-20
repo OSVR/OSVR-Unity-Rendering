@@ -24,6 +24,8 @@ Sensics, Inc.
 #undef ENABLE_LOGGING
 #undef ENABLE_LOGFILE
 
+#undef USE_UNITY_DEVICE_AND_CONTEXT
+
 // Internal includes
 #include "OsvrRenderingPlugin.h"
 #include "Unity/IUnityGraphics.h"
@@ -48,6 +50,10 @@ Sensics, Inc.
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+#if SUPPORT_D3D11 && !defined(USE_UNITY_DEVICE_AND_CONTEXT)
+#define ATTEMPT_D3D_SHARING
+#endif
+
 // Include headers for the graphics APIs we support
 #if SUPPORT_D3D11
 #include <d3d11.h>
@@ -55,6 +61,11 @@ Sensics, Inc.
 #include "Unity/IUnityGraphicsD3D11.h"
 #include <osvr/RenderKit/GraphicsLibraryD3D11.h>
 
+#ifdef ATTEMPT_D3D_SHARING
+#include "OSVRDXGIUtils.h"
+#include <codecvt>
+#include <sstream>
+#endif // ATTEMPT_D3D_SHARING
 #endif // SUPPORT_D3D11
 
 #if SUPPORT_OPENGL
@@ -103,6 +114,10 @@ static std::streambuf *s_oldCerr = nullptr;
 #if SUPPORT_D3D11
 static D3D11_TEXTURE2D_DESC s_textureDesc;
 #endif // SUPPORT_D3D11
+
+#ifdef ATTEMPT_D3D_SHARING
+bool s_usingDifferentAdapters = false;
+#endif // ATTEMPT_D3D_SHARING
 
 // OpenGL vars
 #if SUPPORT_OPENGL
@@ -168,9 +183,9 @@ inline void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType) {
 
     switch (eventType) {
     case kUnityGfxDeviceEventInitialize: {
+#ifdef USE_UNITY_DEVICE_AND_CONTEXT
         IUnityGraphicsD3D11 *d3d11 =
             s_UnityInterfaces->Get<IUnityGraphicsD3D11>();
-
         // Put the device and context into a structure to let RenderManager
         // know to use this one rather than creating its own.
         s_library.D3D11 = new osvr::renderkit::GraphicsLibraryD3D11;
@@ -180,6 +195,7 @@ inline void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType) {
         s_library.D3D11->context = ctx;
         DebugLog("[OSVR Rendering Plugin] Passed Unity device/context to "
                  "RenderManager library.");
+#endif // USE_UNITY_DEVICE_AND_CONTEXT
         break;
     }
     case kUnityGfxDeviceEventShutdown: {
@@ -442,6 +458,32 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
         // Set our library from the one RenderManager created.
         s_library = ret.library;
     }
+
+#ifdef ATTEMPT_D3D_SHARING
+    if (s_deviceType.getDeviceTypeEnum() == OSVRSupportedRenderers::D3D11) {
+        auto rmAdapterDesc = getAdapterDesc(s_library.D3D11->device);
+        auto unityAdapterDesc = getAdapterDesc(
+            s_UnityInterfaces->Get<IUnityGraphicsD3D11>()->GetDevice());
+
+        std::ostringstream os;
+        os << "[OSVR Rendering Plugin] ";
+        std::wstring_convert<std::codecvt_utf8<wchar_t> > strCvt;
+        if (adaptersEqual(rmAdapterDesc, unityAdapterDesc)) {
+            os << "Both RenderManager and Unity picked the adapter described "
+                  "as: "
+               << strCvt.to_bytes(unityAdapterDesc.Description);
+        } else {
+            DebugLog("[OSVR Rendering Plugin] Unity DXGI adapter and "
+                     "RenderManager DXGI adapter differ!");
+            os << "Unity is using the adapter: "
+               << strCvt.to_bytes(unityAdapterDesc.Description)
+               << " while RenderManager needs the adapter described as: "
+               << strCvt.to_bytes(rmAdapterDesc.Description);
+            s_usingDifferentAdapters = true;
+        }
+        DebugLog(os.str().c_str());
+    }
+#endif // ATTEMPT_D3D_SHARING
 
     // create a new set of RenderParams for passing to GetRenderInfo()
     s_renderParams = osvr::renderkit::RenderManager::RenderParams();
@@ -707,6 +749,31 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
         s_rightEyeTexturePtr = texturePtr;
     }
 
+#ifdef ATTEMPT_D3D_SHARING
+    if (s_deviceType.getDeviceTypeEnum() == OSVRSupportedRenderers::D3D11 &&
+        s_usingDifferentAdapters) {
+        // Have to give the "good" adapter/device access to this texture.
+        ID3D11Texture2D *typedTexPtr = GetEyeTextureD3D11(eye);
+
+        ID3D11Texture2D *output = nullptr;
+        const char *msg = nullptr;
+        std::tie(output, msg) =
+            shareTexture(*GetEyeTextureD3D11(eye), *(s_library.D3D11->device));
+        if (msg != nullptr) {
+            std::ostringstream os;
+            os << "[OSVR Rendering Plugin] SetColorBufferFromUnity - " << msg;
+            DebugLog(os.str().c_str());
+        }
+        if (output == nullptr) {
+            return OSVR_RETURN_FAILURE;
+        }
+        if (eye == 0) {
+            s_leftEyeTexturePtr = output;
+        } else {
+            s_rightEyeTexturePtr = output;
+        }
+    }
+#endif // ATTEMPT_D3D_SHARING
     return OSVR_RETURN_SUCCESS;
 }
 
