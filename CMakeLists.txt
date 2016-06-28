@@ -17,6 +17,7 @@ find_package(osvr REQUIRED)
 # Add one of these libraries for each vendor that we've got a driver
 # for and add a No driver that tells that it is unavailable when we
 # don't find the driver library.
+find_package(Eigen3 REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(Boost REQUIRED)
@@ -43,7 +44,7 @@ target_link_libraries(osvrUnityRenderingPlugin osvrRenderManager)
 #    target_link_libraries(osvrUnityRenderingPlugin ${Boost_LIBRARIES})
 #endif()
 if (OPENGL_FOUND AND GLEW_FOUND)
-    target_include_directories(osvrUnityRenderingPlugin PRIVATE ${OPENGL_INCLUDE_DIRS})
+    target_include_directories(osvrUnityRenderingPlugin PRIVATE ${OPENGL_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
     target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} GLEW::GLEW JsonCpp::JsonCpp)
     # Handle static glew.
     if(GLEW_LIBRARY MATCHES ".*s.lib")
