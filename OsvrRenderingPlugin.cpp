@@ -35,6 +35,7 @@ Sensics, Inc.
 #include <osvr/ClientKit/Interface.h>
 #include <osvr/Util/Finally.h>
 #include <osvr/Util/MatrixConventionsC.h>
+#include <osvr/RenderKit/DistortionCorrectTextureCoordinate.h>
 
 // standard includes
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
@@ -92,6 +93,21 @@ static double s_nearClipDistance = 0.1;
 static double s_farClipDistance = 1000.0;
 /// @todo is this redundant? (given renderParams)
 static double s_ipd = 0.063;
+
+//distortion mesh
+static std::vector<osvr::renderkit::DistortionParameters> distortionParameters_;
+using MeshInterpolators = std::vector<std::unique_ptr<osvr::renderkit::UnstructuredMeshInterpolator>>;
+MeshInterpolators leftEyeInterpolators_;
+MeshInterpolators rightEyeInterpolators_;
+/** Used to return the post-distortion UVs for each color channel.
+* UVs range from 0 to 1 with 0,0 in the upper left corner of the 
+* source render target. The 0,0 to 1,1 range covers a single eye. */
+struct DistortionCoordinates_t
+{
+	float rfRed[2];
+	float rfGreen[2];
+	float rfBlue[2];
+};
 
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 static std::ofstream s_debugLogFile;
@@ -239,6 +255,7 @@ inline void dispatchEventToRenderer(UnityRendererType renderer,
         break;
     }
 }
+
 
 /// Needs the calling convention, even though it's static and not exported,
 /// because it's registered as a callback on plugin load.
@@ -487,6 +504,111 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
     cleanupBuffers.cancel();
     return OSVR_RETURN_SUCCESS;
 }
+
+static std::string osvrGetString(OSVR_ClientContext context,
+	const std::string& path) {
+	size_t len;
+	if (osvrClientGetStringParameterLength(context, path.c_str(), &len) ==
+		OSVR_RETURN_FAILURE) {
+		std::string msg =
+			std::string("Couldn't get osvr string length for path ") + path;
+		std::cerr << msg << std::endl;
+		throw std::runtime_error(msg);
+	}
+
+	// struct TempBuffer {
+	//    char *buffer;
+	//    TempBuffer(size_t len) { buffer = new char[len + 1]; }
+	//    ~TempBuffer() { delete[] buffer; }
+	//} tempBuffer(len);
+	std::vector<char> tempBuffer(len + 1);
+
+	if (osvrClientGetStringParameter(context, path.c_str(),
+		tempBuffer.data(),
+		len + 1) == OSVR_RETURN_FAILURE) {
+		std::string msg =
+			std::string("Couldn't get osvr string buffer for path ") + path;
+		std::cerr << msg << std::endl;
+		throw std::runtime_error(msg);
+	}
+	return std::string(tempBuffer.data(), len);
+}
+
+//distortion mesh
+void UNITY_INTERFACE_API configureDistortionParameters(OSVR_ClientContext cc)
+{
+	// Parse the display descriptor
+	size_t len;
+	std::string displayDescription_ = osvrGetString(cc, "/display");
+	OSVRDisplayConfiguration displayConfiguration_ = OSVRDisplayConfiguration(displayDescription_);
+
+	// Initialize the distortion parameters
+	//OSVR_LOG(debug) << "OSVRTrackedDevice::configureDistortionParameters(): Number of eyes: " << displayConfiguration_.getEyes().size() << ".";
+	for (size_t i = 0; i < displayConfiguration_.getEyes().size(); ++i) {
+		auto distortion = osvr::renderkit::DistortionParameters{ displayConfiguration_, i };
+		distortion.m_desiredTriangles = 200 * 64;
+		//OSVR_LOG(debug) << "OSVRTrackedDevice::configureDistortionParameters(): Adding distortion for eye " << i << ".";
+		distortionParameters_.push_back(distortion);
+	}
+	//OSVR_LOG(debug) << "OSVRTrackedDevice::configureDistortionParameters(): Number of distortion parameters: " << distortionParameters_.size() << ".";
+
+	// Make the interpolators to be used by each eye.
+	//OSVR_LOG(debug) << "OSVRTrackedDevice::configureDistortionParameters(): Creating mesh interpolators for the left eye.";
+	if (!makeUnstructuredMeshInterpolators(distortionParameters_[0], 0, leftEyeInterpolators_)) {
+		//OSVR_LOG(err) << "OSVRTrackedDevice::configureDistortionParameters(): Could not create mesh interpolators for left eye.";
+	}
+	//OSVR_LOG(debug) << "OSVRTrackedDevice::configureDistortionParameters(): Number of left eye interpolators: " << leftEyeInterpolators_.size() << ".";
+
+	//OSVR_LOG(debug) << "OSVRTrackedDevice::configureDistortionParameters(): Creating mesh interpolators for the right eye.";
+	if (!makeUnstructuredMeshInterpolators(distortionParameters_[1], 1, rightEyeInterpolators_)) {
+		//OSVR_LOG(err) << "OSVRTrackedDevice::configureDistortionParameters(): Could not create mesh interpolators for right eye.";
+	}
+	//OSVR_LOG(debug) << "OSVRTrackedDevice::configureDistortionParameters(): Number of right eye interpolators: " << leftEyeInterpolators_.size() << ".";
+}
+
+
+DistortionCoordinates_t ComputeDistortion(int eye, float u, float v)
+{
+	//OSVR_LOG(trace) << "OSVRTrackedDevice::ComputeDistortion(" << eye << ", " << u << ", " << v << ") called.";
+
+	using osvr::renderkit::DistortionCorrectTextureCoordinate;
+	static const size_t COLOR_RED = 0;
+	static const size_t COLOR_GREEN = 1;
+	static const size_t COLOR_BLUE = 2;
+
+	const auto osvr_eye = static_cast<size_t>(eye);
+	const auto distortion_parameters = distortionParameters_[osvr_eye];
+	const auto in_coords = osvr::renderkit::Float2{ { u, v } };
+
+	auto interpolators = &leftEyeInterpolators_;
+	if (1 == eye) {
+		interpolators = &rightEyeInterpolators_;
+	}
+
+	float overfillFactor_ = 1.2f;
+	auto coords_red = DistortionCorrectTextureCoordinate(
+		osvr_eye, in_coords, distortion_parameters,
+		COLOR_RED, overfillFactor_, *interpolators);
+
+	auto coords_green = DistortionCorrectTextureCoordinate(
+		osvr_eye, in_coords, distortion_parameters,
+		COLOR_GREEN, overfillFactor_, *interpolators);
+
+	auto coords_blue = DistortionCorrectTextureCoordinate(
+		osvr_eye, in_coords, distortion_parameters,
+		COLOR_BLUE, overfillFactor_, *interpolators);
+
+	DistortionCoordinates_t coords;
+	coords.rfRed[0] = coords_red[0];
+	coords.rfRed[1] = coords_red[1];
+	coords.rfGreen[0] = coords_green[0];
+	coords.rfGreen[1] = coords_green[1];
+	coords.rfBlue[0] = coords_blue[0];
+	coords.rfBlue[1] = coords_blue[1];
+
+	return coords;
+}
+
 
 #if SUPPORT_OPENGL
 inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
