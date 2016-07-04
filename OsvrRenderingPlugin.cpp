@@ -21,8 +21,8 @@ Sensics, Inc.
 // limitations under the License.
 
 /// Both of these need to be enabled to force-enable logging to files.
-#undef ENABLE_LOGGING
-#undef ENABLE_LOGFILE
+#define ENABLE_LOGGING 1
+#define ENABLE_LOGFILE 1
 
 // Internal includes
 #include "OsvrRenderingPlugin.h"
@@ -30,7 +30,8 @@ Sensics, Inc.
 #include "UnityRendererType.h"
 
 // Library includes
-#include "osvr/RenderKit/RenderManager.h"
+#include <osvr/RenderKit/RenderManager.h>
+#include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
 #include <osvr/ClientKit/Context.h>
 #include <osvr/ClientKit/Interface.h>
 #include <osvr/Util/Finally.h>
@@ -62,11 +63,8 @@ Sensics, Inc.
 // Needed for render buffer calls.  OSVR will have called glewInit() for us
 // when we open the display.
 #include <GL/glew.h>
-
 #include <GL/gl.h>
-
 #include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
-#include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
 #else // UNITY_WIN || UNITY_LINUX ^ // v others (mac) //
 // Mac OpenGL include
 #include <OpenGL/OpenGL.h>
@@ -80,6 +78,9 @@ static UnityRendererType s_deviceType = {};
 
 static osvr::renderkit::RenderManager::RenderParams s_renderParams;
 static osvr::renderkit::RenderManager *s_render = nullptr;
+static OSVR_RenderManager render = nullptr;
+static OSVR_RenderManagerOpenGL s_renderOGL = nullptr;
+static osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = nullptr;
 static OSVR_ClientContext s_clientContext = nullptr;
 static std::vector<osvr::renderkit::RenderBuffer> s_renderBuffers;
 static std::vector<osvr::renderkit::RenderInfo> s_renderInfo;
@@ -107,7 +108,85 @@ static D3D11_TEXTURE2D_DESC s_textureDesc;
 // OpenGL vars
 #if SUPPORT_OPENGL
 GLuint s_frameBuffer;
+GLuint s_leftEyeColorBufferName;
+GLuint s_rightEyeColorBufferName;
 #endif // SUPPORT_OPENGL
+
+// @todo There shouldn't be two OSVR_ProjectionMatrix types in the API.
+inline osvr::renderkit::OSVR_ProjectionMatrix ConvertProjectionMatrix(::OSVR_ProjectionMatrix matrix)
+{
+	osvr::renderkit::OSVR_ProjectionMatrix ret = { 0 };
+	ret.bottom = matrix.bottom;
+	ret.top = matrix.top;
+	ret.left = matrix.left;
+	ret.right = matrix.right;
+	ret.nearClip = matrix.nearClip;
+	ret.farClip = matrix.farClip;
+	return ret;
+}
+
+bool SetupRendering(osvr::renderkit::GraphicsLibrary library) {
+	// Make sure our pointers are filled in correctly.  The config file selects
+	// the graphics library to use, and may not match our needs.
+	if (library.OpenGL == nullptr) {
+		std::cerr << "SetupRendering: No OpenGL GraphicsLibrary, this should "
+			"not happen"
+			<< std::endl;
+		return false;
+	}
+
+	osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
+
+	// Turn on depth testing, so we get correct ordering.
+	glEnable(GL_DEPTH_TEST);
+
+	return true;
+}
+
+// Callback to set up for rendering into a given eye (viewpoint and projection).
+void SetupEye(
+	void* userData //< Passed into SetViewProjectionCallback
+	, osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
+	, osvr::renderkit::RenderBuffer buffers //< Buffers to use
+	, osvr::renderkit::OSVR_ViewportDescription
+	viewport //< Viewport set by RenderManager
+	, osvr::renderkit::OSVR_ProjectionMatrix
+	projectionToUse //< Projection matrix set by RenderManager
+	, size_t whichEye //< Which eye are we setting up for?
+	) {
+	// Make sure our pointers are filled in correctly.  The config file selects
+	// the graphics library to use, and may not match our needs.
+	if (library.OpenGL == nullptr) {
+		std::cerr
+			<< "SetupEye: No OpenGL GraphicsLibrary, this should not happen"
+			<< std::endl;
+		return;
+	}
+	if (buffers.OpenGL == nullptr) {
+		std::cerr << "SetupEye: No OpenGL RenderBuffer, this should not happen"
+			<< std::endl;
+		return;
+	}
+
+	// Set the viewport
+	glViewport(static_cast<GLint>(viewport.left),
+		static_cast<GLint>(viewport.lower),
+		static_cast<GLint>(viewport.width),
+		static_cast<GLint>(viewport.height));
+
+	// Set the OpenGL projection matrix based on the one we
+	// received.
+	GLdouble projection[16];
+	OSVR_Projection_to_OpenGL(projection,
+		projectionToUse);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glMultMatrixd(projection);
+
+	// Set the matrix mode to ModelView, so render code doesn't mess with
+	// the projection matrix on accident.
+	glMatrixMode(GL_MODELVIEW);
+}
 
 // RenderEvents
 // Called from Unity with GL.IssuePluginEvent
@@ -203,10 +282,19 @@ inline void DoEventGraphicsDeviceOpenGL(UnityGfxDeviceEventType eventType) {
     BOOST_ASSERT_MSG(
         s_deviceType.getDeviceTypeEnum() == OSVRSupportedRenderers::OpenGL,
         "Should only be able to get in here if using OpenGL device type.");
-
+	osvr::renderkit::GraphicsLibraryOpenGL* glLibrary;
     switch (eventType) {
     case kUnityGfxDeviceEventInitialize:
         DebugLog("OpenGL Initialize Event");
+		// Make sure our pointers are filled in correctly.  The config file selects
+		// the graphics library to use, and may not match our needs.
+		if (s_library.OpenGL == nullptr) {
+			DebugLog("SetupRendering: No OpenGL GraphicsLibrary, this should not happen");
+		}
+		glLibrary = s_library.OpenGL;
+		// Turn on depth testing, so we get correct ordering.
+		glEnable(GL_DEPTH_TEST);
+		
         break;
     case kUnityGfxDeviceEventShutdown:
         DebugLog("OpenGL Shutdown Event");
@@ -323,6 +411,10 @@ inline void UpdateRenderInfo() {
     s_renderInfo = s_render->GetRenderInfo(s_renderParams);
 }
 
+inline void UpdateRenderInfoCollection() {
+	s_renderInfo = s_render->GetRenderInfo(s_renderParams);
+}
+
 #if 0
 extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API
 UpdateDistortionMesh(float distanceScale[2], float centerOfProjection[2],
@@ -433,7 +525,7 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     // Open the display and make sure this worked.
     osvr::renderkit::RenderManager::OpenResults ret = s_render->OpenDisplay();
     if (ret.status == osvr::renderkit::RenderManager::OpenStatus::FAILURE) {
-        DebugLog("[OSVR Rendering Plugin] Could not open display");
+        DebugLog("[OSVR Rendering Plugin] Could not open display.");
 
         ShutdownRenderManager();
         return OSVR_RETURN_FAILURE;
@@ -442,10 +534,15 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
         // Set our library from the one RenderManager created.
         s_library = ret.library;
     }
+	// Set up the rendering state we need.
+	if (!SetupRendering(ret.library)) {
+		return OSVR_RETURN_FAILURE;
+	}
 
     // create a new set of RenderParams for passing to GetRenderInfo()
     s_renderParams = osvr::renderkit::RenderManager::RenderParams();
-    UpdateRenderInfo();
+    //UpdateRenderInfo();
+	UpdateRenderInfoCollection();
 
     DebugLog("[OSVR Rendering Plugin] CreateRenderManagerFromUnity Success!");
     return OSVR_RETURN_SUCCESS;
@@ -496,7 +593,7 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
     GLenum err = glewInit();
     if (err != GLEW_OK) {
         DebugLog("glewInit failed, aborting.");
-        /// @todo shouldn't we return here then?
+		return OSVR_RETURN_FAILURE;
     }
 
     if (eye == 0) {
@@ -510,7 +607,7 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
     // to fill in the OpenGL portion.
     if (eye == 0) // left eye
     {
-        GLuint leftEyeColorBuffer = 0;
+        GLuint leftEyeColorBuffer = s_leftEyeColorBufferName;
         glGenRenderbuffers(1, &leftEyeColorBuffer);
         osvr::renderkit::RenderBuffer rb;
         rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
@@ -527,7 +624,7 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
                      GL_RGB, GL_UNSIGNED_BYTE, &leftEyeColorBuffer);
     } else // right eye
     {
-        GLuint rightEyeColorBuffer = 0;
+        GLuint rightEyeColorBuffer = s_rightEyeColorBufferName;
         glGenRenderbuffers(1, &rightEyeColorBuffer);
         osvr::renderkit::RenderBuffer rb;
         rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
@@ -700,12 +797,23 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
         return OSVR_RETURN_FAILURE;
     }
 
-    DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity");
+#if SUPPORT_D3D11
+    DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity - D3D");
     if (eye == 0) {
         s_leftEyeTexturePtr = texturePtr;
     } else {
         s_rightEyeTexturePtr = texturePtr;
     }
+#elif SUPPORT_OPENGL
+	DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity - OGL");
+	if (eye == 0) {
+		s_leftEyeColorBufferName = texturePtr;
+	}
+	else {
+		s_rightEyeColorBufferName = texturePtr;
+	}
+#endif
+
 
     return OSVR_RETURN_SUCCESS;
 }
@@ -778,6 +886,9 @@ inline void RenderViewOpenGL(
     // in OSVR spaces (like left/right hand space) we need to query the
     // interface and handle the coordinate tranforms ourselves.
 
+	s_renderBuffers[eyeIndex].OpenGL->colorBufferName = eyeIndex == 0 ? s_leftEyeColorBufferName
+		: s_rightEyeColorBufferName;
+
     // update native texture from code
     glBindTexture(GL_TEXTURE_2D,
                   s_renderBuffers[eyeIndex].OpenGL->colorBufferName);
@@ -785,8 +896,7 @@ inline void RenderViewOpenGL(
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &texWidth);
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &texHeight);
 
-    GLuint glTex = eyeIndex == 0 ? (GLuint)s_leftEyeTexturePtr
-                                 : (GLuint)s_rightEyeTexturePtr;
+    
 
     // unsigned char* data = new unsigned char[texWidth*texHeight * 4];
     // FillTextureFromCode(texWidth, texHeight, texHeight * 4, data);
