@@ -37,7 +37,7 @@ endif()
 add_library(osvrUnityRenderingPlugin MODULE ${osvrUnityRenderingPlugin_SOURCES})
 #set_target_properties(osvrUnityRenderingPlugin PROPERTIES LINK_FLAGS "/DEF:${CMAKE_CURRENT_SOURCE_DIR}/OsvrRenderingPlugin.def")
 target_link_libraries(osvrUnityRenderingPlugin osvr::osvrClientKit)
-target_link_libraries(osvrUnityRenderingPlugin osvrRenderManager)
+target_link_libraries(osvrUnityRenderingPlugin osvrRenderManager::osvrRenderManager)
 target_include_directories(osvrUnityRenderingPlugin PRIVATE ${Boost_INCLUDE_DIRS})
 # target_link_libraries(osvrUnityRenderingPlugin ${Boost_LIBRARIES})
 
