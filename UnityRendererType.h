@@ -62,7 +62,7 @@ class UnityRendererType {
                          "Expect to only set renderer when it's null!");
         switch (gfxRenderer) {
 #if SUPPORT_OPENGL
-        case kUnityGfxRendererOpenGL:
+        case kUnityGfxRendererOpenGLCore:
             renderer_ = OSVRSupportedRenderers::OpenGL;
             supported_ = true;
             break;
@@ -73,6 +73,7 @@ class UnityRendererType {
             supported_ = true;
             break;
 #endif
+		case kUnityGfxRendererOpenGL:
         case kUnityGfxRendererD3D9:
         case kUnityGfxRendererGCM:
         case kUnityGfxRendererNull:
