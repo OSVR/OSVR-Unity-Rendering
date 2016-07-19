@@ -62,6 +62,14 @@ Sensics, Inc.
 // when we open the display.
 #include <GL/glew.h>
 #include <GL/gl.h>
+// We are going to use SDL to get our OpenGL context for us.
+// Unfortunately, SDL.h has #define main    SDL_main in it, so
+// we need to undefine main again so we can make our own below.
+#include <osvr/RenderKit/RenderManagerSDLInitQuit.h>
+#include <SDL.h>
+#include <SDL_opengl.h>
+#undef main
+#include <osvr/RenderKit/RenderManagerOpenGLC.h>
 #else // UNITY_WIN || UNITY_LINUX ^ // v others (mac) //
 // Mac OpenGL include
 #include <OpenGL/OpenGL.h>
@@ -114,6 +122,8 @@ static OSVR_RenderManagerOpenGL s_renderOpenGL;
 static std::vector<OSVR_RenderBufferOpenGL> s_colorBuffers;
 static std::vector<GLuint> s_depthBuffers; //< Depth/stencil buffers to render into
 static GLuint s_frameBuffer;
+static SDL_GLContext myGLContext;
+static SDL_Window *myWindow;
 #endif // SUPPORT_OPENGL
 
 // @todo There shouldn't be two OSVR_ProjectionMatrix types in the API.
@@ -170,6 +180,15 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
         s_leftEyeTexturePtr = nullptr;
     }
     s_clientContext = nullptr;
+	// Clean up after ourselves.
+	glDeleteFramebuffers(1, &s_frameBuffer);
+	for (size_t i = 0; i < s_colorBuffers.size(); i++) {
+		glDeleteTextures(1, &s_colorBuffers[i].colorBufferName);
+		glDeleteRenderbuffers(1, &s_depthBuffers[i]);
+	}
+
+	// Close the Renderer interface cleanly.
+	osvrDestroyRenderManager(s_render);
 }
 
 // --------------------------------------------------------------------------
@@ -238,7 +257,7 @@ inline bool SetupRenderingOpenGL() {
 
 	// Turn on depth testing, so we get correct ordering.
 	glEnable(GL_DEPTH_TEST);
-
+	glDepthFunc(GL_LESS);
 	return true;
 }
 #endif // SUPPORT_OPENGL
@@ -479,6 +498,32 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 
 #if SUPPORT_OPENGL
     case OSVRSupportedRenderers::OpenGL:
+		// Use SDL to open a window and then get an OpenGL context for us.
+		// Note: This window is not the one that will be used for rendering
+		// the OSVR display, but one that will be cleared to a slowly-changing
+		// constant color so we can see that we're able to render to both
+		// contexts.
+		if (!osvr::renderkit::SDLInitQuit()) {
+			std::cerr << "Could not initialize SDL"
+				<< std::endl;
+			return 100;
+		}
+		myWindow = SDL_CreateWindow(
+			"Test window, not used", 30, 30, 300, 100,
+			SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
+		if (myWindow == nullptr) {
+			std::cerr << "SDL window open failed: Could not get window"
+				<< std::endl;
+			return 101;
+		}
+
+		myGLContext = SDL_GL_CreateContext(myWindow);
+		if (myGLContext == 0) {
+			std::cerr << "RenderManagerOpenGL::addOpenGLContext: Could not get "
+				"OpenGL context" << std::endl;
+			return 102;
+		}
+
 		s_libraryOpenGL.toolkit = nullptr;
 		if (OSVR_RETURN_SUCCESS != osvrCreateRenderManagerOpenGL(
 			s_clientContext, "OpenGL", s_libraryOpenGL, &s_render, &s_renderOpenGL)) {
@@ -509,7 +554,8 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 			return OSVR_RETURN_FAILURE;
 		}
 
-		//osvrClientUpdate(s_clientContext);
+		osvrClientUpdate(s_clientContext);
+
 		// create a new set of RenderParams
 		osvrRenderManagerGetDefaultRenderParams(&s_renderParams);
 		UpdateRenderInfoCollection();
@@ -580,7 +626,7 @@ inline GLuint GetColorBufferOpenGL(int eye) {
 }
 inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
     // Init glew
-    glewExperimental = true;
+    glewExperimental = GL_TRUE;
     /// @todo doesn't rendermanager do this glewInit for us?
     GLenum err = glewInit();
     if (err != GLEW_OK) {
@@ -660,7 +706,7 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
                      GL_RGB, GL_UNSIGNED_BYTE, &rightEyeColorBuffer);*/
     }
 
-	GLuint colorBufferName = GetColorBufferOpenGL(eye);
+	GLuint colorBufferName = 0;
 	if (OSVR_RETURN_SUCCESS
 		!= osvrRenderManagerCreateColorBufferOpenGL(width, height, &colorBufferName)) {
 		DebugLog("[OSVR Rendering Plugin] Could not create color buffer.");
@@ -823,6 +869,13 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 #if SUPPORT_OPENGL
     case OSVRSupportedRenderers::OpenGL:
 		UpdateRenderInfoCollection();
+		// Initialize the sample shader with our window's context open,
+		// so that our shaders will be associated with it.
+		// NOTE: When the RenderManager internals are changed so that it
+		// does not share an OpenGL context with the application, this
+		// causes the display to be rendered black.  Because it now defaults
+		// to doing this, we see the display in the window.
+		SDL_GL_MakeCurrent(myWindow, myGLContext);
 		return applyRenderBufferConstructor(numRenderInfo, ConstructBuffersOpenGL,
                                             CleanupBufferOpenGL);
         break;
@@ -1011,8 +1064,8 @@ inline void RenderViewOpenGL(
     // interface and handle the coordinate tranforms ourselves.
 
     // update native texture from code
-    glBindTexture(GL_TEXTURE_2D,
-		GetColorBufferOpenGL(eyeIndex));
+    //glBindTexture(GL_TEXTURE_2D,
+		//GetColorBufferOpenGL(eyeIndex));
    // int texWidth, texHeight;
     //glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &texWidth);
     //glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &texHeight);
@@ -1129,6 +1182,22 @@ inline void DoRender() {
 			ShutdownRenderManager();
 			return;
 		}
+
+		// Draw something in our window, just looping the background color.
+		// Note that we need to bind the correct framebuffer (0 in this case)
+		// because we're binding a different one in our draw calls.
+		static GLfloat bg = 0;
+		SDL_GL_MakeCurrent(myWindow, myGLContext);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(static_cast<GLint>(0),
+			static_cast<GLint>(0),
+			static_cast<GLint>(300),
+			static_cast<GLint>(100));
+		glClearColor(bg, bg, bg, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		SDL_GL_SwapWindow(myWindow);
+		bg += 0.003f;
+		if (bg > 1) { bg = 0; }
         break;
     }
 #endif // SUPPORT_OPENGL
