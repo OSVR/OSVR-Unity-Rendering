@@ -89,6 +89,9 @@ static OSVR_RenderManagerRegisterBufferState s_registerBufferState;
 
 static OSVR_ClientContext s_clientContext = nullptr;
 
+static bool displayOpened = false;
+static bool buffersConstructed = false;
+
 
 static void *s_leftEyeTexturePtr = nullptr;
 static void *s_rightEyeTexturePtr = nullptr;
@@ -146,7 +149,9 @@ enum RenderEvents {
     kOsvrEventID_Shutdown = 1,
     kOsvrEventID_Update = 2,
     kOsvrEventID_SetRoomRotationUsingHead = 3,
-    kOsvrEventID_ClearRoomToWorldTransform = 4
+    kOsvrEventID_ClearRoomToWorldTransform = 4,
+	kOsvrEventID_ConstructBuffers = 5,
+	kOsvrEventID_CreateRenderManager = 6
 };
 
 // --------------------------------------------------------------------------
@@ -169,6 +174,19 @@ inline void DebugLog(const char *str) {
         s_debugLogFile << str << std::endl;
     }
 #endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
+}
+
+bool UNITY_INTERFACE_API IsDisplayOpened() {
+	return displayOpened;
+}
+
+bool UNITY_INTERFACE_API IsBufferConstructed() {
+	return buffersConstructed;
+}
+
+void UNITY_INTERFACE_API SetClientContext(OSVR_ClientContext context) {
+	DebugLog("[OSVR Rendering Plugin] Context set");
+	s_clientContext = context;
 }
 
 void UNITY_INTERFACE_API ShutdownRenderManager() {
@@ -574,6 +592,145 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     return OSVR_RETURN_SUCCESS;
 }
 
+// Called from Unity to create a RenderManager, passing in a ClientContext
+OSVR_ReturnCode UNITY_INTERFACE_API
+CreateRenderManagerFromPlugin() {
+	DebugLog("[OSVR Rendering Plugin] CreateRenderManagerFromPlugin");
+	/// See if we're already created/running - shouldn't happen, but might.
+	if (s_render != nullptr) {
+		if (OSVR_RETURN_SUCCESS == osvrRenderManagerGetDoingOkay(s_render)) {
+			DebugLog("[OSVR Rendering Plugin] RenderManager already created "
+				"and doing OK - will just return success without trying "
+				"to re-initialize.");
+			return OSVR_RETURN_SUCCESS;
+		}
+
+		DebugLog("[OSVR Rendering Plugin] RenderManager already created, "
+			"but not doing OK. Will shut down before creating again.");
+		ShutdownRenderManager();
+	}
+	if (s_clientContext != nullptr) {
+		DebugLog(
+			"[OSVR Rendering Plugin] Client context already set! Replacing...");
+	}
+
+	if (!s_deviceType) {
+		DebugLog("[OSVR Rendering Plugin] Attempted to create render manager, "
+			"but device type wasn't set (to a supported type) by the "
+			"plugin load/init routine. Order issue?");
+		return OSVR_RETURN_FAILURE;
+	}
+
+	bool setLibraryFromOpenDisplayReturn = false;
+	/// @todo We should always have a legit value in
+	/// s_deviceType.getDeviceTypeEnum() at this point, right?
+	switch (s_deviceType.getDeviceTypeEnum()) {
+
+#if SUPPORT_D3D11 		
+	case OSVRSupportedRenderers::D3D11:
+		//s_libraryD3D.context and s_libraryD3D.device should be set by now
+		//via DoEventGraphicsDeviceD3D11
+		if (OSVR_RETURN_SUCCESS != osvrCreateRenderManagerD3D11(
+			s_clientContext, "Direct3D11", s_libraryD3D, &s_render, &s_renderD3D)) {
+			DebugLog("[OSVR Rendering Plugin] Could not create RenderManager D3D.");
+			return OSVR_RETURN_FAILURE;
+		}
+
+#ifdef ATTEMPT_D3D_SHARING
+		setLibraryFromOpenDisplayReturn = true;
+#endif // ATTEMPT_D3D_SHARING
+
+		//osvrClientUpdate(s_clientContext);
+		// create a new set of RenderParams
+		osvrRenderManagerGetDefaultRenderParams(&s_renderParams);
+		UpdateRenderInfoD3D();
+
+		break;
+#endif // SUPPORT_D3D11
+
+#if SUPPORT_OPENGL
+	case OSVRSupportedRenderers::OpenGL:
+		DebugLog("[OSVR Rendering Plugin] OpenGL Renderer");
+		// Use SDL to open a window and then get an OpenGL context for us.
+		// Note: This window is not the one that will be used for rendering
+		// the OSVR display, but one that will be cleared to a slowly-changing
+		// constant color so we can see that we're able to render to both
+		// contexts.
+		if (!osvr::renderkit::SDLInitQuit()) {
+			DebugLog("[OSVR Rendering Plugin] Could not initialize SDL");
+			return 100;
+		}
+		DebugLog("[OSVR Rendering Plugin] OpenGL 1");
+		myWindow = SDL_CreateWindow(
+			"Test window, not used", 30, 30, 300, 100,
+			SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
+		if (myWindow == nullptr) {
+			DebugLog("[OSVR Rendering Plugin] SDL window open failed: Could not get window");
+			return 101;
+		}
+		DebugLog("[OSVR Rendering Plugin] OpenGL 2");
+		myGLContext = SDL_GL_CreateContext(myWindow);
+		if (myGLContext == 0) {
+			DebugLog("[OSVR Rendering Plugin] RenderManagerOpenGL::addOpenGLContext: Could not get OGL Context");
+			return 102;
+		}
+		DebugLog("[OSVR Rendering Plugin] OpenGL 3");
+		s_libraryOpenGL.toolkit = nullptr;
+		if (OSVR_RETURN_SUCCESS != osvrCreateRenderManagerOpenGL(
+			s_clientContext, "OpenGL", s_libraryOpenGL, &s_render, &s_renderOpenGL)) {
+			DebugLog("[OSVR Rendering Plugin] Could not create the RenderManager OpenGL.");
+			return 1;
+		}
+		DebugLog("[OSVR Rendering Plugin] OpenGL 4");
+		setLibraryFromOpenDisplayReturn = false;
+
+		// Open the display and make sure this worked.
+		// Open the display and make sure this worked.
+		OSVR_OpenResultsOpenGL openResults;
+		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerOpenDisplayOpenGL(
+			s_renderOpenGL, &openResults)) ||
+			(openResults.status == OSVR_OPEN_STATUS_FAILURE)) {
+
+			DebugLog("[OSVR Rendering Plugin] Could not open display.");
+			ShutdownRenderManager();
+			return OSVR_RETURN_FAILURE;
+		}
+		DebugLog("[OSVR Rendering Plugin] OpenGL 5");
+		if (setLibraryFromOpenDisplayReturn) {
+			// Set our library from the one RenderManager created.
+			s_libraryOpenGL = openResults.library;
+		}
+
+		// Set up the rendering state we need.
+		if (!SetupRenderingOpenGL()) {
+			DebugLog("[OSVR Rendering Plugin] Failed to setup OpenGL rendering state.");
+			return OSVR_RETURN_FAILURE;
+		}
+
+		osvrClientUpdate(s_clientContext);
+
+		// create a new set of RenderParams
+		osvrRenderManagerGetDefaultRenderParams(&s_renderParams);
+		UpdateRenderInfoCollection();
+		break;
+#endif // SUPPORT_OPENGL
+	default:
+		DebugLog("[OSVR Rendering Plugin] No renderers supported.");
+		break;
+	} //end DeviceType switch statement
+
+	if ((s_render == nullptr) || (OSVR_RETURN_SUCCESS != osvrRenderManagerGetDoingOkay(s_render))) {
+		DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
+
+		ShutdownRenderManager();
+		return OSVR_RETURN_FAILURE;
+	}
+
+	DebugLog("[OSVR Rendering Plugin] CreateRenderManagerFromUnity Success!");
+	return OSVR_RETURN_SUCCESS;
+}
+
+
 /// Helper function that handles doing the loop of constructing buffers, and
 /// returning failure if any of them in the loop return failure.
 template <typename F, typename G>
@@ -582,7 +739,7 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
                                                     G &&bufferCleanup) {
     /// If we bail any time before the end, we'll automatically clean up the
     /// render buffers with this lambda.
-    auto cleanupBuffers = osvr::util::finally([&] {
+   /* auto cleanupBuffers = osvr::util::finally([&] {
         DebugLog("[OSVR Rendering Plugin] Cleaning up render buffers.");
         for (auto &rb : s_renderBuffers) {
             bufferCleanup(rb);
@@ -602,12 +759,12 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
 
     /// Register our constructed buffers so that we can use them for
     /// presentation.
-    /*if (!s_render->RegisterRenderBuffers(s_renderBuffers)) {
+    if (!s_render->RegisterRenderBuffers(s_renderBuffers)) {
         DebugLog("[OSVR Rendering Plugin] RegisterRenderBuffers() returned false, cannot continue");
         return OSVR_RETURN_FAILURE;
-    }*/
+    }
     /// Only if we succeed, do we cancel the cleanup and carry on.
-    cleanupBuffers.cancel();
+    cleanupBuffers.cancel();*/
     return OSVR_RETURN_SUCCESS;
 }
 
@@ -632,6 +789,7 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
     if (err != GLEW_OK) {
         DebugLog("[OSVR Rendering Plugin] glewInit failed, aborting.");
         /// @todo shouldn't we return here then?
+		glGetError();
     }
 
     if (eye == 0) {
@@ -656,59 +814,13 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
 	int width = static_cast<int>(renderInfoOpenGL.viewport.width);
 	int height = static_cast<int>(renderInfoOpenGL.viewport.height);
 
-    // The color buffer for this eye.  We need to put this into
-    // a generic structure for the Present function, but we only need
-    // to fill in the OpenGL portion.
-    if (eye == 0) // left eye
-    {
-		// The color buffer for this eye.  We need to put this into
-		// a generic structure for the Present function, but we only need
-		// to fill in the OpenGL portion.
-		//  Note that this must be used to generate a RenderBuffer, not just
-		// a texture, if we want to be able to present it to be rendered
-		// via Direct3D for DirectMode.  This is selected based on the
-		// config file value, so we want to be sure to use the more general
-		// case.
-		//  Note that this texture format must be RGBA and unsigned byte,
-		// so that we can present it to Direct3D for DirectMode
-		
-       /* GLuint leftEyeColorBuffer = 0;
-        glGenRenderbuffers(1, &leftEyeColorBuffer);
-        osvr::renderkit::RenderBuffer rb;
-        rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
-        rb.OpenGL->colorBufferName = leftEyeColorBuffer;
-        s_renderBuffers.push_back(rb);
-        // "Bind" the newly created texture : all future texture
-        // functions will modify this texture glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, leftEyeColorBuffer);
+	std::string dimensions = "Create Buffer with Width: " + std::to_string(width) + " Height: " + std::to_string(height);
+	DebugLog(dimensions.c_str());
 
-        // Give an empty image to OpenGL ( the last "0" means "empty" )
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                     static_cast<GLsizei>(s_renderInfo[eye].viewport.width),
-                     static_cast<GLsizei>(s_renderInfo[eye].viewport.height), 0,
-                     GL_RGB, GL_UNSIGNED_BYTE, &leftEyeColorBuffer);*/
-    } else // right eye
-    {
-      /*  GLuint rightEyeColorBuffer = 0;
-        glGenRenderbuffers(1, &rightEyeColorBuffer);
-        osvr::renderkit::RenderBuffer rb;
-        rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
-        rb.OpenGL->colorBufferName = rightEyeColorBuffer;
-        s_renderBuffers.push_back(rb);
-        // "Bind" the newly created texture : all future texture
-        // functions will modify this texture glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, rightEyeColorBuffer);
-
-        // Give an empty image to OpenGL ( the last "0" means "empty" )
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                     static_cast<GLsizei>(s_renderInfo[eye].viewport.width),
-                     static_cast<GLsizei>(s_renderInfo[eye].viewport.height), 0,
-                     GL_RGB, GL_UNSIGNED_BYTE, &rightEyeColorBuffer);*/
-    }
-
-	GLuint colorBufferName = 0;
+	GLuint colorBufferName = eye == 0 ? (GLuint)(size_t)s_leftEyeTexturePtr : 
+		(GLuint)(size_t)s_rightEyeTexturePtr;
 	if (OSVR_RETURN_SUCCESS
-		!= osvrRenderManagerCreateColorBufferOpenGL(width, height, &colorBufferName)) {
+		!= osvrRenderManagerCreateColorBufferOpenGL(width, height, GL_RGBA, &colorBufferName)) {
 		DebugLog("[OSVR Rendering Plugin] Could not create color buffer.");
 		return OSVR_RETURN_FAILURE;
 	}
@@ -746,12 +858,6 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
 		}
 	}
 
-    // Bilinear filtering
-   /* glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	*/
     return OSVR_RETURN_SUCCESS;
 }
 
@@ -869,6 +975,7 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 #if SUPPORT_OPENGL
     case OSVRSupportedRenderers::OpenGL:
 		UpdateRenderInfoCollection();
+
 		// Initialize the sample shader with our window's context open,
 		// so that our shaders will be associated with it.
 		// NOTE: When the RenderManager internals are changed so that it
@@ -876,8 +983,13 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 		// causes the display to be rendered black.  Because it now defaults
 		// to doing this, we see the display in the window.
 		SDL_GL_MakeCurrent(myWindow, myGLContext);
-		return applyRenderBufferConstructor(numRenderInfo, ConstructBuffersOpenGL,
-                                            CleanupBufferOpenGL);
+
+		for (size_t i = 0; i < numRenderInfo; i++) {
+			ConstructBuffersOpenGL(i);
+		}
+		
+		//return applyRenderBufferConstructor(numRenderInfo, ConstructBuffersOpenGL,
+                                            //CleanupBufferOpenGL);
         break;
 #endif
     case OSVRSupportedRenderers::EmptyRenderer:
@@ -1005,6 +1117,37 @@ void RenderViewD3D11(const OSVR_RenderInfoD3D11 ri,
     s_renderBuffers[eyeIndex].colorBuffer = GetEyeTextureD3D11(eyeIndex);
 }
 #endif // SUPPORT_D3D11
+static void FillTextureFromCode(int width, int height, int stride, unsigned char* dst)
+{
+	const float t = 4.0f;
+
+	for (int y = 0; y < height; ++y)
+	{
+		unsigned char* ptr = dst;
+		for (int x = 0; x < width; ++x)
+		{
+			// Simple oldskool "plasma effect", a bunch of combined sine waves
+			int vv = int(
+				(127.0f + (127.0f * sinf(x / 7.0f + t))) +
+				(127.0f + (127.0f * sinf(y / 5.0f - t))) +
+				(127.0f + (127.0f * sinf((x + y) / 6.0f - t))) +
+				(127.0f + (127.0f * sinf(sqrtf(float(x*x + y*y)) / 4.0f - t)))
+				) / 4;
+
+			// Write the texture pixel
+			ptr[0] = vv;
+			ptr[1] = vv;
+			ptr[2] = vv;
+			ptr[3] = vv;
+
+			// To next pixel (our pixels are 4 bpp)
+			ptr += 4;
+		}
+
+		// To next image row
+		dst += stride;
+	}
+}
 
 #if SUPPORT_OPENGL
 // Render the world from the specified point of view.
@@ -1017,6 +1160,7 @@ inline void RenderViewOpenGL(
     int eyeIndex) {
     // Render to our framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, frameBufferObj);
+	GLenum err = glGetError();
 
     // Set color and depth buffers for the frame buffer
     glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
@@ -1034,8 +1178,10 @@ inline void RenderViewOpenGL(
     }
 
     // Set the viewport to cover our entire render texture.
-    glViewport(0, 0, static_cast<GLsizei>(ri.viewport.width),
-               static_cast<GLsizei>(ri.viewport.height));
+	glViewport(static_cast<GLint>(ri.viewport.left),
+		static_cast<GLint>(ri.viewport.lower),
+		static_cast<GLint>(ri.viewport.width),
+		static_cast<GLint>(ri.viewport.height));
 
     // Set the OpenGL projection matrix
     GLdouble projection[16];
@@ -1056,6 +1202,10 @@ inline void RenderViewOpenGL(
     // Clear the screen to red and clear depth
     glClearColor(1, 0, 0, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	//glBindTexture(GL_TEXTURE_2D, GetColorBufferOpenGL(eyeIndex));
+	//colorBuffer = GetColorBufferOpenGL(eyeIndex);
+	//glBindTexture(GL_TEXTURE_2D, gltex);
 
     // =================================================================
     // This is where we draw our world and hands and any other objects.
@@ -1144,7 +1294,7 @@ inline void DoRender() {
 			OSVR_RenderInfoOpenGL renderInfoOpenGL = { 0 };
 			osvrRenderManagerGetRenderInfoFromCollectionOpenGL(
 				s_renderInfoCollection, i, &renderInfoOpenGL);
-
+			
 			RenderViewOpenGL(renderInfoOpenGL, s_frameBuffer,
                              s_colorBuffers[i].colorBufferName, 
 							 s_depthBuffers[i], i);
@@ -1155,6 +1305,7 @@ inline void DoRender() {
             DebugLog("PresentRenderBuffers() returned false, maybe because "
                      "it was asked to quit");
         }*/
+
 		OSVR_RenderManagerPresentState presentState;
 		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerStartPresentRenderBuffers(
 			&presentState))) {
@@ -1186,7 +1337,7 @@ inline void DoRender() {
 		// Draw something in our window, just looping the background color.
 		// Note that we need to bind the correct framebuffer (0 in this case)
 		// because we're binding a different one in our draw calls.
-		static GLfloat bg = 0;
+		/*static GLfloat bg = 0;
 		SDL_GL_MakeCurrent(myWindow, myGLContext);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(static_cast<GLint>(0),
@@ -1197,7 +1348,7 @@ inline void DoRender() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		SDL_GL_SwapWindow(myWindow);
 		bg += 0.003f;
-		if (bg > 1) { bg = 0; }
+		if (bg > 1) { bg = 0; }*/
         break;
     }
 #endif // SUPPORT_OPENGL
@@ -1219,7 +1370,7 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
     if (!s_deviceType) {
         return;
     }
-
+	OSVR_ReturnCode rc;
     switch (eventID) {
     // Call the Render loop
     case kOsvrEventID_Render:
@@ -1248,6 +1399,31 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
     case kOsvrEventID_ClearRoomToWorldTransform:
         ClearRoomToWorldTransform();
         break;
+	case kOsvrEventID_ConstructBuffers:
+		DebugLog("[OSVR Rendering Plugin] Construct buffers event");
+		rc = ConstructRenderBuffers();
+		if (rc == OSVR_RETURN_SUCCESS)
+		{
+			buffersConstructed = true;
+		}
+		else
+		{
+			DebugLog("[OSVR Rendering Plugin] Failed to construct buffers.");
+		}
+		break;
+	case kOsvrEventID_CreateRenderManager:
+		DebugLog("[OSVR Rendering Plugin] kOsvrEventID_CreateRenderManager event.");
+		rc = CreateRenderManagerFromPlugin();
+		if (rc == OSVR_RETURN_SUCCESS)
+		{
+			displayOpened = true;
+		}
+		else
+		{
+			DebugLog("[OSVR Rendering Plugin] Failed to create RM/open display.");
+
+		}
+		break;
     default:
         break;
     }

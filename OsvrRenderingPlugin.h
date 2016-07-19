@@ -39,6 +39,14 @@ extern "C" {
 /// @todo These are all the exported symbols, and they all are decorated to use
 /// stdcall - yet somehow the managed code refers to some as cdecl. Either those
 /// functions are never getting used, or something else is happening there.
+UNITY_INTERFACE_EXPORT bool UNITY_INTERFACE_API 
+IsDisplayOpened();
+
+UNITY_INTERFACE_EXPORT bool UNITY_INTERFACE_API 
+IsBufferConstructed();
+
+UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API 
+SetClientContext(OSVR_ClientContext context);
 
 UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
 ConstructRenderBuffers();
