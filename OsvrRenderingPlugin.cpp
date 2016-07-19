@@ -817,8 +817,10 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
 	std::string dimensions = "Create Buffer with Width: " + std::to_string(width) + " Height: " + std::to_string(height);
 	DebugLog(dimensions.c_str());
 
-	GLuint colorBufferName = eye == 0 ? (GLuint)(size_t)s_leftEyeTexturePtr : 
-		(GLuint)(size_t)s_rightEyeTexturePtr;
+	GLuint colorBufferName = eye == 0 ? (GLuint)(size_t)(s_leftEyeTexturePtr) : 
+		(GLuint)(size_t)(s_rightEyeTexturePtr);
+	std::string gluintVal = "ColorBufferName is " + std::to_string(colorBufferName);
+	DebugLog(gluintVal.c_str());
 	if (OSVR_RETURN_SUCCESS
 		!= osvrRenderManagerCreateColorBufferOpenGL(width, height, GL_RGBA, &colorBufferName)) {
 		DebugLog("[OSVR Rendering Plugin] Could not create color buffer.");
@@ -987,7 +989,7 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 		for (size_t i = 0; i < numRenderInfo; i++) {
 			ConstructBuffersOpenGL(i);
 		}
-		
+		return OSVR_RETURN_SUCCESS;
 		//return applyRenderBufferConstructor(numRenderInfo, ConstructBuffersOpenGL,
                                             //CleanupBufferOpenGL);
         break;
@@ -1289,7 +1291,7 @@ inline void DoRender() {
         // OpenGL
         //@todo OpenGL path is not working yet
         // Render into each buffer using the specified information.
-		const auto n = numRenderInfo;
+		/*const auto n = numRenderInfo;
         for (int i = 0; i < n; ++i) {
 			OSVR_RenderInfoOpenGL renderInfoOpenGL = { 0 };
 			osvrRenderManagerGetRenderInfoFromCollectionOpenGL(
@@ -1298,7 +1300,7 @@ inline void DoRender() {
 			RenderViewOpenGL(renderInfoOpenGL, s_frameBuffer,
                              s_colorBuffers[i].colorBufferName, 
 							 s_depthBuffers[i], i);
-        }
+        }*/
 
         // Send the rendered results to the screen
        /* if (!s_render->PresentRenderBuffers(s_renderBuffers, s_renderInfo)) {
@@ -1319,7 +1321,8 @@ inline void DoRender() {
 			OSVR_RenderInfoOpenGL renderInfo = { 0 };
 			osvrRenderManagerGetRenderInfoFromCollectionOpenGL(
 				s_renderInfoCollection, i, &renderInfo);
-
+			std::string gluintName ="[OSVR Rendering Plugin] Presenting " + std::to_string(s_colorBuffers[i].colorBufferName);
+			DebugLog(gluintName.c_str());
 			if ((OSVR_RETURN_SUCCESS != osvrRenderManagerPresentRenderBufferOpenGL(
 				presentState, s_colorBuffers[i], renderInfo, fullView))) {
 				DebugLog("[OSVR Rendering Plugin] Could not present render buffer.");
