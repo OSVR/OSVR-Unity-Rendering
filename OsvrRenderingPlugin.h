@@ -25,10 +25,14 @@ Sensics, Inc.
 
 #include "Unity/IUnityGraphics.h"
 #include "Unity/IUnityInterface.h"
-#include "osvr/RenderKit/RenderManagerC.h"
+#include "osvr/RenderKit/RenderManager.h"
 #include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
-#include <osvr/Util/ClientOpaqueTypesC.h>
+//#include <osvr/Util/ClientOpaqueTypesC.h>
 #include <osvr/Util/ReturnCodesC.h>
+#include <osvr/ClientKit/Context.h>
+#include <osvr/ClientKit/Interface.h>
+#include <osvr/Util/Finally.h>
+#include <osvr/Util/MatrixConventionsC.h>
 
 typedef void(UNITY_INTERFACE_API *DebugFnPtr)(const char *);
 
@@ -56,16 +60,14 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context);
 
 UNITY_INTERFACE_EXPORT OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye);
 
-UNITY_INTERFACE_EXPORT OSVR_ProjectionMatrix
-    UNITY_INTERFACE_API
-    GetProjectionMatrix(int eye);
+UNITY_INTERFACE_EXPORT osvr::renderkit::OSVR_ProjectionMatrix
+UNITY_INTERFACE_API GetProjectionMatrix(int eye);
 
 UNITY_INTERFACE_EXPORT UnityRenderingEvent UNITY_INTERFACE_API
 GetRenderEventFunc();
 
-UNITY_INTERFACE_EXPORT OSVR_ViewportDescription
-    UNITY_INTERFACE_API
-    GetViewport(int eye);
+UNITY_INTERFACE_EXPORT osvr::renderkit::OSVR_ViewportDescription
+UNITY_INTERFACE_API GetViewport(int eye);
 
 UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d);
 
