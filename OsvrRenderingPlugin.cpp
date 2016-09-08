@@ -394,10 +394,18 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     s_clientContext = context;
 
     if (!s_deviceType) {
-        DebugLog("[OSVR Rendering Plugin] Attempted to create render manager, "
+		// @todo pass the platform from Unity
+		// This is a patch to workaround a bug in Unity where the renderer type
+		// is not being set on Windows x86 builds. Until the OpenGL path is
+		// working, it's safe to assume we're using D3D11, but we'd rather get
+		// the platform from Unity than assume it's D3D11.
+
+		s_deviceType = kUnityGfxRendererD3D11;
+
+       /* DebugLog("[OSVR Rendering Plugin] Attempted to create render manager, "
                  "but device type wasn't set (to a supported type) by the "
                  "plugin load/init routine. Order issue?");
-        return OSVR_RETURN_FAILURE;
+        return OSVR_RETURN_FAILURE;*/
     }
 
     bool setLibraryFromOpenDisplayReturn = false;
@@ -710,20 +718,6 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
     return OSVR_RETURN_SUCCESS;
 }
 
-#if SUPPORT_D3D11
-// Renders the view from our Unity cameras by copying data at
-// Unity.RenderTexture.GetNativeTexturePtr() to RenderManager colorBuffers
-void RenderViewD3D11(const osvr::renderkit::RenderInfo &ri,
-                     ID3D11RenderTargetView *renderTargetView, int eyeIndex) {
-    auto context = ri.library.D3D11->context;
-    // Set up to render to the textures for this eye
-    context->OMSetRenderTargets(1, &renderTargetView, NULL);
-
-    // copy the updated RenderTexture from Unity to RenderManager colorBuffer
-    s_renderBuffers[eyeIndex].D3D11->colorBuffer = GetEyeTextureD3D11(eyeIndex);
-}
-#endif // SUPPORT_D3D11
-
 #if SUPPORT_OPENGL
 // Render the world from the specified point of view.
 //@todo This is not functional yet.
@@ -807,11 +801,6 @@ inline void DoRender() {
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
     case OSVRSupportedRenderers::D3D11: {
-        // Render into each buffer using the specified information.
-        for (int i = 0; i < n; ++i) {
-            RenderViewD3D11(s_renderInfo[i],
-                            s_renderBuffers[i].D3D11->colorBufferView, i);
-        }
 
         // Send the rendered results to the screen
         // Flip Y because Unity RenderTextures are upside-down on D3D11
