@@ -394,10 +394,18 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     s_clientContext = context;
 
     if (!s_deviceType) {
-        DebugLog("[OSVR Rendering Plugin] Attempted to create render manager, "
+		// @todo pass the platform from Unity
+		// This is a patch to workaround a bug in Unity where the renderer type
+		// is not being set on Windows x86 builds. Until the OpenGL path is
+		// working, it's safe to assume we're using D3D11, but we'd rather get
+		// the platform from Unity than assume it's D3D11.
+
+		s_deviceType = kUnityGfxRendererD3D11;
+
+       /* DebugLog("[OSVR Rendering Plugin] Attempted to create render manager, "
                  "but device type wasn't set (to a supported type) by the "
                  "plugin load/init routine. Order issue?");
-        return OSVR_RETURN_FAILURE;
+        return OSVR_RETURN_FAILURE;*/
     }
 
     bool setLibraryFromOpenDisplayReturn = false;
