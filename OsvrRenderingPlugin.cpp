@@ -718,20 +718,6 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
     return OSVR_RETURN_SUCCESS;
 }
 
-#if SUPPORT_D3D11
-// Renders the view from our Unity cameras by copying data at
-// Unity.RenderTexture.GetNativeTexturePtr() to RenderManager colorBuffers
-void RenderViewD3D11(const osvr::renderkit::RenderInfo &ri,
-                     ID3D11RenderTargetView *renderTargetView, int eyeIndex) {
-    auto context = ri.library.D3D11->context;
-    // Set up to render to the textures for this eye
-    context->OMSetRenderTargets(1, &renderTargetView, NULL);
-
-    // copy the updated RenderTexture from Unity to RenderManager colorBuffer
-    s_renderBuffers[eyeIndex].D3D11->colorBuffer = GetEyeTextureD3D11(eyeIndex);
-}
-#endif // SUPPORT_D3D11
-
 #if SUPPORT_OPENGL
 // Render the world from the specified point of view.
 //@todo This is not functional yet.
@@ -815,11 +801,6 @@ inline void DoRender() {
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
     case OSVRSupportedRenderers::D3D11: {
-        // Render into each buffer using the specified information.
-        for (int i = 0; i < n; ++i) {
-            RenderViewD3D11(s_renderInfo[i],
-                            s_renderBuffers[i].D3D11->colorBufferView, i);
-        }
 
         // Send the rendered results to the screen
         // Flip Y because Unity RenderTextures are upside-down on D3D11
