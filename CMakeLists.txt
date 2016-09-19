@@ -22,6 +22,7 @@ find_package(GLEW REQUIRED)
 find_package(Boost REQUIRED)
 find_package(osvrRenderManager REQUIRED)
 find_package(JsonCpp REQUIRED)
+find_package(SDL2 REQUIRED)
 
 set (osvrUnityRenderingPlugin_SOURCES
     OsvrRenderingPlugin.h
@@ -38,12 +39,13 @@ add_library(osvrUnityRenderingPlugin MODULE ${osvrUnityRenderingPlugin_SOURCES})
 #set_target_properties(osvrUnityRenderingPlugin PROPERTIES LINK_FLAGS "/DEF:${CMAKE_CURRENT_SOURCE_DIR}/OsvrRenderingPlugin.def")
 target_link_libraries(osvrUnityRenderingPlugin osvr::osvrClientKit)
 target_link_libraries(osvrUnityRenderingPlugin osvrRenderManager::osvrRenderManager)
-target_include_directories(osvrUnityRenderingPlugin PRIVATE ${Boost_INCLUDE_DIRS})
-# target_link_libraries(osvrUnityRenderingPlugin ${Boost_LIBRARIES})
-
+#if(Boost_FOUND)
+#    target_include_directories(osvrUnityRenderingPlugin PRIVATE ${Boost_INCLUDE_DIRS})
+#    target_link_libraries(osvrUnityRenderingPlugin ${Boost_LIBRARIES})
+#endif()
 if (OPENGL_FOUND AND GLEW_FOUND)
     target_include_directories(osvrUnityRenderingPlugin PRIVATE ${OPENGL_INCLUDE_DIRS})
-    target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} GLEW::GLEW JsonCpp::JsonCpp)
+    target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} GLEW::GLEW JsonCpp::JsonCpp SDL2::SDL2)
     # Handle static glew.
     if(GLEW_LIBRARY MATCHES ".*s.lib")
         target_compile_definitions(osvrUnityRenderingPlugin PRIVATE GLEW_STATIC)
