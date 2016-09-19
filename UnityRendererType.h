@@ -1,11 +1,11 @@
 /** @file
-    @brief Header
+@brief Header
 
-    @date 2016
+@date 2016
 
-    @author
-    Sensics, Inc.
-    <http://sensics.com/osvr>
+@author
+Sensics, Inc.
+<http://sensics.com/osvr>
 */
 
 // Copyright 2016 Sensics, Inc.
@@ -37,68 +37,69 @@
 /// An enum class that only contains the renderer types that we support. This
 /// avoids spurious "unhandled cases in switch" warnings".
 enum class OSVRSupportedRenderers {
-    EmptyRenderer,
+	EmptyRenderer,
 #if SUPPORT_D3D11
-    D3D11,
+	D3D11,
 #endif
 #if SUPPORT_OPENGL
-    OpenGL,
+	OpenGL,
 #endif
 };
 
 /// Wrapper around UnityGfxRenderer that knows about our support capabilities.
 class UnityRendererType {
-  public:
-    explicit operator bool() const { return supported_; }
-    OSVRSupportedRenderers getDeviceTypeEnum() const {
-        BOOST_ASSERT_MSG(supported_, "Cannot get an unsupported renderer!");
-        return renderer_;
-    }
-    OSVRSupportedRenderers getDeviceTypeEnumUnconditionally() const {
-        return renderer_;
-    }
-    UnityRendererType &operator=(UnityGfxRenderer gfxRenderer) {
-        BOOST_ASSERT_MSG(renderer_ == OSVRSupportedRenderers::EmptyRenderer,
-                         "Expect to only set renderer when it's null!");
-        switch (gfxRenderer) {
+public:
+	explicit operator bool() const { return supported_; }
+	OSVRSupportedRenderers getDeviceTypeEnum() const {
+		BOOST_ASSERT_MSG(supported_, "Cannot get an unsupported renderer!");
+		return renderer_;
+	}
+	OSVRSupportedRenderers getDeviceTypeEnumUnconditionally() const {
+		return renderer_;
+	}
+	UnityRendererType &operator=(UnityGfxRenderer gfxRenderer) {
+		BOOST_ASSERT_MSG(renderer_ == OSVRSupportedRenderers::EmptyRenderer,
+			"Expect to only set renderer when it's null!");
+		switch (gfxRenderer) {
 #if SUPPORT_OPENGL
-        case kUnityGfxRendererOpenGL:
-            renderer_ = OSVRSupportedRenderers::OpenGL;
-            supported_ = true;
-            break;
+		case kUnityGfxRendererOpenGLCore:
+			renderer_ = OSVRSupportedRenderers::OpenGL;
+			supported_ = true;
+			break;
 #endif
 #if SUPPORT_D3D11
-        case kUnityGfxRendererD3D11:
-            renderer_ = OSVRSupportedRenderers::D3D11;
-            supported_ = true;
-            break;
+		case kUnityGfxRendererD3D11:
+			renderer_ = OSVRSupportedRenderers::D3D11;
+			supported_ = true;
+			break;
 #endif
-        case kUnityGfxRendererD3D9:
-        case kUnityGfxRendererGCM:
-        case kUnityGfxRendererNull:
-        case kUnityGfxRendererXenon:
-        case kUnityGfxRendererOpenGLES20:
-        case kUnityGfxRendererOpenGLES30:
-        case kUnityGfxRendererGXM:
-        case kUnityGfxRendererPS4:
-        case kUnityGfxRendererXboxOne:
-        case kUnityGfxRendererMetal:
-        case kUnityGfxRendererD3D12:
-        default:
-            reset();
-            break;
-        }
-        return *this;
-    }
+		case kUnityGfxRendererOpenGL: // Desktop OpenGL 2 (deprecated)
+		case kUnityGfxRendererD3D9:
+		case kUnityGfxRendererGCM:
+		case kUnityGfxRendererNull:
+		case kUnityGfxRendererXenon:
+		case kUnityGfxRendererOpenGLES20:
+		case kUnityGfxRendererOpenGLES30:
+		case kUnityGfxRendererGXM:
+		case kUnityGfxRendererPS4:
+		case kUnityGfxRendererXboxOne:
+		case kUnityGfxRendererMetal:
+		case kUnityGfxRendererD3D12:
+		default:
+			reset();
+			break;
+		}
+		return *this;
+	}
 
-    void reset() {
-        renderer_ = OSVRSupportedRenderers::EmptyRenderer;
-        supported_ = false;
-    }
+	void reset() {
+		renderer_ = OSVRSupportedRenderers::EmptyRenderer;
+		supported_ = false;
+	}
 
-  private:
-    OSVRSupportedRenderers renderer_ = OSVRSupportedRenderers::EmptyRenderer;
-    bool supported_ = false;
+private:
+	OSVRSupportedRenderers renderer_ = OSVRSupportedRenderers::EmptyRenderer;
+	bool supported_ = false;
 };
 
 #endif // INCLUDED_UnityRendererType_h_GUID_0140E981_E0C3_4590_6CCD_A74EACAF81D1
