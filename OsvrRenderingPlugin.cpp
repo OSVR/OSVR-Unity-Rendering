@@ -71,7 +71,16 @@ Sensics, Inc.
 // Mac OpenGL include
 #include <OpenGL/OpenGL.h>
 #endif //
+// We are going to use SDL to get our OpenGL context for us.
+// Unfortunately, SDL.h has #define main    SDL_main in it, so
+// we need to undefine main again so we can make our own below.
+#include <osvr/RenderKit/RenderManagerSDLInitQuit.h>
+#include <SDL.h>
+#include <SDL_opengl.h>
+#undef main
 #endif // SUPPORT_OPENGL
+
+
 
 // VARIABLES
 static IUnityInterfaces *s_UnityInterfaces = nullptr;
