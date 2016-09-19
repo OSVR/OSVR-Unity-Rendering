@@ -434,6 +434,32 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 
 #if SUPPORT_OPENGL
     case OSVRSupportedRenderers::OpenGL:
+		// Use SDL to open a window and then get an OpenGL context for us.
+		// Note: This window is not the one that will be used for rendering
+		// the OSVR display, but one that will be cleared to a slowly-changing
+		// constant color so we can see that we're able to render to both
+		// contexts.
+		if (!osvr::renderkit::SDLInitQuit()) {
+			std::cerr << "Could not initialize SDL"
+				<< std::endl;
+			return 100;
+		}
+		SDL_Window *myWindow = SDL_CreateWindow(
+			"Test window, not used", 30, 30, 300, 100,
+			SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
+		if (myWindow == nullptr) {
+			std::cerr << "SDL window open failed: Could not get window"
+				<< std::endl;
+			return 101;
+		}
+		SDL_GLContext myGLContext;
+		myGLContext = SDL_GL_CreateContext(myWindow);
+		if (myGLContext == 0) {
+			std::cerr << "RenderManagerOpenGL::addOpenGLContext: Could not get "
+				"OpenGL context" << std::endl;
+			return 102;
+		}
+
         s_render = osvr::renderkit::createRenderManager(context, "OpenGL");
         setLibraryFromOpenDisplayReturn = true;
         break;
