@@ -21,8 +21,8 @@ Sensics, Inc.
 // limitations under the License.
 
 /// Both of these need to be enabled to force-enable logging to files.
-#undef ENABLE_LOGGING
-#undef ENABLE_LOGFILE
+#define ENABLE_LOGGING 1
+#define ENABLE_LOGFILE 1
 
 // Internal includes
 #include "OsvrRenderingPlugin.h"
@@ -118,7 +118,10 @@ static D3D11_TEXTURE2D_DESC s_textureDesc;
 static GLuint s_frameBuffer;
 static std::vector<GLuint> depthBuffers;
 static SDL_Window* myWindow;
-static SDL_GLContext myGLContext;
+static HGLRC mainContext;
+static HGLRC myGLContext;
+static HGLRC unityContext;
+static HDC myDC;
 #endif // SUPPORT_OPENGL
 
 // RenderEvents
@@ -128,7 +131,8 @@ enum RenderEvents {
     kOsvrEventID_Shutdown = 1,
     kOsvrEventID_Update = 2,
     kOsvrEventID_SetRoomRotationUsingHead = 3,
-    kOsvrEventID_ClearRoomToWorldTransform = 4
+    kOsvrEventID_ClearRoomToWorldTransform = 4,
+	kOsvrEventID_SetContext = 5
 };
 
 // --------------------------------------------------------------------------
@@ -252,6 +256,59 @@ inline void dispatchEventToRenderer(UnityRendererType renderer,
     }
 }
 
+bool shareContext(HGLRC ctx1, HGLRC ctx2) {
+	std::string str = "Sharing CONTEXT1, " + std::to_string((int)ctx1) + ", CONTEXT2, " + std::to_string((int)ctx2);
+	DebugLog(str.c_str());
+	str = "myDC is, " + std::to_string((int)wglGetCurrentDC());
+	DebugLog(str.c_str());
+	if (wglShareLists(ctx1, ctx2)) {
+		DebugLog("[OSVR Rendering Plugin] Context sharing success!");
+		return true;
+	}
+	else {
+		DWORD errorCode = GetLastError();
+		str = "[OSVR Rendering Plugin] Context sharing failure... " + std::to_string(errorCode);
+		DebugLog(str.c_str());
+		return false;
+	}
+}
+
+bool InitSDLGL()
+{
+	// Use SDL to open a window and then get an OpenGL context for us.
+	// Note: This window is not the one that will be used for rendering
+	// the OSVR display, but one that will be cleared to a slowly-changing
+	// constant color so we can see that we're able to render to both
+	// contexts.
+	if (!osvr::renderkit::SDLInitQuit()) {
+		DebugLog("Could not initialize SDL");
+		return false;
+	}
+	myWindow = SDL_CreateWindow(
+		"Test window, not used", 30, 30, 300, 100,
+		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
+	if (myWindow == nullptr) {
+		DebugLog("SDL window open failed: Could not get window");
+		return false;
+	}
+	myGLContext = (HGLRC)SDL_GL_CreateContext(myWindow);
+	if (myGLContext == 0) {
+		DebugLog("RenderManagerOpenGL::addOpenGLContext: Could not get OpenGL context");
+		return false;
+	}
+	std::string str = "MyGL CONTEXT is " + std::to_string((int)myGLContext);
+	DebugLog(str.c_str());
+	str = "Current CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+	DebugLog(str.c_str());
+	str = "Current DC is " + std::to_string((int)wglGetCurrentDC());
+	DebugLog(str.c_str());
+	//wglMakeCurrent(wglGetCurrentDC(), 0);
+	//str = "New Current CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+	//DebugLog(str.c_str());
+	//shareContext();
+	return true;
+}
+
 /// Needs the calling convention, even though it's static and not exported,
 /// because it's registered as a callback on plugin load.
 static void UNITY_INTERFACE_API
@@ -260,6 +317,11 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
     case kUnityGfxDeviceEventInitialize: {
         DebugLog(
             "[OSVR Rendering Plugin] OnGraphicsDeviceEvent(Initialize).\n");
+		mainContext = wglGetCurrentContext();
+		std::string str = "Main Context is " + std::to_string((int)mainContext);
+		DebugLog(str.c_str());
+		InitSDLGL();
+		shareContext(mainContext, myGLContext);
         s_deviceType = s_Graphics->GetRenderer();
         if (!s_deviceType) {
             DebugLog("[OSVR Rendering Plugin] "
@@ -396,10 +458,11 @@ bool SetupRendering(osvr::renderkit::GraphicsLibrary library) {
 	osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
 
 	// Turn on depth testing, so we get correct ordering.
-	glEnable(GL_DEPTH_TEST);
+	//glEnable(GL_DEPTH_TEST);
 
 	return true;
 }
+
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 OSVR_ReturnCode UNITY_INTERFACE_API
@@ -432,6 +495,9 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 
 		s_deviceType = kUnityGfxRendererD3D11;
 
+		DebugLog("[OSVR Rendering Plugin] Attempted to create render manager, "
+			"but device type wasn't set (to a supported type) by the "
+			"plugin load/init routine. Order issue?");
        /* DebugLog("[OSVR Rendering Plugin] Attempted to create render manager, "
                  "but device type wasn't set (to a supported type) by the "
                  "plugin load/init routine. Order issue?");
@@ -455,30 +521,9 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 
 #if SUPPORT_OPENGL
     case OSVRSupportedRenderers::OpenGL:
-		// Use SDL to open a window and then get an OpenGL context for us.
-		// Note: This window is not the one that will be used for rendering
-		// the OSVR display, but one that will be cleared to a slowly-changing
-		// constant color so we can see that we're able to render to both
-		// contexts.
-		if (!osvr::renderkit::SDLInitQuit()) {
-			std::cerr << "Could not initialize SDL"
-				<< std::endl;
-			return 100;
-		}
-		myWindow = SDL_CreateWindow(
-			"Test window, not used", 30, 30, 300, 100,
-			SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
-		if (myWindow == nullptr) {
-			std::cerr << "SDL window open failed: Could not get window"
-				<< std::endl;
-			return 101;
-		}
-		myGLContext = SDL_GL_CreateContext(myWindow);
-		if (myGLContext == 0) {
-			std::cerr << "RenderManagerOpenGL::addOpenGLContext: Could not get "
-				"OpenGL context" << std::endl;
-			return 102;
-		}
+		
+		//InitSDLGL();
+		//shareContext();
 
         s_render = osvr::renderkit::createRenderManager(context, "OpenGL");
        // setLibraryFromOpenDisplayReturn = true;
@@ -565,14 +610,19 @@ inline GLuint GetEyeTextureOpenGL(int eye) {
 }
 
 inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
+	DebugLog("[OSVR Rendering Plugin] ConstructBuffersOpenGL");
+	std::string str = "Construct CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+	DebugLog(str.c_str());
+	
+	
     // Init glew
-    glewExperimental = 1u;
+   /* glewExperimental = 1u;
     /// @todo doesn't rendermanager do this glewInit for us?
     GLenum err = glewInit();
     if (err != GLEW_OK) {
         DebugLog("glewInit failed, aborting.");
         /// @todo shouldn't we return here then?
-    }
+    }*/
 	// Determine the appropriate size for the frame buffer to be used for
 	// this eye.
 	unsigned width = static_cast<unsigned>(s_renderInfo[eye].viewport.width);
@@ -580,20 +630,48 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
 	// Initialize the textures with our window's context open,
 	// so that they will be associated with it.
 	SDL_GL_MakeCurrent(myWindow, myGLContext);
-
+	str = "SDL CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+	DebugLog(str.c_str());
+	
     if (eye == 0) {
-
         // do this once
         glGenFramebuffers(1, &s_frameBuffer);
         glBindFramebuffer(GL_FRAMEBUFFER, s_frameBuffer);
     }
 	GLuint colorBufferOpenGL = GetEyeTextureOpenGL(eye);
-	//glGenRenderbuffers(1, &leftEyeColorBuffer);
+	//glGenTextures(1, &colorBufferOpenGL);
 	osvr::renderkit::RenderBuffer rb;
 	rb.OpenGL = new osvr::renderkit::RenderBufferOpenGL;
 	rb.OpenGL->colorBufferName = colorBufferOpenGL;
 	s_renderBuffers.push_back(rb);
 
+	// "Bind" the newly created texture : all future texture
+	// functions will modify this texture glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, colorBufferOpenGL);
+
+	// Give an empty image to OpenGL ( the last "0" means "empty" )
+	// Note that whether or not the second GL_RGBA is turned into
+	// GL_BGRA, the first one should remain GL_RGBA -- it is specifying
+	// the size.  If the second is changed to GL_RGB or GL_BGR, then
+	// the first should become GL_RGB.
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
+	//	GL_UNSIGNED_BYTE, 0);
+
+	// Bilinear filtering
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	// The depth buffer
+	GLuint depthrenderbuffer;
+	glGenRenderbuffers(1, &depthrenderbuffer);
+	glBindRenderbuffer(GL_RENDERBUFFER, depthrenderbuffer);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width,
+		height);
+	depthBuffers.push_back(depthrenderbuffer);
+
+	DebugLog("[OSVR Rendering Plugin] pushed back");
     return OSVR_RETURN_SUCCESS;
 }
 
@@ -750,6 +828,11 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
     } else {
         s_rightEyeTexturePtr = texturePtr;
     }
+	std::string str = "Set CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+	DebugLog(str.c_str());
+	str = "Set Buffername is " + std::to_string((GLuint)texturePtr);
+	DebugLog(str.c_str());
+
 
     return OSVR_RETURN_SUCCESS;
 }
@@ -772,16 +855,17 @@ void RenderViewD3D11(const osvr::renderkit::RenderInfo &ri,
 //@todo This is not functional yet.
 inline void RenderViewOpenGL(
     const osvr::renderkit::RenderInfo &ri, //< Info needed to render
-    GLuint frameBufferObj, //< Frame buffer object to bind our buffers to
+	GLuint frameBuffer,
     GLuint colorBuffer,    //< Color buffer to render into
+	GLuint depthBuffer,
     int eyeIndex) {
     // Render to our framebuffer
-    glBindFramebuffer(GL_FRAMEBUFFER, frameBufferObj);
+   /* glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
 
     // Set color and depth buffers for the frame buffer
     glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, colorBuffer, 0);
-    // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-    // GL_RENDERBUFFER, depthBuffer);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+     GL_RENDERBUFFER, depthBuffer);
 
     // Set the list of draw buffers.
     GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
@@ -798,7 +882,7 @@ inline void RenderViewOpenGL(
                static_cast<GLsizei>(ri.viewport.height));
 
     // Set the OpenGL projection matrix
-   /* GLdouble projection[16];
+    GLdouble projection[16];
     osvr::renderkit::OSVR_Projection_to_OpenGL(projection, ri.projection);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -829,7 +913,7 @@ inline void RenderViewOpenGL(
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &texHeight);
 
 	s_renderBuffers[eyeIndex].OpenGL->colorBufferName = GetEyeTextureOpenGL(eyeIndex);
-
+	DebugLog("Rendered OGL");
     // unsigned char* data = new unsigned char[texWidth*texHeight * 4];
     // FillTextureFromCode(texWidth, texHeight, texHeight * 4, data);
     // glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texWidth, texHeight, GL_RGBA,
@@ -865,7 +949,6 @@ inline void DoRender() {
             DebugLog("[OSVR Rendering Plugin] PresentRenderBuffers() returned "
                      "false, maybe because it was asked to quit");
         }
-        break;
     }
 #endif // SUPPORT_D3D11
 
@@ -874,10 +957,16 @@ inline void DoRender() {
         // OpenGL
         //@todo OpenGL path is not working yet
         // Render into each buffer using the specified information.
-
+		std::string str = "Render CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+		DebugLog(str.c_str());
+		//wglMakeCurrent(wglGetCurrentDC(), 0);
+		//str = "new CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+		//DebugLog(str.c_str());
         for (int i = 0; i < n; ++i) {
             RenderViewOpenGL(s_renderInfo[i], s_frameBuffer,
-                             s_renderBuffers[i].OpenGL->colorBufferName, i);
+				s_renderBuffers[i].OpenGL->colorBufferName, depthBuffers[i], i);
+			std::string str = "Buffername is " + std::to_string(s_renderBuffers[i].OpenGL->colorBufferName);
+			DebugLog(str.c_str());
         }
 
         // Send the rendered results to the screen
@@ -906,7 +995,7 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
     if (!s_deviceType) {
         return;
     }
-
+	std::string str;
     switch (eventID) {
     // Call the Render loop
     case kOsvrEventID_Render:
@@ -923,6 +1012,14 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
     case kOsvrEventID_ClearRoomToWorldTransform:
         ClearRoomToWorldTransform();
         break;
+	case kOsvrEventID_SetContext:
+		unityContext = wglGetCurrentContext();
+		str = "Unity context set to " + std::to_string((int)unityContext);
+		DebugLog(str.c_str());		
+		str = "myDC is, " + std::to_string((int)wglGetCurrentDC());
+		DebugLog(str.c_str());
+		shareContext(mainContext, unityContext);
+		break;
     default:
         break;
     }
