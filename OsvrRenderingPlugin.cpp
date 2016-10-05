@@ -487,7 +487,9 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
 
     /// Register our constructed buffers so that we can use them for
     /// presentation.
-    if (!s_render->RegisterRenderBuffers(s_renderBuffers)) {
+	std::vector<osvr::renderkit::RenderBuffer> registeredBuffers;
+	registeredBuffers.push_back(s_renderBuffers[0]);
+	if (!s_render->RegisterRenderBuffers(registeredBuffers)) {
         DebugLog("RegisterRenderBuffers() returned false, cannot continue");
         return OSVR_RETURN_FAILURE;
     }
