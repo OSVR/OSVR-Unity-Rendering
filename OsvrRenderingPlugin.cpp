@@ -680,16 +680,38 @@ void UNITY_INTERFACE_API SetIPD(double ipdMeters) {
 
 osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_API
 GetViewport(int eye) {
-    return s_renderInfo[eye].viewport;
+	if (s_renderInfo.size() == 0)
+	{
+		DebugLog("[OSVR Rendering Plugin] Empty Render Info: GetViewport");
+	}
+	else
+	{
+		return s_renderInfo[eye].viewport;
+	}
 }
 
 osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_API
 GetProjectionMatrix(int eye) {
-    return s_renderInfo[eye].projection;
+	if (s_renderInfo.size() == 0)
+	{
+		DebugLog("[OSVR Rendering Plugin] Empty Render Info: GetProjectionMatrix");
+	}
+	else
+	{
+		return s_renderInfo[eye].projection;
+	}
 }
 
 OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye) {
-    return s_renderInfo[eye].pose;
+	if (s_renderInfo.size() == 0)
+	{
+		DebugLog("[OSVR Rendering Plugin] Empty Render Info: GetEyePose");
+	}
+	else
+	{
+		return s_renderInfo[eye].pose;
+	}
+    
 }
 
 // --------------------------------------------------------------------------
