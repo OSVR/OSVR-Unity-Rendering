@@ -118,7 +118,7 @@ struct FrameInfo {
 	std::vector<osvr::renderkit::RenderBuffer> renderBuffers;
 };
 static std::vector<FrameInfo> s_frameInfos(2);
-static int numFrameInfos = 0;
+static int s_numFrameInfos = 0;
 size_t iteration = 0;
 
 // RenderEvents
@@ -406,7 +406,7 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context, int numBuffers) {
             "[OSVR Rendering Plugin] Client context already set! Replacing...");
     }
     s_clientContext = context;
-	numFrameInfos = numBuffers;
+	s_numFrameInfos = numBuffers;
 
     if (!s_deviceType) {
 		// @todo pass the platform from Unity
@@ -515,7 +515,7 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
 	std::vector<osvr::renderkit::RenderBuffer> allBuffers;
 	// Register our constructed buffers so that we can use them for
 	// presentation.
-	for (size_t frame = 0; frame < numFrameInfos; frame++) {
+	for (size_t frame = 0; frame < s_numFrameInfos; frame++) {
 		for (size_t buf = 0; buf < s_frameInfos[frame].renderBuffers.size(); buf++) {
 			/*std::string frameCount = std::to_string(frame);
 			std::string bufCount = std::to_string(buf);
@@ -693,13 +693,13 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
     case OSVRSupportedRenderers::D3D11:
-		return applyRenderBufferConstructor(n, numFrameInfos, ConstructBuffersD3D11,
+		return applyRenderBufferConstructor(n, s_numFrameInfos, ConstructBuffersD3D11,
                                             CleanupBufferD3D11);
         break;
 #endif
 #if SUPPORT_OPENGL
     case OSVRSupportedRenderers::OpenGL:
-		return applyRenderBufferConstructor(n, numFrameInfos, ConstructBuffersOpenGL,
+		return applyRenderBufferConstructor(n, s_numFrameInfos, ConstructBuffersOpenGL,
                                             CleanupBufferOpenGL);
         break;
 #endif
@@ -875,7 +875,7 @@ inline void DoRender() {
     }
     const auto n = static_cast<int>(s_renderInfo.size());
 	size_t frame;
-	if (numFrameInfos > 1)
+	if (s_numFrameInfos > 1)
 	{
 		frame = iteration % s_frameInfos.size();
 	}
@@ -932,7 +932,7 @@ inline void DoRender() {
         break;
     }
 
-	if (numFrameInfos > 1)
+	if (s_numFrameInfos > 1)
 	{
 		iteration++;
 	}
