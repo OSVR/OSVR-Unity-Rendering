@@ -43,7 +43,7 @@ UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
 ConstructRenderBuffers();
 
 UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
-CreateRenderManagerFromUnity(OSVR_ClientContext context);
+CreateRenderManagerFromUnity(OSVR_ClientContext context, int numBuffers);
 
 UNITY_INTERFACE_EXPORT OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye);
 
@@ -64,7 +64,7 @@ UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API OnRenderEvent(int eventID);
 
 /// @todo should return OSVR_ReturnCode
 UNITY_INTERFACE_EXPORT int UNITY_INTERFACE_API
-SetColorBufferFromUnity(void *texturePtr, int eye);
+SetColorBufferFromUnity(void *texturePtr, int eye, int frameNum);
 
 UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API
 SetFarClipDistance(double distance);
