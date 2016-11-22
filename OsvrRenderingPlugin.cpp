@@ -159,13 +159,33 @@ inline void DebugLog(const char *str) {
 
 void UNITY_INTERFACE_API ShutdownRenderManager() {
     DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
-    if (s_render != nullptr) {
-        delete s_render;
-        s_render = nullptr;
-        s_rightEyeTexturePtr = nullptr;
-        s_leftEyeTexturePtr = nullptr;
-    }
-    s_clientContext = nullptr;
+
+	switch (s_deviceType.getDeviceTypeEnum()) {
+	case OSVRSupportedRenderers::D3D11: 
+		break;
+	case OSVRSupportedRenderers::OpenGL:
+		// Clean up after ourselves.
+		glDeleteFramebuffers(1, &s_frameBuffer);
+		for (size_t i = 0; i < s_renderInfo.size(); i++) {
+			glDeleteTextures(1, &s_renderBuffers[i].OpenGL->colorBufferName);
+			delete s_renderBuffers[i].OpenGL;
+			glDeleteRenderbuffers(1, &depthBuffers[i]);
+		}
+		//close the SDL Window
+		SDL_Quit();
+		break;
+	}
+
+	if (s_render != nullptr) {
+		delete s_render;
+		s_render = nullptr;
+		s_rightEyeTexturePtr = nullptr;
+		s_leftEyeTexturePtr = nullptr;
+	}
+	s_clientContext = nullptr;
+
+
+
 }
 
 // --------------------------------------------------------------------------
@@ -286,7 +306,7 @@ bool InitSDLGL()
 	}
 	myWindow = SDL_CreateWindow(
 		"Test window, not used", 30, 30, 300, 100,
-		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
+		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN);
 	if (myWindow == nullptr) {
 		DebugLog("SDL window open failed: Could not get window");
 		return false;
@@ -322,6 +342,7 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
 		DebugLog(str.c_str());
 		InitSDLGL();
 		shareContext(mainContext, myGLContext);
+		//SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
         s_deviceType = s_Graphics->GetRenderer();
         if (!s_deviceType) {
             DebugLog("[OSVR Rendering Plugin] "
@@ -629,15 +650,18 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
 	unsigned height = static_cast<unsigned>(s_renderInfo[eye].viewport.height);
 	// Initialize the textures with our window's context open,
 	// so that they will be associated with it.
-	SDL_GL_MakeCurrent(myWindow, myGLContext);
+	//SDL_GL_MakeCurrent(myWindow, myGLContext);
+	//SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
 	str = "SDL CONTEXT is " + std::to_string((int)wglGetCurrentContext());
 	DebugLog(str.c_str());
 	
     if (eye == 0) {
         // do this once
-        glGenFramebuffers(1, &s_frameBuffer);
-        glBindFramebuffer(GL_FRAMEBUFFER, s_frameBuffer);
+		glGenFramebuffers(1, &s_frameBuffer);
     }
+	
+	glBindFramebuffer(GL_FRAMEBUFFER, s_frameBuffer);
+
 	GLuint colorBufferOpenGL = GetEyeTextureOpenGL(eye);
 	//glGenTextures(1, &colorBufferOpenGL);
 	osvr::renderkit::RenderBuffer rb;
@@ -654,8 +678,8 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
 	// GL_BGRA, the first one should remain GL_RGBA -- it is specifying
 	// the size.  If the second is changed to GL_RGB or GL_BGR, then
 	// the first should become GL_RGB.
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
-	//	GL_UNSIGNED_BYTE, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
+		GL_UNSIGNED_BYTE, 0);
 
 	// Bilinear filtering
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -871,7 +895,7 @@ inline void RenderViewOpenGL(
     GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
     glDrawBuffers(1, DrawBuffers); // "1" is the size of DrawBuffers
 
-    // Always check that our framebuffer is ok
+	// Always check that our framebuffer is ok
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         DebugLog("RenderView: Incomplete Framebuffer");
         return;
@@ -893,7 +917,7 @@ inline void RenderViewOpenGL(
     osvr::renderkit::OSVR_PoseState_to_OpenGL(modelView, ri.pose);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glMultMatrixd(modelView);*/
+    glMultMatrixd(modelView);
 
     // Clear the screen to red and clear depth
     glClearColor(1, 0, 0, 1.0f);
@@ -909,18 +933,11 @@ inline void RenderViewOpenGL(
     glBindTexture(GL_TEXTURE_2D,
                   s_renderBuffers[eyeIndex].OpenGL->colorBufferName);
     int texWidth, texHeight;
-    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &texWidth);
+   glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &texWidth);
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &texHeight);
 
-	s_renderBuffers[eyeIndex].OpenGL->colorBufferName = GetEyeTextureOpenGL(eyeIndex);
-	DebugLog("Rendered OGL");
-    // unsigned char* data = new unsigned char[texWidth*texHeight * 4];
-    // FillTextureFromCode(texWidth, texHeight, texHeight * 4, data);
-    // glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texWidth, texHeight, GL_RGBA,
-    // GL_UNSIGNED_BYTE, (GLuint));
-    // delete[] data;
-    // Draw a cube with a 5-meter radius as the room we are floating in.
-    // draw_cube(5.0);
+	s_renderBuffers[eyeIndex].OpenGL->colorBufferName = GetEyeTextureOpenGL(eyeIndex);*/
+	
 }
 #endif // SUPPORT_OPENGL
 
@@ -957,23 +974,41 @@ inline void DoRender() {
         // OpenGL
         //@todo OpenGL path is not working yet
         // Render into each buffer using the specified information.
-		std::string str = "Render CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+		/*std::string str = "Render CONTEXT is " + std::to_string((int)wglGetCurrentContext());
 		DebugLog(str.c_str());
 		//wglMakeCurrent(wglGetCurrentDC(), 0);
 		//str = "new CONTEXT is " + std::to_string((int)wglGetCurrentContext());
 		//DebugLog(str.c_str());
-        for (int i = 0; i < n; ++i) {
+       /for (int i = 0; i < n; ++i) {
+			DebugLog(str.c_str());
             RenderViewOpenGL(s_renderInfo[i], s_frameBuffer,
 				s_renderBuffers[i].OpenGL->colorBufferName, depthBuffers[i], i);
-			std::string str = "Buffername is " + std::to_string(s_renderBuffers[i].OpenGL->colorBufferName);
+			str = "Buffername is " + std::to_string(s_renderBuffers[i].OpenGL->colorBufferName);
 			DebugLog(str.c_str());
-        }
+        }*/
 
         // Send the rendered results to the screen
-        if (!s_render->PresentRenderBuffers(s_renderBuffers, s_renderInfo)) {
+       if (!s_render->PresentRenderBuffers(s_renderBuffers, s_renderInfo)) {
             DebugLog("PresentRenderBuffers() returned false, maybe because "
                      "it was asked to quit");
         }
+	   // Draw something in our window, just looping the background color
+	   // Render to the standard framebuffer in our own window
+	   // Because we bind a different frame buffer in our draw routine, we
+	   // need to put this back here.
+	   SDL_GL_MakeCurrent(myWindow, myGLContext);
+	   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	   static GLfloat bg = 0;
+	  /* glViewport(static_cast<GLint>(0),
+		   static_cast<GLint>(0),
+		   static_cast<GLint>(0),
+		   static_cast<GLint>(0));*/
+	   glClearColor(bg, bg, bg, 1.0f);
+	   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	   SDL_GL_SwapWindow(myWindow);
+	  // bg += 0.003f;
+	  // if (bg > 1) { bg = 0; }
+
         break;
     }
 #endif // SUPPORT_OPENGL
