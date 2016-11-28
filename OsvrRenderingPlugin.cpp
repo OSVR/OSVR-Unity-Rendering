@@ -984,7 +984,7 @@ inline void DoRender() {
 				s_renderBuffers[i].OpenGL->colorBufferName, depthBuffers[i], i);
 			str = "Buffername is " + std::to_string(s_renderBuffers[i].OpenGL->colorBufferName);
 			DebugLog(str.c_str());
-        }*/
+        }*/	
 
         // Send the rendered results to the screen
        if (!s_render->PresentRenderBuffers(s_renderBuffers, s_renderInfo)) {
@@ -996,15 +996,16 @@ inline void DoRender() {
 	   // Because we bind a different frame buffer in our draw routine, we
 	   // need to put this back here.
 	   SDL_GL_MakeCurrent(myWindow, myGLContext);
-	   glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	   static GLfloat bg = 0;
+
+	  // glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	  // static GLfloat bg = 0;
 	  /* glViewport(static_cast<GLint>(0),
 		   static_cast<GLint>(0),
 		   static_cast<GLint>(0),
 		   static_cast<GLint>(0));*/
-	   glClearColor(bg, bg, bg, 1.0f);
-	   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	   SDL_GL_SwapWindow(myWindow);
+	 //  glClearColor(bg, bg, bg, 1.0f);
+	 //  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	 //  SDL_GL_SwapWindow(myWindow);
 	  // bg += 0.003f;
 	  // if (bg > 1) { bg = 0; }
 
