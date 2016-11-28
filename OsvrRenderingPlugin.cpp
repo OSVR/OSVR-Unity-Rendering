@@ -118,10 +118,9 @@ static D3D11_TEXTURE2D_DESC s_textureDesc;
 static GLuint s_frameBuffer;
 static std::vector<GLuint> depthBuffers;
 static SDL_Window* myWindow;
-static HGLRC mainContext;
-static HGLRC myGLContext;
+static SDL_GLContext mainContext;
+static SDL_GLContext myGLContext;
 static HGLRC unityContext;
-static HDC myDC;
 #endif // SUPPORT_OPENGL
 
 // RenderEvents
@@ -276,12 +275,12 @@ inline void dispatchEventToRenderer(UnityRendererType renderer,
     }
 }
 
-bool shareContext(HGLRC ctx1, HGLRC ctx2) {
+bool shareContext(SDL_GLContext ctx1, SDL_GLContext ctx2) {
 	std::string str = "Sharing CONTEXT1, " + std::to_string((int)ctx1) + ", CONTEXT2, " + std::to_string((int)ctx2);
 	DebugLog(str.c_str());
 	str = "myDC is, " + std::to_string((int)wglGetCurrentDC());
 	DebugLog(str.c_str());
-	if (wglShareLists(ctx1, ctx2)) {
+	if (wglShareLists((HGLRC)ctx1, (HGLRC)ctx2)) {
 		DebugLog("[OSVR Rendering Plugin] Context sharing success!");
 		return true;
 	}
