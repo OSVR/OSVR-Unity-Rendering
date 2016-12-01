@@ -985,7 +985,8 @@ inline void DoRender() {
 			str = "Buffername is " + std::to_string(s_renderBuffers[i].OpenGL->colorBufferName);
 			DebugLog(str.c_str());
         }*/	
-
+		HGLRC glCont = wglGetCurrentContext();
+		HDC glDc = wglGetCurrentDC();
         // Send the rendered results to the screen
        if (!s_render->PresentRenderBuffers(s_renderBuffers, s_renderInfo)) {
             DebugLog("PresentRenderBuffers() returned false, maybe because "
@@ -996,7 +997,7 @@ inline void DoRender() {
 	   // Because we bind a different frame buffer in our draw routine, we
 	   // need to put this back here.
 	   SDL_GL_MakeCurrent(myWindow, myGLContext);
-
+	   wglMakeCurrent(glDc, glCont);
 	  // glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	  // static GLfloat bg = 0;
 	  /* glViewport(static_cast<GLint>(0),
