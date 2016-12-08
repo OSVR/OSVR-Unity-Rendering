@@ -711,12 +711,11 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 	osvrPose3SetIdentity(&pose);
 	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
 	{
-		std::string errorLog = "[OSVR Rendering Plugin] working, eye = " + eye;
 		pose = s_renderInfo[eye].pose;
 	}
 	else
 	{
-		std::string errorLog = "[OSVR Rendering Plugin] Index out of range in GetEyePose, eye = " + eye;
+		std::string errorLog = "[OSVR Rendering Plugin] working, eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
 	}
 	return pose;
