@@ -682,6 +682,14 @@ GetViewport(std::uint8_t eye) {
 	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
 	{
 		viewportDescription = s_renderInfo[eye].viewport;
+		/*std::string d0 = "[OSVR Rendering Plugin] viewportDescription, eye = " + std::to_string(int(eye));
+		std::string d1 = "left = " + std::to_string(int(s_renderInfo[eye].viewport.left));
+		std::string d2 = "lower = " + std::to_string(int(s_renderInfo[eye].viewport.lower));
+		std::string d3 = "width = " + std::to_string(int(s_renderInfo[eye].viewport.width));
+		std::string d4 = "height = " + std::to_string(int(s_renderInfo[eye].viewport.height));
+		std::string d5 = d0 + "\n" + d1 + "\n" + d2 + "\n" + d3 + "\n" + d4 + "\n";
+		DebugLog(d5.c_str());*/
+
 	}
 	else
 	{
@@ -689,6 +697,10 @@ GetViewport(std::uint8_t eye) {
 		DebugLog(errorLog.c_str());
 		errorLog = "[OSVR Rendering Plugin] renderInfo array size is = " + std::to_string(int(s_renderInfo.size()));
 		DebugLog(errorLog.c_str());
+		viewportDescription.left = 0;
+		viewportDescription.lower = 0;
+		viewportDescription.width = 1080;
+		viewportDescription.height = 1200;
 	}
 	return viewportDescription;
 }
