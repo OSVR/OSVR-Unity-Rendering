@@ -685,7 +685,7 @@ GetViewport(std::uint8_t eye) {
 	}
 	else
 	{
-		std::string errorLog = "[OSVR Rendering Plugin] Index out of range in GetViewport, eye = " + eye;
+		std::string errorLog = "[OSVR Rendering Plugin] working, eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
 	}
 	return viewportDescription;
@@ -700,7 +700,7 @@ GetProjectionMatrix(std::uint8_t eye) {
 	}
 	else
 	{
-		std::string errorLog = "[OSVR Rendering Plugin] Index out of range in GetProjectionMatrix, eye = " + eye;
+		std::string errorLog = "[OSVR Rendering Plugin] working, eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
 	}
 	return pm;
