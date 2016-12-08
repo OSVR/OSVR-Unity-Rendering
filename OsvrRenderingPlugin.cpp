@@ -677,17 +677,49 @@ void UNITY_INTERFACE_API SetIPD(double ipdMeters) {
 }
 
 osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_API
-GetViewport(int eye) {
-    return s_renderInfo[eye].viewport;
+GetViewport(std::uint8_t eye) {
+	osvr::renderkit::OSVR_ViewportDescription viewportDescription;
+	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
+	{
+		viewportDescription = s_renderInfo[eye].viewport;
+	}
+	else
+	{
+		std::string errorLog = "[OSVR Rendering Plugin] Index out of range in GetViewport, eye = " + eye;
+		DebugLog(errorLog.c_str());
+	}
+	return viewportDescription;
 }
 
 osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_API
-GetProjectionMatrix(int eye) {
-    return s_renderInfo[eye].projection;
+GetProjectionMatrix(std::uint8_t eye) {
+	osvr::renderkit::OSVR_ProjectionMatrix pm;
+	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
+	{
+		pm = s_renderInfo[eye].projection;
+	}
+	else
+	{
+		std::string errorLog = "[OSVR Rendering Plugin] Index out of range in GetProjectionMatrix, eye = " + eye;
+		DebugLog(errorLog.c_str());
+	}
+	return pm;
 }
 
-OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye) {
-    return s_renderInfo[eye].pose;
+OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
+	OSVR_Pose3 pose;
+	osvrPose3SetIdentity(&pose);
+	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
+	{
+		std::string errorLog = "[OSVR Rendering Plugin] working, eye = " + eye;
+		pose = s_renderInfo[eye].pose;
+	}
+	else
+	{
+		std::string errorLog = "[OSVR Rendering Plugin] Index out of range in GetEyePose, eye = " + eye;
+		DebugLog(errorLog.c_str());
+	}
+	return pose;
 }
 
 // --------------------------------------------------------------------------
@@ -703,7 +735,7 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye) {
 // to set up needed texture pointers only at initialization time.
 // For more reference, see:
 // http://docs.unity3d.com/ScriptReference/Texture.GetNativeTexturePtr.html
-int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
+int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, std::uint8_t eye) {
     if (!s_deviceType) {
         return OSVR_RETURN_FAILURE;
     }

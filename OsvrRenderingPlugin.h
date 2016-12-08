@@ -28,6 +28,7 @@ Sensics, Inc.
 #include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
 #include <osvr/Util/ClientOpaqueTypesC.h>
 #include <osvr/Util/ReturnCodesC.h>
+#include <cstdint>
 
 typedef void(UNITY_INTERFACE_API *DebugFnPtr)(const char *);
 
@@ -45,18 +46,18 @@ ConstructRenderBuffers();
 UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
 CreateRenderManagerFromUnity(OSVR_ClientContext context);
 
-UNITY_INTERFACE_EXPORT OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye);
+UNITY_INTERFACE_EXPORT OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye);
 
 UNITY_INTERFACE_EXPORT osvr::renderkit::OSVR_ProjectionMatrix
     UNITY_INTERFACE_API
-    GetProjectionMatrix(int eye);
+	GetProjectionMatrix(std::uint8_t eye);
 
 UNITY_INTERFACE_EXPORT UnityRenderingEvent UNITY_INTERFACE_API
 GetRenderEventFunc();
 
 UNITY_INTERFACE_EXPORT osvr::renderkit::OSVR_ViewportDescription
     UNITY_INTERFACE_API
-    GetViewport(int eye);
+	GetViewport(std::uint8_t eye);
 
 UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d);
 
@@ -64,7 +65,7 @@ UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API OnRenderEvent(int eventID);
 
 /// @todo should return OSVR_ReturnCode
 UNITY_INTERFACE_EXPORT int UNITY_INTERFACE_API
-SetColorBufferFromUnity(void *texturePtr, int eye);
+SetColorBufferFromUnity(void *texturePtr, std::uint8_t eye);
 
 UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API
 SetFarClipDistance(double distance);
