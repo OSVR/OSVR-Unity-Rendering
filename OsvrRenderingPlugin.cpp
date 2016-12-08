@@ -21,8 +21,8 @@ Sensics, Inc.
 // limitations under the License.
 
 /// Both of these need to be enabled to force-enable logging to files.
-#undef ENABLE_LOGGING
-#undef ENABLE_LOGFILE
+#define ENABLE_LOGGING 1
+#define ENABLE_LOGFILE 1
 
 // Internal includes
 #include "OsvrRenderingPlugin.h"
@@ -634,7 +634,7 @@ inline void CleanupBufferD3D11(osvr::renderkit::RenderBuffer &rb) {
 
 OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
     if (!s_deviceType) {
-        DebugLog("Device type not supported.");
+        DebugLog("[OSVR Rendering Plugin] Device type not supported.");
         return OSVR_RETURN_FAILURE;
     }
     UpdateRenderInfo();
