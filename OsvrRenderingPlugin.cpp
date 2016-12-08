@@ -687,6 +687,8 @@ GetViewport(std::uint8_t eye) {
 	{
 		std::string errorLog = "[OSVR Rendering Plugin] error in GetViewport, eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
+		errorLog = "[OSVR Rendering Plugin] renderInfo array size is = " + std::to_string(int(s_renderInfo.size()));
+		DebugLog(errorLog.c_str());
 	}
 	return viewportDescription;
 }
@@ -702,6 +704,8 @@ GetProjectionMatrix(std::uint8_t eye) {
 	{
 		std::string errorLog = "[OSVR Rendering Plugin] error in GetProjectionMatrix, eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
+		errorLog = "[OSVR Rendering Plugin] renderInfo array size is = " + std::to_string(int(s_renderInfo.size()));
+		DebugLog(errorLog.c_str());
 	}
 	return pm;
 }
@@ -716,6 +720,8 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 	else
 	{
 		std::string errorLog = "[OSVR Rendering Plugin] error in GetEyePose, eye = " + std::to_string(int(eye));
+		DebugLog(errorLog.c_str());
+		errorLog = "[OSVR Rendering Plugin] renderInfo array size is = " + std::to_string(int(s_renderInfo.size()));
 		DebugLog(errorLog.c_str());
 	}
 	return pose;
