@@ -92,6 +92,9 @@ static double s_nearClipDistance = 0.1;
 static double s_farClipDistance = 1000.0;
 /// @todo is this redundant? (given renderParams)
 static double s_ipd = 0.063;
+//cached viewport values
+static std::uint32_t viewportWidth = 0;
+static std::uint32_t viewportHeight = 0;
 
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 static std::ofstream s_debugLogFile;
@@ -634,7 +637,7 @@ inline void CleanupBufferD3D11(osvr::renderkit::RenderBuffer &rb) {
 
 OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
     if (!s_deviceType) {
-        DebugLog("Device type not supported.");
+        DebugLog("[OSVR Rendering Plugin] Device type not supported.");
         return OSVR_RETURN_FAILURE;
     }
     UpdateRenderInfo();
@@ -677,17 +680,65 @@ void UNITY_INTERFACE_API SetIPD(double ipdMeters) {
 }
 
 osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_API
-GetViewport(int eye) {
-    return s_renderInfo[eye].viewport;
+GetViewport(std::uint8_t eye) {
+	osvr::renderkit::OSVR_ViewportDescription viewportDescription;
+	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
+	{
+		viewportDescription = s_renderInfo[eye].viewport;
+
+		//cache the viewport width and height
+		//patches issue where sometimes empty viewport is returned
+		//@todo fix the real cause of why this method bugs out occasionally on some machines, more often on others
+		if (viewportWidth == 0 && s_renderInfo[eye].viewport.width != 0)
+		{
+			viewportWidth = s_renderInfo[eye].viewport.width;
+		}
+		if (viewportHeight == 0 && s_renderInfo[eye].viewport.height != 0)
+		{
+			viewportHeight = s_renderInfo[eye].viewport.height;
+		}
+	}
+	else
+	{
+		//we shouldn't be here unless we hit a bug, in which case, we avoid error by returning cached viewport values
+		std::string errorLog = "[OSVR Rendering Plugin] Error in GetViewport, returning cached values. Eye = " + std::to_string(int(eye));
+		DebugLog(errorLog.c_str());
+		viewportDescription.left = 0;
+		viewportDescription.lower = 0;
+		viewportDescription.width = viewportWidth;
+		viewportDescription.height = viewportHeight;
+	}
+	return viewportDescription;
 }
 
 osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_API
-GetProjectionMatrix(int eye) {
-    return s_renderInfo[eye].projection;
+GetProjectionMatrix(std::uint8_t eye) {
+	osvr::renderkit::OSVR_ProjectionMatrix pm;
+	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
+	{
+		pm = s_renderInfo[eye].projection;
+	}
+	else
+	{
+		std::string errorLog = "[OSVR Rendering Plugin] Error in GetProjectionMatrix, returning default values. Eye = " + std::to_string(int(eye));
+		DebugLog(errorLog.c_str());
+	}
+	return pm;
 }
 
-OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye) {
-    return s_renderInfo[eye].pose;
+OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
+	OSVR_Pose3 pose;
+	osvrPose3SetIdentity(&pose);
+	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
+	{
+		pose = s_renderInfo[eye].pose;
+	}
+	else
+	{
+		std::string errorLog = "[OSVR Rendering Plugin] Error in GetEyePose, returning default values. Eye = " + std::to_string(int(eye));
+		DebugLog(errorLog.c_str());
+	}
+	return pose;
 }
 
 // --------------------------------------------------------------------------
@@ -703,7 +754,7 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye) {
 // to set up needed texture pointers only at initialization time.
 // For more reference, see:
 // http://docs.unity3d.com/ScriptReference/Texture.GetNativeTexturePtr.html
-int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
+int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, std::uint8_t eye) {
     if (!s_deviceType) {
         return OSVR_RETURN_FAILURE;
     }
