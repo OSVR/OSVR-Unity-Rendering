@@ -21,8 +21,8 @@ Sensics, Inc.
 // limitations under the License.
 
 /// Both of these need to be enabled to force-enable logging to files.
-#define ENABLE_LOGGING 1
-#define ENABLE_LOGFILE 1
+#undef ENABLE_LOGGING
+#undef ENABLE_LOGFILE
 
 // Internal includes
 #include "OsvrRenderingPlugin.h"
@@ -700,6 +700,7 @@ GetViewport(std::uint8_t eye) {
 	}
 	else
 	{
+		//we shouldn't be here unless we hit a bug, in which case, we avoid error by returning cached viewport values
 		std::string errorLog = "[OSVR Rendering Plugin] Error in GetViewport, returning cached values. Eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
 		viewportDescription.left = 0;
@@ -719,9 +720,7 @@ GetProjectionMatrix(std::uint8_t eye) {
 	}
 	else
 	{
-		std::string errorLog = "[OSVR Rendering Plugin] error in GetProjectionMatrix, eye = " + std::to_string(int(eye));
-		DebugLog(errorLog.c_str());
-		errorLog = "[OSVR Rendering Plugin] renderInfo array size is = " + std::to_string(int(s_renderInfo.size()));
+		std::string errorLog = "[OSVR Rendering Plugin] Error in GetProjectionMatrix, returning default values. Eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
 	}
 	return pm;
@@ -736,9 +735,7 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 	}
 	else
 	{
-		std::string errorLog = "[OSVR Rendering Plugin] error in GetEyePose, eye = " + std::to_string(int(eye));
-		DebugLog(errorLog.c_str());
-		errorLog = "[OSVR Rendering Plugin] renderInfo array size is = " + std::to_string(int(s_renderInfo.size()));
+		std::string errorLog = "[OSVR Rendering Plugin] Error in GetEyePose, returning default values. Eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
 	}
 	return pose;
