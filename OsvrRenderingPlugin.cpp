@@ -92,6 +92,9 @@ static double s_nearClipDistance = 0.1;
 static double s_farClipDistance = 1000.0;
 /// @todo is this redundant? (given renderParams)
 static double s_ipd = 0.063;
+//cached viewport values
+static std::uint32_t viewportWidth = 0;
+static std::uint32_t viewportHeight = 0;
 
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 static std::ofstream s_debugLogFile;
@@ -682,25 +685,27 @@ GetViewport(std::uint8_t eye) {
 	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
 	{
 		viewportDescription = s_renderInfo[eye].viewport;
-		/*std::string d0 = "[OSVR Rendering Plugin] viewportDescription, eye = " + std::to_string(int(eye));
-		std::string d1 = "left = " + std::to_string(int(s_renderInfo[eye].viewport.left));
-		std::string d2 = "lower = " + std::to_string(int(s_renderInfo[eye].viewport.lower));
-		std::string d3 = "width = " + std::to_string(int(s_renderInfo[eye].viewport.width));
-		std::string d4 = "height = " + std::to_string(int(s_renderInfo[eye].viewport.height));
-		std::string d5 = d0 + "\n" + d1 + "\n" + d2 + "\n" + d3 + "\n" + d4 + "\n";
-		DebugLog(d5.c_str());*/
 
+		//cache the viewport width and height
+		//patches issue where sometimes empty viewport is returned
+		//@todo fix the real cause of why this method bugs out occasionally on some machines, more often on others
+		if (viewportWidth == 0 && s_renderInfo[eye].viewport.width != 0)
+		{
+			viewportWidth = s_renderInfo[eye].viewport.width;
+		}
+		if (viewportHeight == 0 && s_renderInfo[eye].viewport.height != 0)
+		{
+			viewportHeight = s_renderInfo[eye].viewport.height;
+		}
 	}
 	else
 	{
-		std::string errorLog = "[OSVR Rendering Plugin] error in GetViewport, eye = " + std::to_string(int(eye));
-		DebugLog(errorLog.c_str());
-		errorLog = "[OSVR Rendering Plugin] renderInfo array size is = " + std::to_string(int(s_renderInfo.size()));
+		std::string errorLog = "[OSVR Rendering Plugin] Error in GetViewport, returning cached values. Eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
 		viewportDescription.left = 0;
 		viewportDescription.lower = 0;
-		viewportDescription.width = 1080;
-		viewportDescription.height = 1200;
+		viewportDescription.width = viewportWidth;
+		viewportDescription.height = viewportHeight;
 	}
 	return viewportDescription;
 }
