@@ -67,9 +67,9 @@ Sensics, Inc.
 
 #include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
 #include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
-#else // UNITY_WIN || UNITY_LINUX ^ // v others (mac) //
+#else // UNITY_WIN || UNITY_LINUX || UNITY_OSX
 // Mac OpenGL include
-#include <OpenGL/OpenGL.h>
+#include <OpenGL/gl.h>
 #endif //
 // We are going to use SDL to get our OpenGL context for us.
 // Unfortunately, SDL.h has #define main    SDL_main in it, so
@@ -85,7 +85,7 @@ Sensics, Inc.
 // VARIABLES
 static IUnityInterfaces *s_UnityInterfaces = nullptr;
 static IUnityGraphics *s_Graphics = nullptr;
-static UnityRendererType s_deviceType = {};
+static UnityRendererType s_deviceType;
 
 static osvr::renderkit::RenderManager::RenderParams s_renderParams;
 static osvr::renderkit::RenderManager *s_render = nullptr;
@@ -159,9 +159,13 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
     DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
 
 	switch (s_deviceType.getDeviceTypeEnum()) {
-	case OSVRSupportedRenderers::D3D11: 
+#if SUPPORT_D3D11
+	case OSVRSupportedRenderers::D3D11:
 		break;
+#endif
+#if SUPPORT_OPENGL
 	case OSVRSupportedRenderers::OpenGL:
+#if UNITY_WIN
 		// Clean up after ourselves.
 		glDeleteFramebuffers(1, &s_frameBuffer);
 		for (size_t i = 0; i < s_renderInfo.size(); i++) {
@@ -169,9 +173,12 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
 			delete s_renderBuffers[i].OpenGL;
 			glDeleteRenderbuffers(1, &depthBuffers[i]);
 		}
+#endif
 		
 		contextSet = false;
 		break;
+#endif
+        default: break;
 	}
 
 	if (s_render != nullptr) {
@@ -276,10 +283,11 @@ inline void dispatchEventToRenderer(UnityRendererType renderer,
 }
 
 bool shareContext(SDL_GLContext ctx1, SDL_GLContext ctx2) {
-	std::string str = "Sharing CONTEXT1, " + std::to_string((int)ctx1) + ", CONTEXT2, " + std::to_string((int)ctx2);
+	/*std::string str = "Sharing CONTEXT1, " + std::to_string((int)ctx1) + ", CONTEXT2, " + std::to_string((int)ctx2);
 	DebugLog(str.c_str());
 	str = "myDC is, " + std::to_string((int)wglGetCurrentDC());
-	DebugLog(str.c_str());
+	DebugLog(str.c_str());*/
+#if UNITY_WIN
 	if (wglShareLists((HGLRC)ctx1, (HGLRC)ctx2)) {
 		DebugLog("[OSVR Rendering Plugin] wglShareLists success!");
 		return true;
@@ -290,6 +298,7 @@ bool shareContext(SDL_GLContext ctx1, SDL_GLContext ctx2) {
 		DebugLog(str.c_str());
 		return false;
 	}
+#endif
 }
 
 bool InitSDLGL()
@@ -310,12 +319,15 @@ bool InitSDLGL()
 		DebugLog("SDL window open failed: Could not get window");
 		return false;
 	}
+#if UNITY_WIN
 	myGLContext = (HGLRC)SDL_GL_CreateContext(myWindow);
+
 	if (myGLContext == 0) {
 		DebugLog("RenderManagerOpenGL::addOpenGLContext: Could not get OpenGL context");
 		return false;
 	}
-	HDC myGLDC = wglGetCurrentDC();
+#endif
+	/*HDC myGLDC = wglGetCurrentDC();
 	std::string str = "InitSDLGL MyGL CONTEXT is " + std::to_string((int)myGLContext);
 	DebugLog(str.c_str());
 	str = "InitSDLGL Current CONTEXT is " + std::to_string((int)myGLDC);
@@ -326,7 +338,7 @@ bool InitSDLGL()
 	//str = "New Current CONTEXT is " + std::to_string((int)wglGetCurrentContext());
 	//DebugLog(str.c_str());
 	//shareContext();
-	return true;
+	return true;*/
 }
 
 /// Needs the calling convention, even though it's static and not exported,
@@ -337,12 +349,13 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
     case kUnityGfxDeviceEventInitialize: {
         DebugLog(
             "[OSVR Rendering Plugin] OnGraphicsDeviceEvent(Initialize).\n");
+#if UNITY_WIN
 		mainContext = wglGetCurrentContext();
-		std::string str = "Main Context is " + std::to_string((int)mainContext) + " first dc is " + std::to_string((int)wglGetCurrentDC());
-		DebugLog(str.c_str());
+		/*std::string str = "Main Context is " + std::to_string((int)mainContext) + " first dc is " + std::to_string((int)wglGetCurrentDC());
+		DebugLog(str.c_str());*/
 		InitSDLGL();
 		contextSet = shareContext(mainContext, myGLContext);
-		//SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
+#endif
         s_deviceType = s_Graphics->GetRenderer();
         if (!s_deviceType) {
             DebugLog("[OSVR Rendering Plugin] "
@@ -638,8 +651,8 @@ inline GLuint GetEyeTextureOpenGL(int eye) {
 
 inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
 	DebugLog("[OSVR Rendering Plugin] ConstructBuffersOpenGL");
-	std::string str = "Construct CONTEXT is " + std::to_string((int)wglGetCurrentContext());
-	DebugLog(str.c_str());
+	//std::string str = "Construct CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+	//DebugLog(str.c_str());
 	
 	
     // Init glew
@@ -658,12 +671,13 @@ inline OSVR_ReturnCode ConstructBuffersOpenGL(int eye) {
 	// so that they will be associated with it.
 	//SDL_GL_MakeCurrent(myWindow, myGLContext);
 	//SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
-	str = "SDL CONTEXT is " + std::to_string((int)wglGetCurrentContext());
-	DebugLog(str.c_str());
+	//str = "SDL CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+	//DebugLog(str.c_str());
 	
     if (eye == 0) {
         // do this once
 		glGenFramebuffers(1, &s_frameBuffer);
+        
     }
 	
 	glBindFramebuffer(GL_FRAMEBUFFER, s_frameBuffer);
@@ -858,10 +872,10 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, int eye) {
     } else {
         s_rightEyeTexturePtr = texturePtr;
     }
-	std::string str = "Set CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+	/*std::string str = "Set CONTEXT is " + std::to_string((int)wglGetCurrentContext());
 	DebugLog(str.c_str());
 	str = "Set Buffername is " + std::to_string((GLuint)texturePtr);
-	DebugLog(str.c_str());
+	DebugLog(str.c_str());*/
 
 
     return OSVR_RETURN_SUCCESS;
@@ -991,7 +1005,8 @@ inline void DoRender() {
 				s_renderBuffers[i].OpenGL->colorBufferName, depthBuffers[i], i);
 			str = "Buffername is " + std::to_string(s_renderBuffers[i].OpenGL->colorBufferName);
 			DebugLog(str.c_str());
-        }*/	
+        }*/
+#if UNITY_WIN
 		HGLRC glCont = wglGetCurrentContext();
 		HDC glDc = wglGetCurrentDC();
         // Send the rendered results to the screen
@@ -1005,6 +1020,19 @@ inline void DoRender() {
 	   // need to put this back here.
 	   SDL_GL_MakeCurrent(myWindow, myGLContext);
 	   wglMakeCurrent(glDc, glCont);
+#endif
+#if UNITY_OSX
+        SDL_GLContext aglc = SDL_GL_GetCurrentContext();
+        SDL_Window* glWin = SDL_GL_GetCurrentWindow();
+        if (!s_render->PresentRenderBuffers(s_renderBuffers, s_renderInfo)) {
+            DebugLog("PresentRenderBuffers() returned false, maybe because "
+                     "it was asked to quit");
+        }
+        SDL_GL_MakeCurrent(myWindow, myGLContext);
+        SDL_GL_MakeCurrent(glWin, aglc);
+
+
+#endif
 	  // glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	  // static GLfloat bg = 0;
 	  /* glViewport(static_cast<GLint>(0),

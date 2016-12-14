@@ -29,20 +29,20 @@ Sensics, Inc.
 #include "PluginConfig.h"
 
 // Library/third-party includes
-#include <boost/assert.hpp>
+//#include <boost/assert.hpp>
 
 // Standard includes
 // - none
 
 /// An enum class that only contains the renderer types that we support. This
 /// avoids spurious "unhandled cases in switch" warnings".
-enum class OSVRSupportedRenderers {
-	EmptyRenderer,
+enum OSVRSupportedRenderers {
+	EmptyRenderer = 0,
 #if SUPPORT_D3D11
-	D3D11,
+	D3D11 = 1,
 #endif
 #if SUPPORT_OPENGL
-	OpenGL,
+	OpenGL = 2
 #endif
 };
 
@@ -51,15 +51,15 @@ class UnityRendererType {
 public:
 	explicit operator bool() const { return supported_; }
 	OSVRSupportedRenderers getDeviceTypeEnum() const {
-		BOOST_ASSERT_MSG(supported_, "Cannot get an unsupported renderer!");
+		//BOOST_ASSERT_MSG(supported_, "Cannot get an unsupported renderer!");
 		return renderer_;
 	}
 	OSVRSupportedRenderers getDeviceTypeEnumUnconditionally() const {
 		return renderer_;
 	}
 	UnityRendererType &operator=(UnityGfxRenderer gfxRenderer) {
-		BOOST_ASSERT_MSG(renderer_ == OSVRSupportedRenderers::EmptyRenderer,
-			"Expect to only set renderer when it's null!");
+		//BOOST_ASSERT_MSG(renderer_ == OSVRSupportedRenderers::EmptyRenderer,
+			//"Expect to only set renderer when it's null!");
 		switch (gfxRenderer) {
 #if SUPPORT_OPENGL
 		case kUnityGfxRendererOpenGLCore:
