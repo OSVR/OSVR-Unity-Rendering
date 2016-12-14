@@ -130,8 +130,7 @@ enum RenderEvents {
     kOsvrEventID_Shutdown = 1,
     kOsvrEventID_Update = 2,
     kOsvrEventID_SetRoomRotationUsingHead = 3,
-    kOsvrEventID_ClearRoomToWorldTransform = 4,
-	kOsvrEventID_SetContext = 5
+    kOsvrEventID_ClearRoomToWorldTransform = 4
 };
 
 // --------------------------------------------------------------------------
@@ -1054,14 +1053,6 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
     case kOsvrEventID_ClearRoomToWorldTransform:
         ClearRoomToWorldTransform();
         break;
-	case kOsvrEventID_SetContext:
-		unityContext = wglGetCurrentContext();
-		str = "Unity context set to " + std::to_string((int)unityContext);
-		DebugLog(str.c_str());		
-		str = "myDC is, " + std::to_string((int)wglGetCurrentDC());
-		DebugLog(str.c_str());
-		shareContext(mainContext, unityContext);
-		break;
     default:
         break;
     }
