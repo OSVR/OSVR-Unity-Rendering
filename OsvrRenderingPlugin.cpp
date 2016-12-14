@@ -280,7 +280,7 @@ bool shareContext(SDL_GLContext ctx1, SDL_GLContext ctx2) {
 	str = "myDC is, " + std::to_string((int)wglGetCurrentDC());
 	DebugLog(str.c_str());
 	if (wglShareLists((HGLRC)ctx1, (HGLRC)ctx2)) {
-		DebugLog("[OSVR Rendering Plugin] Context sharing success!");
+		DebugLog("[OSVR Rendering Plugin] wglShareLists success!");
 		return true;
 	}
 	else {
@@ -314,11 +314,12 @@ bool InitSDLGL()
 		DebugLog("RenderManagerOpenGL::addOpenGLContext: Could not get OpenGL context");
 		return false;
 	}
-	std::string str = "MyGL CONTEXT is " + std::to_string((int)myGLContext);
+	HDC myGLDC = wglGetCurrentDC();
+	std::string str = "InitSDLGL MyGL CONTEXT is " + std::to_string((int)myGLContext);
 	DebugLog(str.c_str());
-	str = "Current CONTEXT is " + std::to_string((int)wglGetCurrentContext());
+	str = "InitSDLGL Current CONTEXT is " + std::to_string((int)myGLDC);
 	DebugLog(str.c_str());
-	str = "Current DC is " + std::to_string((int)wglGetCurrentDC());
+	str = "InitSDLGL Current DC is " + std::to_string((int)wglGetCurrentDC());
 	DebugLog(str.c_str());
 	//wglMakeCurrent(wglGetCurrentDC(), 0);
 	//str = "New Current CONTEXT is " + std::to_string((int)wglGetCurrentContext());
