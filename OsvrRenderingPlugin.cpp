@@ -120,7 +120,7 @@ static std::vector<GLuint> depthBuffers;
 static SDL_Window* myWindow;
 static SDL_GLContext mainContext;
 static SDL_GLContext myGLContext;
-static HGLRC unityContext;
+static bool contextSet = false;
 #endif // SUPPORT_OPENGL
 
 // RenderEvents
@@ -170,8 +170,8 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
 			delete s_renderBuffers[i].OpenGL;
 			glDeleteRenderbuffers(1, &depthBuffers[i]);
 		}
-		//close the SDL Window
-		SDL_Quit();
+		
+		contextSet = false;
 		break;
 	}
 
@@ -337,10 +337,10 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
         DebugLog(
             "[OSVR Rendering Plugin] OnGraphicsDeviceEvent(Initialize).\n");
 		mainContext = wglGetCurrentContext();
-		std::string str = "Main Context is " + std::to_string((int)mainContext);
+		std::string str = "Main Context is " + std::to_string((int)mainContext) + " first dc is " + std::to_string((int)wglGetCurrentDC());
 		DebugLog(str.c_str());
 		InitSDLGL();
-		shareContext(mainContext, myGLContext);
+		contextSet = shareContext(mainContext, myGLContext);
 		//SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
         s_deviceType = s_Graphics->GetRenderer();
         if (!s_deviceType) {
@@ -505,6 +505,12 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
             "[OSVR Rendering Plugin] Client context already set! Replacing...");
     }
     s_clientContext = context;
+
+	if (!contextSet)
+	{
+		InitSDLGL();
+		contextSet = shareContext(mainContext, myGLContext);
+	}
 
     if (!s_deviceType) {
 		// @todo pass the platform from Unity
