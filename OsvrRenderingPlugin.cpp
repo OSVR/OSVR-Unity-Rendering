@@ -58,6 +58,8 @@ Sensics, Inc.
 #endif // SUPPORT_D3D11
 
 #if SUPPORT_OPENGL
+#include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
+#include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
 #if UNITY_WIN || UNITY_LINUX
 // Needed for render buffer calls.  OSVR will have called glewInit() for us
 // when we open the display.
@@ -65,8 +67,6 @@ Sensics, Inc.
 
 #include <GL/gl.h>
 
-#include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
-#include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
 #else // UNITY_WIN || UNITY_LINUX || UNITY_OSX
 // Mac OpenGL include
 #include <OpenGL/gl.h>
