@@ -29,7 +29,7 @@ Sensics, Inc.
 #include "PluginConfig.h"
 
 // Library/third-party includes
-//#include <boost/assert.hpp>
+#include <boost/assert.hpp>
 
 // Standard includes
 // - none
@@ -51,15 +51,15 @@ class UnityRendererType {
 public:
 	explicit operator bool() const { return supported_; }
 	OSVRSupportedRenderers getDeviceTypeEnum() const {
-		//BOOST_ASSERT_MSG(supported_, "Cannot get an unsupported renderer!");
+		BOOST_ASSERT_MSG(supported_, "Cannot get an unsupported renderer!");
 		return renderer_;
 	}
 	OSVRSupportedRenderers getDeviceTypeEnumUnconditionally() const {
 		return renderer_;
 	}
 	UnityRendererType &operator=(UnityGfxRenderer gfxRenderer) {
-		//BOOST_ASSERT_MSG(renderer_ == OSVRSupportedRenderers::EmptyRenderer,
-			//"Expect to only set renderer when it's null!");
+		BOOST_ASSERT_MSG(renderer_ == OSVRSupportedRenderers::EmptyRenderer,
+			"Expect to only set renderer when it's null!");
 		switch (gfxRenderer) {
 #if SUPPORT_OPENGL
 		case kUnityGfxRendererOpenGLCore:
