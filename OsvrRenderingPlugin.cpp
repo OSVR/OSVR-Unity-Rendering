@@ -179,6 +179,7 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
 		s_render = nullptr;
 		s_rightEyeTexturePtr = nullptr;
 		s_leftEyeTexturePtr = nullptr;
+		s_renderBuffers.clear();
 	}
 	s_clientContext = nullptr;
 
@@ -303,7 +304,7 @@ bool InitSDLGL()
 		return false;
 	}
 	myWindow = SDL_CreateWindow(
-		"Test window, not used", 30, 30, 300, 100,
+		"Test window, not used", 30, 30, 100, 100,
 		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN);
 	if (myWindow == nullptr) {
 		DebugLog("SDL window open failed: Could not get window");
