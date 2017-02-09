@@ -951,7 +951,7 @@ inline void DoRender() {
 		}
 
 		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerFinishPresentRenderBuffers(
-			s_render, presentState, s_renderParams, false))) {
+			s_render, presentState, s_renderParams, true))) {
 			DebugLog("[OSVR Rendering Plugin] Could not finish presenting render buffers");;
 			ShutdownRenderManager();
 		}
