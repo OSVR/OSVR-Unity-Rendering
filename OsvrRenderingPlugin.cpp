@@ -21,8 +21,8 @@ Sensics, Inc.
 // limitations under the License.
 
 /// Both of these need to be enabled to force-enable logging to files.
-#undef ENABLE_LOGGING
-#undef ENABLE_LOGFILE
+#define ENABLE_LOGGING 1
+#define ENABLE_LOGFILE 1
 
 // Internal includes
 #include "OsvrRenderingPlugin.h"
@@ -98,6 +98,10 @@ static double s_ipd = 0.063;
 static std::uint32_t viewportWidth = 0;
 static std::uint32_t viewportHeight = 0;
 
+static OSVR_ProjectionMatrix lastGoodProjMatrix;
+static OSVR_Pose3 lastGoodPose;
+static OSVR_ViewportDescription lastGoodViewportDescription;
+
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 static std::ofstream s_debugLogFile;
 static std::streambuf *s_oldCout = nullptr;
@@ -149,12 +153,11 @@ inline void DebugLog(const char *str) {
 void UNITY_INTERFACE_API ShutdownRenderManager() {
     DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
     if (s_render != nullptr) {
-        delete s_render;
-        s_render = nullptr;
-        s_rightEyeTexturePtr = nullptr;
-        s_leftEyeTexturePtr = nullptr;
+		osvrDestroyRenderManager(s_render);
+       // s_rightEyeTexturePtr = nullptr;
+      //  s_leftEyeTexturePtr = nullptr;
     }
-    s_clientContext = nullptr;
+   // s_clientContext = nullptr;
 }
 
 // --------------------------------------------------------------------------
@@ -324,6 +327,11 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
 }
 
 inline void UpdateRenderInfo() {
+	if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetNumRenderInfo(
+		s_render, s_renderParams, &numRenderInfo))) {
+		DebugLog("[OSVR Rendering Plugin] Could not get context number of render infos.");
+		ShutdownRenderManager();
+	}
 	s_renderInfo.clear();
 	for (OSVR_RenderInfoCount i = 0; i < numRenderInfo; i++) {
 		OSVR_RenderInfoD3D11 info;
@@ -516,14 +524,14 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
                                                     G &&bufferCleanup) {
     /// If we bail any time before the end, we'll automatically clean up the
     /// render buffers with this lambda.
-    auto cleanupBuffers = osvr::util::finally([&] {
+   /* auto cleanupBuffers = osvr::util::finally([&] {
         DebugLog("[OSVR Rendering Plugin] Cleaning up render buffers.");
-        /*for (auto &rb : s_renderBuffers) {
+        for (auto &rb : s_renderBuffers) {
             bufferCleanup(rb);
-        }*/
+        }
         s_renderBuffers.clear();
         DebugLog("[OSVR Rendering Plugin] Render buffer cleanup complete.");
-    });
+    });*/
 
     /// Construct all the buffers as isntructed
     for (int i = 0; i < numBuffers; ++i) {
@@ -542,6 +550,9 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
     }*/
 	// Register our constructed buffers so that we can use them for
 	// presentation.
+
+	UpdateRenderInfo();
+
 	OSVR_RenderManagerRegisterBufferState registerBufferState;
 	if ((OSVR_RETURN_SUCCESS != osvrRenderManagerStartRegisterRenderBuffers(
 		&registerBufferState))) {
@@ -561,7 +572,7 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
 		ShutdownRenderManager();
 	}
     /// Only if we succeed, do we cancel the cleanup and carry on.
-    cleanupBuffers.cancel();
+   // cleanupBuffers.cancel();
     return OSVR_RETURN_SUCCESS;
 }
 
@@ -690,8 +701,8 @@ inline OSVR_ReturnCode ConstructBuffersD3D11(int eye) {
 }
 
 inline void CleanupBufferD3D11(OSVR_RenderBufferD3D11 &rb) {
-   // delete rb.D3D11;
-    //rb.D3D11 = nullptr;
+    delete &rb;
+
 }
 #endif // SUPPORT_D3D11
 
@@ -757,19 +768,22 @@ GetViewport(std::uint8_t eye) {
 		{
 			viewportHeight = s_renderInfo[eye].viewport.height;
 		}
+		lastGoodViewportDescription = viewportDescription;
 	}
 	else
 	{
 		//we shouldn't be here unless we hit a bug, in which case, we avoid error by returning cached viewport values
 		std::string errorLog = "[OSVR Rendering Plugin] Error in GetViewport, returning cached values. Eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
-		viewportDescription.left = 0;
+		/*viewportDescription.left = 0;
 		viewportDescription.lower = 0;
 		viewportDescription.width = viewportWidth;
-		viewportDescription.height = viewportHeight;
+		viewportDescription.height = viewportHeight;*/
+		lastGoodViewportDescription = viewportDescription;
 	}
 	return viewportDescription;
 }
+
 
 OSVR_ProjectionMatrix UNITY_INTERFACE_API
 GetProjectionMatrix(std::uint8_t eye) {
@@ -777,11 +791,13 @@ GetProjectionMatrix(std::uint8_t eye) {
 	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
 	{
 		pm = s_renderInfo[eye].projection;
+		lastGoodProjMatrix = pm;
 	}
 	else
 	{
 		std::string errorLog = "[OSVR Rendering Plugin] Error in GetProjectionMatrix, returning default values. Eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
+		pm = lastGoodProjMatrix;
 	}
 	return pm;
 }
@@ -792,11 +808,13 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
 	{
 		pose = s_renderInfo[eye].pose;
+		lastGoodPose = pose;
 	}
 	else
 	{
 		std::string errorLog = "[OSVR Rendering Plugin] Error in GetEyePose, returning default values. Eye = " + std::to_string(int(eye));
 		DebugLog(errorLog.c_str());
+		pose = lastGoodPose;
 	}
 	return pose;
 }
