@@ -84,7 +84,9 @@ static OSVR_RenderManagerD3D11 s_renderD3D = nullptr;
 static OSVR_ClientContext s_clientContext = nullptr;
 static std::vector<OSVR_RenderBufferD3D11> s_renderBuffers;
 static std::vector<OSVR_RenderInfoD3D11> s_renderInfo;
+static std::vector<OSVR_RenderInfoD3D11> s_lastRenderInfo;
 static OSVR_RenderInfoCount numRenderInfo;
+static OSVR_RenderInfoCollection s_renderInfoCollection;
 static OSVR_GraphicsLibraryD3D11 s_libraryD3D;
 static void *s_leftEyeTexturePtr = nullptr;
 static void *s_rightEyeTexturePtr = nullptr;
@@ -154,10 +156,11 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
     DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
     if (s_render != nullptr) {
 		osvrDestroyRenderManager(s_render);
-       // s_rightEyeTexturePtr = nullptr;
-      //  s_leftEyeTexturePtr = nullptr;
+		s_render = nullptr;
+        s_rightEyeTexturePtr = nullptr;
+        s_leftEyeTexturePtr = nullptr;
     }
-   // s_clientContext = nullptr;
+    s_clientContext = nullptr;
 }
 
 // --------------------------------------------------------------------------
@@ -326,24 +329,28 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
 #endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 }
 
-inline void UpdateRenderInfo() {
-	if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetNumRenderInfo(
-		s_render, s_renderParams, &numRenderInfo))) {
-		DebugLog("[OSVR Rendering Plugin] Could not get context number of render infos.");
+inline void UpdateRenderInfoCollection() {
+	if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetRenderInfoCollection(
+		s_render, s_renderParams, &s_renderInfoCollection))) {
+		DebugLog("[OSVR Rendering Plugin] UpdateRenderInfo Could not get renderinfo collection.");
 		ShutdownRenderManager();
 	}
+	osvrRenderManagerGetNumRenderInfoInCollection(s_renderInfoCollection, &numRenderInfo);
+
+	//update renderinfo
 	s_renderInfo.clear();
 	for (OSVR_RenderInfoCount i = 0; i < numRenderInfo; i++) {
 		OSVR_RenderInfoD3D11 info;
-		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetRenderInfoD3D11(
-			s_renderD3D, i, s_renderParams, &info))) {
+		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetRenderInfoFromCollectionD3D11(
+			s_renderInfoCollection, i, &info))) {
 			DebugLog("[OSVR Rendering Plugin] Could not get render info.");
-			ShutdownRenderManager();
 		}
 		s_renderInfo.push_back(info);
 	}
-   // s_renderInfo = s_render->GetRenderInfo(s_renderParams);
-	//osvrRenderManagerGetRenderInfoD3D11(s_renderD3D)
+	if (s_renderInfo.size() > 0)
+	{
+		s_lastRenderInfo = s_renderInfo;
+	}
 }
 
 #if 0
@@ -397,19 +404,19 @@ void ClearRoomToWorldTransform() { /*s_render->ClearRoomToWorldTransform(); */}
 // Called from Unity to create a RenderManager, passing in a ClientContext
 OSVR_ReturnCode UNITY_INTERFACE_API
 CreateRenderManagerFromUnity(OSVR_ClientContext context) {
-    /// See if we're already created/running - shouldn't happen, but might.
-   /* if (s_render != nullptr) {
-        if (s_render->doingOkay()) {
-            DebugLog("[OSVR Rendering Plugin] RenderManager already created "
-                     "and doing OK - will just return success without trying "
-                     "to re-initialize.");
-            return OSVR_RETURN_SUCCESS;
-        }
 
-        DebugLog("[OSVR Rendering Plugin] RenderManager already created, "
-                 "but not doing OK. Will shut down before creating again.");
-        ShutdownRenderManager();
-    }*/
+	if (s_render != nullptr) {
+		if (osvrRenderManagerGetDoingOkay(s_render)) {
+			DebugLog("[OSVR Rendering Plugin] RenderManager already created "
+				"and doing OK - will just return success without trying "
+				"to re-initialize.");
+			return OSVR_RETURN_SUCCESS;
+		}
+
+		DebugLog("[OSVR Rendering Plugin] RenderManager already created, "
+			"but not doing OK. Will shut down before creating again.");
+		ShutdownRenderManager();
+	}
     if (s_clientContext != nullptr) {
         DebugLog(
             "[OSVR Rendering Plugin] Client context already set! Replacing...");
@@ -424,11 +431,6 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 		// the platform from Unity than assume it's D3D11.
 
 		s_deviceType = kUnityGfxRendererD3D11;
-
-       /* DebugLog("[OSVR Rendering Plugin] Attempted to create render manager, "
-                 "but device type wasn't set (to a supported type) by the "
-                 "plugin load/init routine. Order issue?");
-        return OSVR_RETURN_FAILURE;*/
     }
 
     bool setLibraryFromOpenDisplayReturn = false;
@@ -458,6 +460,8 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     }
 
     if (s_render == nullptr) {
+		DebugLog("[OSVR Rendering Plugin] here we aer.");
+
         DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
 
         ShutdownRenderManager();
@@ -493,24 +497,8 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 
     // create a new set of RenderParams for passing to GetRenderInfo()
 	osvrRenderManagerGetDefaultRenderParams(&s_renderParams);
-	if((OSVR_RETURN_SUCCESS != osvrRenderManagerGetNumRenderInfo(
-		s_render, s_renderParams, &numRenderInfo))) {
-		DebugLog("[OSVR Rendering Plugin] Could not get context number of render infos.");
-		ShutdownRenderManager();
-		return OSVR_RETURN_FAILURE;
-	}
-
-	//update renderinfo
-	s_renderInfo.clear();
-	for (OSVR_RenderInfoCount i = 0; i < numRenderInfo; i++) {
-		OSVR_RenderInfoD3D11 info;
-		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetRenderInfoD3D11(
-			s_renderD3D, i, s_renderParams, &info))) {
-			DebugLog("[OSVR Rendering Plugin] Could not get render info.");
-			ShutdownRenderManager();
-		}
-		s_renderInfo.push_back(info);
-	}
+	
+	UpdateRenderInfoCollection();
 
     DebugLog("[OSVR Rendering Plugin] CreateRenderManagerFromUnity Success!");
     return OSVR_RETURN_SUCCESS;
@@ -551,7 +539,7 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
 	// Register our constructed buffers so that we can use them for
 	// presentation.
 
-	UpdateRenderInfo();
+	UpdateRenderInfoCollection();
 
 	OSVR_RenderManagerRegisterBufferState registerBufferState;
 	if ((OSVR_RETURN_SUCCESS != osvrRenderManagerStartRegisterRenderBuffers(
@@ -711,7 +699,7 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
         DebugLog("[OSVR Rendering Plugin] Device type not supported.");
         return OSVR_RETURN_FAILURE;
     }
-    UpdateRenderInfo();
+    UpdateRenderInfoCollection();
 
     // construct buffers
     const int n = static_cast<int>(s_renderInfo.size());
@@ -753,20 +741,20 @@ void UNITY_INTERFACE_API SetIPD(double ipdMeters) {
 OSVR_ViewportDescription UNITY_INTERFACE_API
 GetViewport(std::uint8_t eye) {
 	OSVR_ViewportDescription viewportDescription;
-	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
+	if (s_lastRenderInfo.size() > 0 && eye <= s_lastRenderInfo.size() - 1)
 	{
-		viewportDescription = s_renderInfo[eye].viewport;
+		viewportDescription = s_lastRenderInfo[eye].viewport;
 
 		//cache the viewport width and height
 		//patches issue where sometimes empty viewport is returned
 		//@todo fix the real cause of why this method bugs out occasionally on some machines, more often on others
-		if (viewportWidth == 0 && s_renderInfo[eye].viewport.width != 0)
+		if (viewportWidth == 0 && s_lastRenderInfo[eye].viewport.width != 0)
 		{
-			viewportWidth = s_renderInfo[eye].viewport.width;
+			viewportWidth = s_lastRenderInfo[eye].viewport.width;
 		}
-		if (viewportHeight == 0 && s_renderInfo[eye].viewport.height != 0)
+		if (viewportHeight == 0 && s_lastRenderInfo[eye].viewport.height != 0)
 		{
-			viewportHeight = s_renderInfo[eye].viewport.height;
+			viewportHeight = s_lastRenderInfo[eye].viewport.height;
 		}
 		lastGoodViewportDescription = viewportDescription;
 	}
@@ -788,9 +776,9 @@ GetViewport(std::uint8_t eye) {
 OSVR_ProjectionMatrix UNITY_INTERFACE_API
 GetProjectionMatrix(std::uint8_t eye) {
 	OSVR_ProjectionMatrix pm;
-	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
+	if (s_lastRenderInfo.size() > 0 && eye <= s_lastRenderInfo.size() - 1)
 	{
-		pm = s_renderInfo[eye].projection;
+		pm = s_lastRenderInfo[eye].projection;
 		lastGoodProjMatrix = pm;
 	}
 	else
@@ -805,9 +793,9 @@ GetProjectionMatrix(std::uint8_t eye) {
 OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 	OSVR_Pose3 pose;
 	osvrPose3SetIdentity(&pose);
-	if (s_renderInfo.size() > 0 && eye <= s_renderInfo.size() - 1)
+	if (s_lastRenderInfo.size() > 0 && eye <= s_lastRenderInfo.size() - 1)
 	{
-		pose = s_renderInfo[eye].pose;
+		pose = s_lastRenderInfo[eye].pose;
 		lastGoodPose = pose;
 	}
 	else
@@ -1024,7 +1012,7 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
     case kOsvrEventID_Shutdown:
         break;
     case kOsvrEventID_Update:
-        UpdateRenderInfo();
+        UpdateRenderInfoCollection();
         break;
     case kOsvrEventID_SetRoomRotationUsingHead:
         SetRoomRotationUsingHead();
