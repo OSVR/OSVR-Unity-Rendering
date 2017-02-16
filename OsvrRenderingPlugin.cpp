@@ -83,6 +83,7 @@ static osvr::renderkit::RenderManager *s_render = nullptr;
 static OSVR_ClientContext s_clientContext = nullptr;
 static std::vector<osvr::renderkit::RenderBuffer> s_renderBuffers;
 static std::vector<osvr::renderkit::RenderInfo> s_renderInfo;
+static std::vector<osvr::renderkit::RenderInfo> s_lastRenderInfo;
 static osvr::renderkit::GraphicsLibrary s_library;
 static void *s_leftEyeTexturePtr = nullptr;
 static void *s_rightEyeTexturePtr = nullptr;
@@ -321,6 +322,10 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
 
 inline void UpdateRenderInfo() {
     s_renderInfo = s_render->GetRenderInfo(s_renderParams);
+	if (s_renderInfo.size() > 0)
+	{
+		s_lastRenderInfo = s_renderInfo;
+	}
 }
 
 #if 0
@@ -678,16 +683,16 @@ void UNITY_INTERFACE_API SetIPD(double ipdMeters) {
 
 osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_API
 GetViewport(int eye) {
-    return s_renderInfo[eye].viewport;
+	return s_lastRenderInfo[eye].viewport;
 }
 
 osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_API
 GetProjectionMatrix(int eye) {
-    return s_renderInfo[eye].projection;
+	return s_lastRenderInfo[eye].projection;
 }
 
 OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye) {
-    return s_renderInfo[eye].pose;
+	return s_lastRenderInfo[eye].pose;
 }
 
 // --------------------------------------------------------------------------
