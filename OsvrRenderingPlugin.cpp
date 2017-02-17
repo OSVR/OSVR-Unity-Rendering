@@ -120,6 +120,9 @@ enum RenderEvents {
     kOsvrEventID_ClearRoomToWorldTransform = 4
 };
 
+// Mutex provides thread safety when accessing s_lastRenderInfo from Unity
+std::mutex m_mutex;
+
 // --------------------------------------------------------------------------
 // Helper utilities
 
@@ -321,6 +324,7 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
 }
 
 inline void UpdateRenderInfo() {
+	std::lock_guard<std::mutex> lock(m_mutex);
     s_renderInfo = s_render->GetRenderInfo(s_renderParams);
 	if (s_renderInfo.size() > 0)
 	{
@@ -683,15 +687,18 @@ void UNITY_INTERFACE_API SetIPD(double ipdMeters) {
 
 osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_API
 GetViewport(int eye) {
+	std::lock_guard<std::mutex> lock(m_mutex);
 	return s_lastRenderInfo[eye].viewport;
 }
 
 osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_API
 GetProjectionMatrix(int eye) {
+	std::lock_guard<std::mutex> lock(m_mutex);
 	return s_lastRenderInfo[eye].projection;
 }
 
 OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye) {
+	std::lock_guard<std::mutex> lock(m_mutex);
 	return s_lastRenderInfo[eye].pose;
 }
 
