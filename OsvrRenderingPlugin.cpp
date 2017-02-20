@@ -324,12 +324,13 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
 }
 
 inline void UpdateRenderInfo() {
-	std::lock_guard<std::mutex> lock(m_mutex);
-    s_renderInfo = s_render->GetRenderInfo(s_renderParams);
+	m_mutex.lock();
+	s_renderInfo = s_render->GetRenderInfo(s_renderParams);
 	if (s_renderInfo.size() > 0)
 	{
 		s_lastRenderInfo = s_renderInfo;
 	}
+	m_mutex.unlock();
 }
 
 #if 0
@@ -687,19 +688,25 @@ void UNITY_INTERFACE_API SetIPD(double ipdMeters) {
 
 osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_API
 GetViewport(int eye) {
-	std::lock_guard<std::mutex> lock(m_mutex);
-	return s_lastRenderInfo[eye].viewport;
+	m_mutex.lock();
+	osvr::renderkit::OSVR_ViewportDescription viewport = s_lastRenderInfo[eye].viewport;
+	m_mutex.unlock();
+	return viewport;
 }
 
 osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_API
 GetProjectionMatrix(int eye) {
-	std::lock_guard<std::mutex> lock(m_mutex);
-	return s_lastRenderInfo[eye].projection;
+	m_mutex.lock();
+	osvr::renderkit::OSVR_ProjectionMatrix proj = s_lastRenderInfo[eye].projection;
+	m_mutex.unlock();
+	return proj;
 }
 
 OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye) {
-	std::lock_guard<std::mutex> lock(m_mutex);
-	return s_lastRenderInfo[eye].pose;
+	m_mutex.lock();
+	OSVR_PoseState pose = s_lastRenderInfo[eye].pose;
+	m_mutex.unlock();
+	return pose;
 }
 
 // --------------------------------------------------------------------------
