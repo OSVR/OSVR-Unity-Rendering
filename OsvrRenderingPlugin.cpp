@@ -821,21 +821,22 @@ inline void DoRender() {
     if (!s_deviceType) {
         return;
     }
-    const auto n = static_cast<int>(s_renderInfo.size());
+	std::lock_guard<std::mutex> lock(m_mutex);
+    const auto n = static_cast<int>(s_lastRenderInfo.size());
 
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
     case OSVRSupportedRenderers::D3D11: {
 		// Render into each buffer using the specified information.
 		for (int i = 0; i < n; ++i) {
-			RenderViewD3D11(s_renderInfo[i],
+			RenderViewD3D11(s_lastRenderInfo[i],
 				s_renderBuffers[i].D3D11->colorBufferView, i);
 		}
 
         // Send the rendered results to the screen
         // Flip Y because Unity RenderTextures are upside-down on D3D11
         if (!s_render->PresentRenderBuffers(
-                s_renderBuffers, s_renderInfo,
+			s_renderBuffers, s_lastRenderInfo,
                 osvr::renderkit::RenderManager::RenderParams(),
                 std::vector<osvr::renderkit::OSVR_ViewportDescription>(),
                 true)) {
