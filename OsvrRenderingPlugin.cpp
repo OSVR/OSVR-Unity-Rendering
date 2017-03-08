@@ -83,6 +83,7 @@ static osvr::renderkit::RenderManager *s_render = nullptr;
 static OSVR_ClientContext s_clientContext = nullptr;
 static std::vector<osvr::renderkit::RenderBuffer> s_renderBuffers;
 static std::vector<osvr::renderkit::RenderInfo> s_renderInfo;
+static std::vector<osvr::renderkit::RenderInfo> s_lastRenderInfo;
 static osvr::renderkit::GraphicsLibrary s_library;
 static void *s_leftEyeTexturePtr = nullptr;
 static void *s_rightEyeTexturePtr = nullptr;
@@ -118,6 +119,9 @@ enum RenderEvents {
     kOsvrEventID_SetRoomRotationUsingHead = 3,
     kOsvrEventID_ClearRoomToWorldTransform = 4
 };
+
+// Mutex provides thread safety when accessing s_lastRenderInfo from Unity
+std::mutex m_mutex;
 
 // --------------------------------------------------------------------------
 // Helper utilities
@@ -320,7 +324,12 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
 }
 
 inline void UpdateRenderInfo() {
+	std::lock_guard<std::mutex> lock(m_mutex);
     s_renderInfo = s_render->GetRenderInfo(s_renderParams);
+	if (s_renderInfo.size() > 0)
+	{
+		s_lastRenderInfo = s_renderInfo;
+	}
 }
 
 #if 0
@@ -678,16 +687,19 @@ void UNITY_INTERFACE_API SetIPD(double ipdMeters) {
 
 osvr::renderkit::OSVR_ViewportDescription UNITY_INTERFACE_API
 GetViewport(int eye) {
-    return s_renderInfo[eye].viewport;
+	std::lock_guard<std::mutex> lock(m_mutex);
+	return s_lastRenderInfo[eye].viewport;
 }
 
 osvr::renderkit::OSVR_ProjectionMatrix UNITY_INTERFACE_API
 GetProjectionMatrix(int eye) {
-    return s_renderInfo[eye].projection;
+	std::lock_guard<std::mutex> lock(m_mutex);
+	return s_lastRenderInfo[eye].projection;
 }
 
 OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(int eye) {
-    return s_renderInfo[eye].pose;
+	std::lock_guard<std::mutex> lock(m_mutex);
+	return s_lastRenderInfo[eye].pose;
 }
 
 // --------------------------------------------------------------------------
@@ -809,21 +821,22 @@ inline void DoRender() {
     if (!s_deviceType) {
         return;
     }
-    const auto n = static_cast<int>(s_renderInfo.size());
+	std::lock_guard<std::mutex> lock(m_mutex);
+    const auto n = static_cast<int>(s_lastRenderInfo.size());
 
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
     case OSVRSupportedRenderers::D3D11: {
 		// Render into each buffer using the specified information.
 		for (int i = 0; i < n; ++i) {
-			RenderViewD3D11(s_renderInfo[i],
+			RenderViewD3D11(s_lastRenderInfo[i],
 				s_renderBuffers[i].D3D11->colorBufferView, i);
 		}
 
         // Send the rendered results to the screen
         // Flip Y because Unity RenderTextures are upside-down on D3D11
         if (!s_render->PresentRenderBuffers(
-                s_renderBuffers, s_renderInfo,
+			s_renderBuffers, s_lastRenderInfo,
                 osvr::renderkit::RenderManager::RenderParams(),
                 std::vector<osvr::renderkit::OSVR_ViewportDescription>(),
                 true)) {
