@@ -69,7 +69,7 @@ Sensics, Inc.
 
 #else // UNITY_WIN || UNITY_LINUX || UNITY_OSX
 // Mac OpenGL include
-#include <OpenGL/gl.h>
+#include <OpenGL/OpenGL.h>
 #endif //
 // We are going to use SDL to get our OpenGL context for us.
 // Unfortunately, SDL.h has #define main    SDL_main in it, so
@@ -165,7 +165,6 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
 #endif
 #if SUPPORT_OPENGL
 	case OSVRSupportedRenderers::OpenGL:
-#if UNITY_WIN
 		// Clean up after ourselves.
 		glDeleteFramebuffers(1, &s_frameBuffer);
 		for (size_t i = 0; i < s_renderInfo.size(); i++) {
@@ -173,7 +172,6 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
 			delete s_renderBuffers[i].OpenGL;
 			glDeleteRenderbuffers(1, &depthBuffers[i]);
 		}
-#endif
 		
 		contextSet = false;
 		break;
@@ -299,6 +297,7 @@ bool shareContext(SDL_GLContext ctx1, SDL_GLContext ctx2) {
 		return false;
 	}
 #endif
+
 }
 
 bool InitSDLGL()
@@ -312,6 +311,7 @@ bool InitSDLGL()
 		DebugLog("Could not initialize SDL");
 		return false;
 	}
+    SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT,1);
 	myWindow = SDL_CreateWindow(
 		"Test window, not used", 30, 30, 100, 100,
 		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN);
@@ -319,14 +319,13 @@ bool InitSDLGL()
 		DebugLog("SDL window open failed: Could not get window");
 		return false;
 	}
-#if UNITY_WIN
-	myGLContext = (HGLRC)SDL_GL_CreateContext(myWindow);
+    myGLContext = SDL_GL_CreateContext(myWindow);
 
 	if (myGLContext == 0) {
 		DebugLog("RenderManagerOpenGL::addOpenGLContext: Could not get OpenGL context");
 		return false;
 	}
-#endif
+
 	/*HDC myGLDC = wglGetCurrentDC();
 	std::string str = "InitSDLGL MyGL CONTEXT is " + std::to_string((int)myGLContext);
 	DebugLog(str.c_str());
@@ -355,6 +354,10 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
 		DebugLog(str.c_str());*/
 		InitSDLGL();
 		contextSet = shareContext(mainContext, myGLContext);
+#endif
+#if UNITY_OSX
+        CGLContextObj cglMainContext = CGLGetCurrentContext();
+        
 #endif
         s_deviceType = s_Graphics->GetRenderer();
         if (!s_deviceType) {
@@ -1022,14 +1025,13 @@ inline void DoRender() {
 	   wglMakeCurrent(glDc, glCont);
 #endif
 #if UNITY_OSX
-        SDL_GLContext aglc = SDL_GL_GetCurrentContext();
-        SDL_Window* glWin = SDL_GL_GetCurrentWindow();
+        CGLContextObj cglCont = CGLGetCurrentContext();
         if (!s_render->PresentRenderBuffers(s_renderBuffers, s_renderInfo)) {
             DebugLog("PresentRenderBuffers() returned false, maybe because "
                      "it was asked to quit");
         }
         SDL_GL_MakeCurrent(myWindow, myGLContext);
-        SDL_GL_MakeCurrent(glWin, aglc);
+        CGLSetCurrentContext(cglCont);
 
 
 #endif

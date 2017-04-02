@@ -38,7 +38,7 @@ if(WIN32)
 #    list(APPEND osvrUnityRenderingPlugin_SOURCES OsvrRenderingPlugin.def)
 endif()
 
-add_library(osvrUnityRenderingPlugin MODULE ${osvrUnityRenderingPlugin_SOURCES})
+add_library(osvrUnityRenderingPlugin SHARED ${osvrUnityRenderingPlugin_SOURCES})
 #set_target_properties(osvrUnityRenderingPlugin PROPERTIES LINK_FLAGS "/DEF:${CMAKE_CURRENT_SOURCE_DIR}/OsvrRenderingPlugin.def")
 target_link_libraries(osvrUnityRenderingPlugin osvr::osvrClientKit)
 target_link_libraries(osvrUnityRenderingPlugin osvrRenderManager::osvrRenderManager)
