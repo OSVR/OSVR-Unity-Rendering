@@ -63,6 +63,9 @@ class UnityRendererType {
         switch (gfxRenderer) {
 #if SUPPORT_OPENGL
         case kUnityGfxRendererOpenGL:
+		case kUnityGfxRendererOpenGLES20:
+		case kUnityGfxRendererOpenGLES30:
+		case kUnityGfxRendererOpenGLCore:
             renderer_ = OSVRSupportedRenderers::OpenGL;
             supported_ = true;
             break;
@@ -77,8 +80,6 @@ class UnityRendererType {
         case kUnityGfxRendererGCM:
         case kUnityGfxRendererNull:
         case kUnityGfxRendererXenon:
-        case kUnityGfxRendererOpenGLES20:
-        case kUnityGfxRendererOpenGLES30:
         case kUnityGfxRendererGXM:
         case kUnityGfxRendererPS4:
         case kUnityGfxRendererXboxOne:
