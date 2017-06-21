@@ -28,7 +28,7 @@
 // Which platform we are on?
 #ifdef _WIN32
 #define UNITY_WIN 1
-#elif define(__ANDROID__)
+#elif defined(__ANDROID__)
 #define UNITY_ANDROID 1
 #elif defined(__APPLE__)
 #define UNITY_OSX 1
