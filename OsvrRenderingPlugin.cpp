@@ -1876,7 +1876,6 @@ GetProjectionMatrix(std::uint8_t eye) {
 	proj.nearClip = currentRenderInfo.projection.nearClip;
 	proj.farClip = currentRenderInfo.projection.farClip;
 	return proj;
-}
 #else
 	OSVR_ProjectionMatrix pm;
 	if (s_lastRenderInfo.size() > 0 && eye <= s_lastRenderInfo.size() - 1)
