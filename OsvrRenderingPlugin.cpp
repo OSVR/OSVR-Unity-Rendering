@@ -248,20 +248,6 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 	return JNI_VERSION_1_6;
 }
 #endif
-void UNITY_INTERFACE_API ShutdownRenderManager() {
-    DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
-#if UNITY_ANDROID
-	ShutdownRenderManagerAndroid();
-	return;
-#endif
-    if (s_render != nullptr) {
-		osvrDestroyRenderManager(s_render);
-		s_render = nullptr;
-        s_rightEyeTexturePtr = nullptr;
-        s_leftEyeTexturePtr = nullptr;
-    }
-    s_clientContext = nullptr;
-}
 
 // --------------------------------------------------------------------------
 // GraphicsDeviceEvents
@@ -1429,6 +1415,20 @@ void ShutdownRenderManagerAndroid()
 #endif
 /////////end ANDROID//////////////////////////////////////
 
+void UNITY_INTERFACE_API ShutdownRenderManager() {
+	DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
+#if UNITY_ANDROID
+	ShutdownRenderManagerAndroid();
+	return;
+#endif
+	if (s_render != nullptr) {
+		osvrDestroyRenderManager(s_render);
+		s_render = nullptr;
+		s_rightEyeTexturePtr = nullptr;
+		s_leftEyeTexturePtr = nullptr;
+	}
+	s_clientContext = nullptr;
+}
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 OSVR_ReturnCode UNITY_INTERFACE_API
