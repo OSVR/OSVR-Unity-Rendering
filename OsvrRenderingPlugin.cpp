@@ -1413,7 +1413,7 @@ static void stop() {
 }
 
 OSVR_ReturnCode CreateRenderManagerAndroid(OSVR_ClientContext context) {
-	s_clientContext = context;
+	gClientContext  = context;
 	if(setupOSVR())
 	{
 		if (setupGraphics(gWidth, gHeight))
@@ -1444,7 +1444,7 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
 #if UNITY_ANDROID
 	ShutdownRenderManagerAndroid();
 	return;
-#endif
+#else
 	if (s_render != nullptr) {
 		osvrDestroyRenderManager(s_render);
 		s_render = nullptr;
@@ -1452,6 +1452,7 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
 		s_leftEyeTexturePtr = nullptr;
 	}
 	s_clientContext = nullptr;
+#endif
 }
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
@@ -1568,7 +1569,7 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
                                                     G &&bufferCleanup) {
 #if UNITY_ANDROID
 	return OSVR_RETURN_SUCCESS;
-#endif
+#else
     /// If we bail any time before the end, we'll automatically clean up the
     /// render buffers with this lambda.
    /* auto cleanupBuffers = osvr::util::finally([&] {
@@ -1621,6 +1622,7 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
     /// Only if we succeed, do we cancel the cleanup and carry on.
    // cleanupBuffers.cancel();
     return OSVR_RETURN_SUCCESS;
+#endif
 }
 
 #if SUPPORT_OPENGL
@@ -1759,7 +1761,7 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 		return 10;
 	}
 	else return OSVR_RETURN_SUCCESS;
-#endif
+#else
     if (!s_deviceType) {
         DebugLog("[OSVR Rendering Plugin] Device type not supported.");
         return OSVR_RETURN_FAILURE;
@@ -1786,6 +1788,7 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
         DebugLog("Device type not supported.");
         return OSVR_RETURN_FAILURE;
     }
+#endif //non-Android platforms
 }
 
 void UNITY_INTERFACE_API SetNearClipDistance(double distance) {
@@ -1822,7 +1825,7 @@ GetViewport(std::uint8_t eye) {
 	viewDesc.left = currentRenderInfo.viewport.left;
 	viewDesc.lower = currentRenderInfo.viewport.lower;
 	return viewDesc;
-#endif
+#else
 	OSVR_ViewportDescription viewportDescription;
 	if (s_lastRenderInfo.size() > 0 && eye <= s_lastRenderInfo.size() - 1)
 	{
@@ -1853,6 +1856,7 @@ GetViewport(std::uint8_t eye) {
 		lastGoodViewportDescription = viewportDescription;
 	}
 	return viewportDescription;
+#endif //non-Android platforms
 }
 
 
@@ -1873,7 +1877,7 @@ GetProjectionMatrix(std::uint8_t eye) {
 	proj.farClip = currentRenderInfo.projection.farClip;
 	return proj;
 }
-#endif
+#else
 	OSVR_ProjectionMatrix pm;
 	if (s_lastRenderInfo.size() > 0 && eye <= s_lastRenderInfo.size() - 1)
 	{
@@ -1887,6 +1891,7 @@ GetProjectionMatrix(std::uint8_t eye) {
 		pm = lastGoodProjMatrix;
 	}
 	return pm;
+#endif //non-Android platforms
 }
 
 OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
@@ -1897,7 +1902,7 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 	RenderInfoCollectionOpenGL renderInfoCollection(gRenderManager, renderParams);
 	OSVR_RenderInfoOpenGL currentRenderInfo = renderInfoCollection.getRenderInfo(eye);
 	return currentRenderInfo.pose;
-#endif
+#else
 	OSVR_Pose3 pose;
 	osvrPose3SetIdentity(&pose);
 	if (s_lastRenderInfo.size() > 0 && eye <= s_lastRenderInfo.size() - 1)
@@ -1912,6 +1917,7 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 		pose = lastGoodPose;
 	}
 	return pose;
+#endif //non-Android platforms
 }
 
 // --------------------------------------------------------------------------
@@ -1941,7 +1947,7 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, std::uint8_t e
 		gRightEyeTextureID = (GLuint)texturePtr;
 	}
 	return OSVR_RETURN_SUCCESS;
-#endif
+#else
     if (eye == 0) {
         s_leftEyeTexturePtr = texturePtr;
     } else {
@@ -1949,6 +1955,7 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr, std::uint8_t e
     }
 
     return OSVR_RETURN_SUCCESS;
+#endif
 }
 #if SUPPORT_D3D11
 // Renders the view from our Unity cameras by copying data at
