@@ -34,6 +34,18 @@ Sensics, Inc.
 #include <osvr/ClientKit/Interface.h>
 #include <osvr/Util/Finally.h>
 #include <osvr/Util/MatrixConventionsC.h>
+#if UNITY_ANDROID
+#include <osvr/ClientKit/ContextC.h>
+#include <osvr/ClientKit/InterfaceC.h>
+#include <osvr/ClientKit/InterfaceStateC.h>
+#include <osvr/ClientKit/DisplayC.h>
+#include <osvr/ClientKit/InterfaceCallbackC.h>
+#include <osvr/ClientKit/ImagingC.h>
+#include <osvr/ClientKit/ServerAutoStartC.h>
+//#include <osvr/RenderKit/RenderManagerC.h> //already in OsvrRenderingPlugin.h
+#include <osvr/RenderKit/RenderManagerOpenGLC.h>
+#include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
+#endif
 
 
 #if UNITY_WIN
@@ -105,6 +117,8 @@ static jclass mainActivityClass;
 static jmethodID logMsgId;
 static jobject unityActivityClassInstance;
 
+static int gWidth = 0;
+static int gHeight = 0;
 static GLuint gProgram;
 static GLuint gvPositionHandle;
 static GLuint gvColorHandle;
@@ -127,7 +141,7 @@ typedef struct OSVR_RenderTargetInfo {
 	GLuint frameBufferName;
 	GLuint renderBufferName; // @todo - do we need this?
 } OSVR_RenderTargetInfo;
-
+static OSVR_ClientContext gClientContext = NULL;
 static OSVR_ClientInterface gCamera = NULL;
 static OSVR_ClientInterface gHead = NULL;
 static int gReportNumber = 0;
@@ -183,8 +197,6 @@ static std::vector<OSVR_RenderInfoD3D11> s_lastRenderInfo;
 static OSVR_RenderInfoCount numRenderInfo;
 static OSVR_RenderInfoCollection s_renderInfoCollection;
 static OSVR_GraphicsLibraryD3D11 s_libraryD3D;
-static void *s_leftEyeTexturePtr = nullptr;
-static void *s_rightEyeTexturePtr = nullptr;
 
 static OSVR_ProjectionMatrix lastGoodProjMatrix;
 static OSVR_Pose3 lastGoodPose;
@@ -197,6 +209,10 @@ static std::streambuf *s_oldCout = nullptr;
 static std::streambuf *s_oldCerr = nullptr;
 #endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 #endif //end Windows, Linux, OSX
+
+static void *s_leftEyeTexturePtr = nullptr;
+static void *s_rightEyeTexturePtr = nullptr;
+
 // D3D11 vars
 #if SUPPORT_D3D11
 static D3D11_TEXTURE2D_DESC s_textureDesc;
@@ -436,6 +452,7 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
 // --------------------------------------------------------------------------
 // UnitySetInterfaces
 void UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces *unityInterfaces) {
+#if UNITY_WIN
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
     s_debugLogFile.open("RenderPluginLog.txt");
 
@@ -448,6 +465,7 @@ void UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces *unityInterfaces) {
         std::cerr.rdbuf(s_debugLogFile.rdbuf());
     }
 #endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
+#endif //UNITY_WIN
     s_UnityInterfaces = unityInterfaces;
     s_Graphics = s_UnityInterfaces->Get<IUnityGraphics>();
     s_Graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
@@ -459,7 +477,7 @@ void UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces *unityInterfaces) {
 void UNITY_INTERFACE_API UnityPluginUnload() {
     s_Graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
     OnGraphicsDeviceEvent(kUnityGfxDeviceEventShutdown);
-
+#if UNITY_WIN
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
     if (s_debugLogFile) {
         // Restore the buffers
@@ -468,8 +486,10 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
         s_debugLogFile.close();
     }
 #endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
+#endif //UNITY_WIN
 }
 
+#if UNITY_WIN
 inline void UpdateRenderInfoCollection() {
 	if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetRenderInfoCollection(
 		s_render, s_renderParams, &s_renderInfoCollection))) {
@@ -493,6 +513,7 @@ inline void UpdateRenderInfoCollection() {
 		s_lastRenderInfo = s_renderInfo;
 	}
 }
+#endif //UNITY_WIN
 
 #if 0
 extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API
@@ -1438,7 +1459,7 @@ OSVR_ReturnCode UNITY_INTERFACE_API
 CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 #if UNITY_ANDROID
 	return CreateRenderManagerAndroid(context);
-#endif
+#else
 	if (s_render != nullptr) {
 		if (osvrRenderManagerGetDoingOkay(s_render)) {
 			DebugLog("[OSVR Rendering Plugin] RenderManager already created "
@@ -1536,6 +1557,7 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 
     DebugLog("[OSVR Rendering Plugin] CreateRenderManagerFromUnity Success!");
     return OSVR_RETURN_SUCCESS;
+#endif //non-Android platforms
 }
 
 /// Helper function that handles doing the loop of constructing buffers, and
