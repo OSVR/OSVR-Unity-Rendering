@@ -223,6 +223,9 @@ void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) { s_debugLog = d; }
 
 // Only for debugging purposes, as this causes some errors at shutdown
 inline void DebugLog(const char *str) {
+#if UNITY_ANDROID
+	return;
+#else
 #if !defined(NDEBUG) || defined(ENABLE_LOGGING)
     if (s_debugLog != nullptr) {
         s_debugLog(str);
@@ -234,6 +237,7 @@ inline void DebugLog(const char *str) {
         s_debugLogFile << str << std::endl;
     }
 #endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
+#endif //not UNITY_ANDROID
 }
 
 #if UNITY_ANDROID
