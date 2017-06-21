@@ -101,6 +101,9 @@ static std::uint32_t viewportHeight = 0;
 
 #if UNITY_ANDROID
 static JNIEnv* jniEnvironment = 0;
+static jclass mainActivityClass;
+static jmethodID logMsgId;
+static jobject unityActivityClassInstance;
 
 static GLuint gProgram;
 static GLuint gvPositionHandle;
