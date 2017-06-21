@@ -118,6 +118,13 @@ static bool gGraphicsInitializedOnce = false; // if setupGraphics has been calle
 static bool gOSVRInitialized = false;
 static bool gRenderManagerInitialized = false;
 
+typedef struct OSVR_RenderTargetInfo {
+	GLuint colorBufferName;
+	GLuint depthBufferName;
+	GLuint frameBufferName;
+	GLuint renderBufferName; // @todo - do we need this?
+} OSVR_RenderTargetInfo;
+
 static OSVR_ClientInterface gCamera = NULL;
 static OSVR_ClientInterface gHead = NULL;
 static int gReportNumber = 0;
@@ -133,12 +140,7 @@ static std::vector<OSVR_RenderBufferOpenGL> buffers;
 static std::vector<OSVR_RenderTargetInfo> gRenderTargets;
 static bool contextSet = false;
 
-typedef struct OSVR_RenderTargetInfo {
-	GLuint colorBufferName;
-	GLuint depthBufferName;
-	GLuint frameBufferName;
-	GLuint renderBufferName; // @todo - do we need this?
-} OSVR_RenderTargetInfo;
+
 
 static const char gVertexShader[] =
 "uniform mat4 model;\n"
