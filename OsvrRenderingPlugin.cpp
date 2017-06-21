@@ -246,7 +246,7 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 	jniEnvironment = 0;
 	vm->AttachCurrentThread(&jniEnvironment, 0);
 	return JNI_VERSION_1_6;
-}cre
+}
 #endif
 void UNITY_INTERFACE_API ShutdownRenderManager() {
     DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
