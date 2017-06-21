@@ -2049,6 +2049,7 @@ inline void DoRender() {
     if (!s_deviceType) {
         return;
     }
+#if UNITY_WIN
     const auto n = static_cast<int>(s_renderInfo.size());
 
     switch (s_deviceType.getDeviceTypeEnum()) {
@@ -2087,7 +2088,7 @@ inline void DoRender() {
         break;
     }
 #endif // SUPPORT_D3D11
-
+#endif //UNITY_WIN
 #if SUPPORT_OPENGL
     case OSVRSupportedRenderers::OpenGL: {
 #if UNITY_ANDROID
