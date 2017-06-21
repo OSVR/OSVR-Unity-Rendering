@@ -1819,7 +1819,7 @@ GetViewport(std::uint8_t eye) {
 	checkReturnCode(rc, "osvrRenderManagerGetDefaultRenderParams call failed.");
 	RenderInfoCollectionOpenGL renderInfoCollection(gRenderManager, renderParams);
 	OSVR_RenderInfoOpenGL currentRenderInfo = renderInfoCollection.getRenderInfo(eye);
-	osvr::renderkit::OSVR_ViewportDescription viewDesc;
+	OSVR_ViewportDescription viewDesc;
 	viewDesc.width = currentRenderInfo.viewport.width;
 	viewDesc.height = currentRenderInfo.viewport.height;
 	viewDesc.left = currentRenderInfo.viewport.left;
@@ -1868,7 +1868,7 @@ GetProjectionMatrix(std::uint8_t eye) {
 	checkReturnCode(rc, "osvrRenderManagerGetDefaultRenderParams call failed.");
 	RenderInfoCollectionOpenGL renderInfoCollection(gRenderManager, renderParams);
 	OSVR_RenderInfoOpenGL currentRenderInfo = renderInfoCollection.getRenderInfo(eye);
-	osvr::renderkit::OSVR_ProjectionMatrix proj;
+	OSVR_ProjectionMatrix proj;
 	proj.left = currentRenderInfo.projection.left;
 	proj.right = currentRenderInfo.projection.right;
 	proj.top = currentRenderInfo.projection.top;
