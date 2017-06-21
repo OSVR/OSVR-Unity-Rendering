@@ -2049,12 +2049,10 @@ inline void DoRender() {
     if (!s_deviceType) {
         return;
     }
-#if UNITY_WIN
-    const auto n = static_cast<int>(s_renderInfo.size());
-
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
     case OSVRSupportedRenderers::D3D11: {
+		const auto n = static_cast<int>(s_renderInfo.size());
 		// Render into each buffer using the specified information.
 		for (int i = 0; i < n; ++i) {
 			RenderViewD3D11(s_renderInfo[i],
@@ -2081,14 +2079,13 @@ inline void DoRender() {
 
 		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerFinishPresentRenderBuffers(
 			s_render, presentState, s_renderParams, true))) {
-			DebugLog("[OSVR Rendering Plugin] Could not finish presenting render buffers");;
+			DebugLog("[OSVR Rendering Plugin] Could not finish presenting render buffers");
 			ShutdownRenderManager();
 		}
-
         break;
     }
 #endif // SUPPORT_D3D11
-#endif //UNITY_WIN
+
 #if SUPPORT_OPENGL
     case OSVRSupportedRenderers::OpenGL: {
 #if UNITY_ANDROID
