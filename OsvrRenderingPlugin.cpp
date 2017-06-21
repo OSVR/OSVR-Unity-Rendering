@@ -2135,7 +2135,9 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
     case kOsvrEventID_Shutdown:
         break;
     case kOsvrEventID_Update:
+#if UNITY_WIN
         UpdateRenderInfoCollection();
+#endif
         break;
     case kOsvrEventID_SetRoomRotationUsingHead:
         SetRoomRotationUsingHead();
