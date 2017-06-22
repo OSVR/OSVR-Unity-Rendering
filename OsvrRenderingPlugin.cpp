@@ -34,6 +34,7 @@ Sensics, Inc.
 #include <osvr/ClientKit/Interface.h>
 #include <osvr/Util/Finally.h>
 #include <osvr/Util/MatrixConventionsC.h>
+
 #if UNITY_ANDROID
 #include <osvr/ClientKit/ContextC.h>
 #include <osvr/ClientKit/InterfaceC.h>
@@ -44,7 +45,15 @@ Sensics, Inc.
 #include <osvr/ClientKit/ServerAutoStartC.h>
 //#include <osvr/RenderKit/RenderManagerC.h> //already in OsvrRenderingPlugin.h
 #include <osvr/RenderKit/RenderManagerOpenGLC.h>
-#include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <chrono>
+#include <thread>
+#include <vector>
+#include <sstream>
+#include <dlfcn.h>
+#include <jni.h>
 #endif
 
 
@@ -59,6 +68,7 @@ Sensics, Inc.
 #include <memory>
 #endif
 
+// D3D- specific includes
 // Include headers for the graphics APIs we support
 #if SUPPORT_D3D11
 #include <d3d11.h>
@@ -69,7 +79,9 @@ Sensics, Inc.
 
 #endif // SUPPORT_D3D11
 
+// OpenGL/OpenGLES-specific includes
 #if SUPPORT_OPENGL
+
 #if UNITY_WIN || UNITY_LINUX
 // Needed for render buffer calls.  OSVR will have called glewInit() for us
 // when we open the display.
@@ -79,20 +91,10 @@ Sensics, Inc.
 // Mac OpenGL include
 #include <OpenGL/OpenGL.h>
 #elif UNITY_ANDROID
-#include <iostream>
-#include <sstream>
-#include <stdexcept>
-#include <chrono>
-#include <thread>
-#include <vector>
-#include <sstream>
-#include <dlfcn.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-#include <jni.h>
 #endif //end unity_android
 #include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
-#include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
 #endif // SUPPORT_OPENGL
 
 // VARIABLES
@@ -113,7 +115,7 @@ static std::uint32_t viewportHeight = 0;
 
 #if UNITY_ANDROID
 static JNIEnv* jniEnvironment = 0;
-static jclass mainActivityClass;
+static jclass osvrJniWrapperClass;
 static jmethodID logMsgId;
 static jobject unityActivityClassInstance;
 
@@ -186,7 +188,7 @@ static const char gFragmentShader[] =
 "}\n";
 
 
-#else //Windows, Linux, OSX
+#else //Windows, Linux, OSX static variables
 static OSVR_RenderParams s_renderParams;
 static OSVR_RenderManager s_render = nullptr;
 static OSVR_RenderManagerD3D11 s_renderD3D = nullptr;
@@ -202,7 +204,7 @@ static OSVR_ProjectionMatrix lastGoodProjMatrix;
 static OSVR_Pose3 lastGoodPose;
 static OSVR_ViewportDescription lastGoodViewportDescription;
 
-
+//logging
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 static std::ofstream s_debugLogFile;
 static std::streambuf *s_oldCout = nullptr;
@@ -242,9 +244,11 @@ void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) { s_debugLog = d; }
 
 // Only for debugging purposes, as this causes some errors at shutdown
 inline void DebugLog(const char *str) {
+	//@todo complete logMsg implementation in JNI plugin
+	//for now just return on Android
 #if UNITY_ANDROID
 	return;
-#else
+#else //all platforms besides Android
 #if !defined(NDEBUG) || defined(ENABLE_LOGGING)
     if (s_debugLog != nullptr) {
         s_debugLog(str);
@@ -256,11 +260,13 @@ inline void DebugLog(const char *str) {
         s_debugLogFile << str << std::endl;
     }
 #endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
-#endif //not UNITY_ANDROID
+#endif //all platforms besides Android
 }
 
+//JNI hook
+//@todo look into JNI version. Should this match in JNI plugin?
 #if UNITY_ANDROID
-//this OnLoadd gets called automatically
+//this OnLoad gets called automatically
 jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 	jniEnvironment = 0;
 	vm->AttachCurrentThread(&jniEnvironment, 0);
@@ -355,7 +361,7 @@ inline void dispatchEventToRenderer(UnityRendererType renderer,
     }
 }
 
-//@TODO InitSDLGL, ShreContext
+//@TODO InitSDLGL, ShareContext on OpenGL path
 
 
 
@@ -366,49 +372,37 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
     switch (eventType) {
     case kUnityGfxDeviceEventInitialize: {
 #if UNITY_ANDROID
-		mainActivityClass = jniEnvironment->FindClass("org/osvr/osvrunityjni/OsvrJNIWrapper");  // try to find the class
-		if (mainActivityClass == nullptr) {
+		osvrJniWrapperClass = jniEnvironment->FindClass("org/osvr/osvrunityjni/OsvrJNIWrapper");  // try to find the class
+		if (osvrJniWrapperClass == nullptr) {
 			return;
 		}
-		else {                                  // if class found, continue
+		else { // if osvrJniWrapperClass found, continue
 
-			jmethodID logmid = jniEnvironment->GetStaticMethodID(mainActivityClass, "logMsg", "(Ljava/lang/String;)V");  // find method
-			jmethodID setGlContextId = jniEnvironment->GetStaticMethodID(mainActivityClass, "setUnityMainContext", "()J");  // find method
+			//get the Android logger method ID
+			jmethodID logmid = jniEnvironment->GetStaticMethodID(osvrJniWrapperClass, "logMsg", "(Ljava/lang/String;)V");  // find method
+			//get the method ID for setting the GL context
+			jmethodID setGlContextId = jniEnvironment->GetStaticMethodID(osvrJniWrapperClass, "setUnityMainContext", "()J");  // find method
 			if (setGlContextId == nullptr)
-				//cerr << "ERROR: method void mymain() not found !" << endl;
 				return;
 			else {
-				//load libs!
-				/*  jmethodID loadLibsMID = jniEnvironment->GetStaticMethodID(mainActivityClass, "loadLibraries", "()V");  // find method
-				if(loadLibsMID == nullptr)
-				//cerr << "ERROR: method void mymain() not found !" << endl;
-				return;
-				else {
-
-				jniEnvironment->CallStaticVoidMethod(mainActivityClass, loadLibsMID);
-				}*/
-
-				jlong currentEglContextHandle = jniEnvironment->CallStaticLongMethod(mainActivityClass, setGlContextId);                      // call method
-				long myLongValue = (long)currentEglContextHandle;
+				jlong currentEglContextHandle = jniEnvironment->CallStaticLongMethod(osvrJniWrapperClass, setGlContextId); //call mathod
+				//example code for logging the context ID
+				/*long myLongValue = (long)currentEglContextHandle;
 				std::string stringy = "[OSVR-Unity-Android]  setCurrentContext with handle:  " + std::to_string(myLongValue);
 				jstring jstr2 = jniEnvironment->NewStringUTF(stringy.c_str());
-				jniEnvironment->CallStaticVoidMethod(mainActivityClass, logmid, jstr2);
+				jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass, logmid, jstr2);*/
 				contextSet = true;
-				//cout << endl;
 			}
-			//create context
-			jmethodID getWidthMID = jniEnvironment->GetStaticMethodID(mainActivityClass, "getDisplayWidth", "()I");  // find method
-			jmethodID getHeightMID = jniEnvironment->GetStaticMethodID(mainActivityClass, "getDisplayHeight", "()I");  // find method
+			//get the display width and height via JNI
+			jmethodID getWidthMID = jniEnvironment->GetStaticMethodID(osvrJniWrapperClass, "getDisplayWidth", "()I");  // find method
+			jmethodID getHeightMID = jniEnvironment->GetStaticMethodID(osvrJniWrapperClass, "getDisplayHeight", "()I");  // find method
 			if (getWidthMID == nullptr || getHeightMID == nullptr)
-				//cerr << "ERROR: method void mymain() not found !" << endl;
 				return;
 			else {
-
-				jint displayWidth = jniEnvironment->CallStaticIntMethod(mainActivityClass, getWidthMID); // call method
-				jint displayHeight = jniEnvironment->CallStaticIntMethod(mainActivityClass, getHeightMID); // call method
+				jint displayWidth = jniEnvironment->CallStaticIntMethod(osvrJniWrapperClass, getWidthMID); // call method
+				jint displayHeight = jniEnvironment->CallStaticIntMethod(osvrJniWrapperClass, getHeightMID); // call method
 				gWidth = (int)displayWidth;
 				gHeight = (int)displayHeight;
-				//cout << endl;
 			}
 		}
 #endif
@@ -508,44 +502,12 @@ inline void UpdateRenderInfoCollection() {
 		}
 		s_renderInfo.push_back(info);
 	}
-	if (s_renderInfo.size() > 0)
+	if (numRenderInfo > 0)
 	{
 		s_lastRenderInfo = s_renderInfo;
 	}
 }
 #endif //UNITY_WIN
-
-#if 0
-extern "C" bool UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API
-UpdateDistortionMesh(float distanceScale[2], float centerOfProjection[2],
-                     float *polynomial, int desiredTriangles = 12800) {
-    std::vector<osvr::renderkit::RenderManager::DistortionParameters> dp;
-    osvr::renderkit::RenderManager::DistortionParameters distortion;
-    distortion.m_desiredTriangles = desiredTriangles;
-    std::vector<float> Ds;
-    Ds.push_back(distanceScale[0]);
-    Ds.push_back(distanceScale[1]);
-    distortion.m_distortionD = Ds;
-    std::vector<float> poly;
-    int len = sizeof(polynomial) / sizeof(int);
-    for (size_t i = 0; i < len; i++) {
-        poly.push_back(polynomial[i]);
-    }
-    // assume each color is the same for now
-    distortion.m_distortionPolynomialRed = poly;
-    distortion.m_distortionPolynomialGreen = poly;
-    distortion.m_distortionPolynomialBlue = poly;
-    for (size_t i = 0; i < s_renderInfo.size(); i++) {
-        std::vector<float> COP = {static_cast<float>(centerOfProjection[0]),
-                                  static_cast<float>(centerOfProjection[1])};
-        distortion.m_distortionCOP = COP;
-        dp.push_back(distortion);
-    }
-    return s_render->UpdateDistortionMeshes(
-        osvr::renderkit::RenderManager::DistortionMeshType::SQUARE, dp);
-}
-
-#endif
 
 // Updates the internal "room to world" transformation (applied to all
 // tracker data for this client context instance) based on the user's head
@@ -563,8 +525,7 @@ void SetRoomRotationUsingHead() {/* s_renderD3D-> SetRoomRotationUsingHead(); */
 /// @todo does this actually get called from anywhere or is it dead code?
 void ClearRoomToWorldTransform() { /*s_render->ClearRoomToWorldTransform(); */}
 
-
-/////////ANDROID//////////////////////////////////////////
+//Android-specific implementation
 #if UNITY_ANDROID
 inline osvr::renderkit::OSVR_ProjectionMatrix ConvertProjectionMatrix(::OSVR_ProjectionMatrix matrix)
 {
@@ -1270,16 +1231,16 @@ static bool setupGraphics(int width, int height) {
 	gProgram = createProgram(gVertexShader, gFragmentShader);
 	if (!gProgram) {
 		//LOGE("Could not create program.");
-		mainActivityClass = jniEnvironment->FindClass("org/osvr/osvrunityjni/OsvrJNIWrapper");  // try to find the class
-		if (mainActivityClass == nullptr) {
+		osvrJniWrapperClass = jniEnvironment->FindClass("org/osvr/osvrunityjni/OsvrJNIWrapper");  // try to find the class
+		if (osvrJniWrapperClass == nullptr) {
 			return false;
 		}
 		else {                                  // if class found, continue
 
-			jmethodID logmid = jniEnvironment->GetStaticMethodID(mainActivityClass, "logMsg", "(Ljava/lang/String;)V");  // find method
+			jmethodID logmid = jniEnvironment->GetStaticMethodID(osvrJniWrapperClass, "logMsg", "(Ljava/lang/String;)V");  // find method
 			std::string stringy = "[OSVR-Unity-Android]  Could not create program.";
 			jstring jstr2 = jniEnvironment->NewStringUTF(stringy.c_str());
-			jniEnvironment->CallStaticVoidMethod(mainActivityClass, logmid, jstr2);
+			jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass, logmid, jstr2);
 		}
 		return false;
 	}
@@ -1437,14 +1398,13 @@ void ShutdownRenderManagerAndroid()
 	contextSet = false;
 }
 #endif
-/////////end ANDROID//////////////////////////////////////
 
 void UNITY_INTERFACE_API ShutdownRenderManager() {
 	DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
 #if UNITY_ANDROID
 	ShutdownRenderManagerAndroid();
 	return;
-#else
+#else //non-Android platforms
 	if (s_render != nullptr) {
 		osvrDestroyRenderManager(s_render);
 		s_render = nullptr;
@@ -1545,11 +1505,6 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 		ShutdownRenderManager();
 		return OSVR_RETURN_FAILURE;
 	}
-
-    /*if (setLibraryFromOpenDisplayReturn) {
-        // Set our library from the one RenderManager created.
-        s_libraryD3D = ret.library;
-    }*/
 
     // create a new set of RenderParams for passing to GetRenderInfo()
 	osvrRenderManagerGetDefaultRenderParams(&s_renderParams);
@@ -1758,7 +1713,7 @@ inline void CleanupBufferD3D11(OSVR_RenderBufferD3D11 &rb) {
 OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 #if UNITY_ANDROID
 	if (!setupRenderTextures(gRenderManager)) {
-		return 10;
+		return OSVR_RETURN_FAILURE;
 	}
 	else return OSVR_RETURN_SUCCESS;
 #else
@@ -1769,7 +1724,7 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
     UpdateRenderInfoCollection();
 
     // construct buffers
-    const int n = static_cast<int>(s_renderInfo.size());
+	const int n = static_cast<int>(numRenderInfo);
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
     case OSVRSupportedRenderers::D3D11:
@@ -1825,9 +1780,9 @@ GetViewport(std::uint8_t eye) {
 	viewDesc.left = currentRenderInfo.viewport.left;
 	viewDesc.lower = currentRenderInfo.viewport.lower;
 	return viewDesc;
-#else
+#else //non-Android platoforms
 	OSVR_ViewportDescription viewportDescription;
-	if (s_lastRenderInfo.size() > 0 && eye <= s_lastRenderInfo.size() - 1)
+	if (numRenderInfo > 0 && eye <= numRenderInfo - 1)
 	{
 		viewportDescription = s_lastRenderInfo[eye].viewport;
 
@@ -1878,7 +1833,7 @@ GetProjectionMatrix(std::uint8_t eye) {
 	return proj;
 #else
 	OSVR_ProjectionMatrix pm;
-	if (s_lastRenderInfo.size() > 0 && eye <= s_lastRenderInfo.size() - 1)
+	if (numRenderInfo > 0 && eye <= numRenderInfo - 1)
 	{
 		pm = s_lastRenderInfo[eye].projection;
 		lastGoodProjMatrix = pm;
@@ -1904,7 +1859,7 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 #else
 	OSVR_Pose3 pose;
 	osvrPose3SetIdentity(&pose);
-	if (s_lastRenderInfo.size() > 0 && eye <= s_lastRenderInfo.size() - 1)
+	if (numRenderInfo > 0 && eye <= numRenderInfo - 1)
 	{
 		pose = s_lastRenderInfo[eye].pose;
 		lastGoodPose = pose;
@@ -2052,7 +2007,7 @@ inline void DoRender() {
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
     case OSVRSupportedRenderers::D3D11: {
-		const auto n = static_cast<int>(s_renderInfo.size());
+		const auto n = static_cast<int>(numRenderInfo);
 		// Render into each buffer using the specified information.
 		for (int i = 0; i < n; ++i) {
 			RenderViewD3D11(s_renderInfo[i],
