@@ -96,6 +96,12 @@ Sensics, Inc.
 #include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
 #endif // SUPPORT_OPENGL
 
+#if OSVR_ANDROID
+#include <android/log.h>
+#include <android/choreographer.h>
+#include <android/looper.h>
+#endif
+
 // VARIABLES
 static IUnityInterfaces *s_UnityInterfaces = nullptr;
 static IUnityGraphics *s_Graphics = nullptr;
@@ -641,10 +647,73 @@ static void checkGlError(const char *op) {
     }
 }
 
+#if OSVR_ANDROID
+static long gPreviousFrameTimeNanos = 0;
+static long gLastFrameTimeNanos = 0;
+static std::mutex gFrameTimeMutex;
+
+/**
+ * This func is called on an app frame callback by the 
+ * Choreographer on Android.
+ * NOTE: This is offset from the real "last vsync" when the
+ * Android build has offset. @todo account for this offset using JNI.
+ */
+static void frameCallbackImpl(long frameTimeNanos, void *data) {
+    std::lock_guard<std::mutex> lockGuard(gFrameTimeMutex);
+    gPreviousFrameTimeNanos = gLastFrameTimeNanos;
+    gLastFrameTimeNanos = frameTimeNanos;
+    // LOGI("frameTimeNanos: %d", frameTimeNanos);
+    // LOGI("diff: %d", frameTimeNanos - gPreviousFrameTimeNanos);
+    AChoreographer *choreographer = AChoreographer_getInstance();
+    if (!choreographer) {
+        LOGE("Couldn't get the choreographer from the frame callback");
+    }
+    AChoreographer_postFrameCallback(choreographer, frameCallbackImpl, nullptr);
+}
+
+/**
+ * Use this function in a std::thread to keep the ALooper pumping AChoreographer
+ * callbacks on a separate thread from where it's consumed. Otherwise the polling
+ * here will stall the render thread.
+ * @TODO - provide a way to signal graceful thread exit.
+ */
+static void choreographerThreadRun() {
+    ALooper *looper = ALooper_forThread();
+    if (!looper) {
+        looper = ALooper_prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS);
+        if (!looper) {
+            LOGE("Couldn't prepare an ALooper for the choreographer thread");
+            return;
+        }
+    }
+
+    AChoreographer *choreographer = AChoreographer_getInstance();
+    if (!choreographer) {
+        LOGE("Could not get choreographer.");
+        return;
+    }
+
+    AChoreographer_postFrameCallback(choreographer, frameCallbackImpl, nullptr);
+
+    while (true) {
+        // @TODO provide a signal for graceful thread exit?
+        int fd_unused = 0;
+        int outEvents_unused = 0;
+        void *outData_unused = nullptr;
+        int rc = ALooper_pollAll(100, &fd_unused, &outEvents_unused,
+                                 &outData_unused);
+    }
+}
+#endif
+
 class PassThroughOpenGLContextImpl {
     OSVR_OpenGLToolkitFunctions toolkit;
     int mWidth;
     int mHeight;
+
+#if OSVR_ANDROID
+    std::thread mChoreographerThread;
+#endif
 
     static void createImpl(void *data) {}
     static void destroyImpl(void *data) {
@@ -680,9 +749,17 @@ class PassThroughOpenGLContextImpl {
         return ((PassThroughOpenGLContextImpl *)data)
             ->getDisplaySizeOverride(display, width, height);
     }
+    static OSVR_CBool getRenderTimingInfoImpl(void* data, size_t display, size_t whichEye, OSVR_RenderTimingInfo* renderTimingInfoOut) {
+        return ((PassThroughOpenGLContextImpl*)data)
+            ->getRenderTimingInfo(display, whichEye, renderTimingInfoOut);
+    }
 
   public:
-    PassThroughOpenGLContextImpl() {
+#if OSVR_ANDROID
+	PassThroughOpenGLContextImpl() : mChoreographerThread(choreographerThreadRun) {
+#else
+	PassThroughOpenGLContextImpl() {
+#endif
         memset(&toolkit, 0, sizeof(toolkit));
         toolkit.size = sizeof(toolkit);
         toolkit.data = this;
@@ -697,8 +774,10 @@ class PassThroughOpenGLContextImpl {
         toolkit.handleEvents = handleEventsImpl;
         toolkit.getDisplaySizeOverride = getDisplaySizeOverrideImpl;
         toolkit.getDisplayFrameBuffer = getDisplayFrameBufferImpl;
+        toolkit.getRenderTimingInfo = getRenderTimingInfoImpl;
     }
 
+    // @TODO: gracefully exit the Choreographer thread on Android
     ~PassThroughOpenGLContextImpl() {}
 
     const OSVR_OpenGLToolkitFunctions *getToolkit() const { return &toolkit; }
@@ -722,6 +801,43 @@ class PassThroughOpenGLContextImpl {
     bool getDisplaySizeOverride(size_t display, int *width, int *height) {
         *width = gWidth;
         *height = gHeight;
+        return false;
+    }
+
+    bool getRenderTimingInfo(size_t display, size_t whichEye,
+                             OSVR_RenderTimingInfo *renderTimingInfoOut) {
+#if OSVR_ANDROID
+        timespec tp;
+        int rv = clock_gettime(CLOCK_MONOTONIC, &tp);
+        if (!rv) {
+            std::lock_guard<std::mutex> lockGuard(gFrameTimeMutex);
+            // uint64_t presentationDeadline = 17683333L; // Shouldn't this bee
+            // at least less than 16,666,666? (1 billion / 60)
+            // that's 1,016,666 nanoseconds greater than the hardware interval
+            // uint64_t hardwareDisplayIntervalNanos = 11111111L; // 90Hz hard
+            // coded, TODO measure this or get it from the API?
+            uint64_t hardwareDisplayIntervalNanos = gLastFrameTimeNanos - gPreviousFrameTimeNanos;
+            uint64_t nowNanos = ((tp.tv_sec * 1000000000L) + tp.tv_nsec);
+            uint64_t timeFromLastNanos = nowNanos >= gLastFrameTimeNanos
+                                             ? nowNanos - gLastFrameTimeNanos
+                                             : 0; // just being safe
+            uint64_t nextNanos = gLastFrameTimeNanos + hardwareDisplayIntervalNanos;
+            uint64_t timeUntilNextNanos =
+                nextNanos >= nowNanos ? nextNanos - nowNanos
+                                      : 0; // 0 here means we missed a vsync
+
+            nanoSecondsToTimeValue(timeFromLastNanos, 
+                &renderTimingInfoOut->timeSincelastVerticalRetrace);
+                
+            nanoSecondsToTimeValue(timeUntilNextNanos,
+                &renderTimingInfoOut->timeUntilNextPresentRequired);
+
+            nanoSecondsToTimeValue(hardwareDisplayIntervalNanos,
+                &renderTimingInfoOut->hardwareDisplayInterval);
+            return true;
+        }
+        LOGI("clock_gettime call failed.");
+#endif
         return false;
     }
 };
