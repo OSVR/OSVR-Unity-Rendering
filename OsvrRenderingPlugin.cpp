@@ -53,6 +53,7 @@ Sensics, Inc.
 #include <sstream>
 #include <stdexcept>
 #include <thread>
+#include <mutex>
 #include <vector>
 #endif
 
@@ -100,7 +101,12 @@ Sensics, Inc.
 #include <android/log.h>
 #include <android/choreographer.h>
 #include <android/looper.h>
+
+#define  LOG_TAG    "osvrUnityRendering"
+#define  LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG,__VA_ARGS__)
+#define  LOGE(...)  __android_log_print(ANDROID_LOG_ERROR,LOG_TAG,__VA_ARGS__)
 #endif
+
 
 // VARIABLES
 static IUnityInterfaces *s_UnityInterfaces = nullptr;
@@ -190,6 +196,12 @@ static const char gFragmentShader[] =
     "    gl_FragColor = fragmentColor * texture2D(uTexture, texCoordinate);\n"
     //"    gl_FragColor = texture2D(uTexture, texCoordinate);\n"
     "}\n";
+
+inline void nanoSecondsToTimeValue(uint64_t nanos, OSVR_TimeValue *tvOut) {
+    tvOut->seconds = 0;
+    tvOut->microseconds = nanos / 1000;
+    osvrTimeValueNormalize(tvOut);
+}
 
 #else // Windows, Linux, OSX static variables
 static OSVR_RenderParams s_renderParams;
