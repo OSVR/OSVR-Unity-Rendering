@@ -132,16 +132,16 @@ static jobject unityActivityClassInstance;
 
 static int gWidth = 0;
 static int gHeight = 0;
-static GLuint gProgram;
-static GLuint gvPositionHandle;
-static GLuint gvColorHandle;
-static GLuint gvTexCoordinateHandle;
-static GLuint guTextureUniformId;
-static GLuint gvProjectionUniformId;
-static GLuint gvViewUniformId;
-static GLuint gvModelUniformId;
+//static GLuint gProgram;
+//static GLuint gvPositionHandle;
+//static GLuint gvColorHandle;
+//static GLuint gvTexCoordinateHandle;
+//static GLuint guTextureUniformId;
+//static GLuint gvProjectionUniformId;
+//static GLuint gvViewUniformId;
+//static GLuint gvModelUniformId;
 static GLuint gFrameBuffer;
-static GLuint gTextureID;
+//static GLuint gTextureID;
 static GLuint gLeftEyeTextureID;
 static GLuint gRightEyeTextureID;
 static bool gGraphicsInitializedOnce =
@@ -156,12 +156,12 @@ typedef struct OSVR_RenderTargetInfo {
     GLuint renderBufferName; // @todo - do we need this?
 } OSVR_RenderTargetInfo;
 static OSVR_ClientContext gClientContext = NULL;
-static OSVR_ClientInterface gCamera = NULL;
-static OSVR_ClientInterface gHead = NULL;
-static int gReportNumber = 0;
-static OSVR_ImageBufferElement *gLastFrame = nullptr;
-static GLuint gLastFrameWidth = 0;
-static GLuint gLastFrameHeight = 0;
+//static OSVR_ClientInterface gCamera = NULL;
+//static OSVR_ClientInterface gHead = NULL;
+//static int gReportNumber = 0;
+//static OSVR_ImageBufferElement *gLastFrame = nullptr;
+//static GLuint gLastFrameWidth = 0;
+//static GLuint gLastFrameHeight = 0;
 static GLubyte *gTextureBuffer = nullptr;
 static OSVR_GraphicsLibraryOpenGL gGraphicsLibrary = {0};
 static OSVR_RenderManager gRenderManager = nullptr;
@@ -262,6 +262,7 @@ inline void DebugLog(const char *str) {
 //@todo complete logMsg implementation in JNI plugin
 // for now just return on Android
 #if UNITY_ANDROID
+    LOGE(str);
     return;
 #else // all platforms besides Android
 #if !defined(NDEBUG) || defined(ENABLE_LOGGING)
@@ -674,8 +675,11 @@ static void frameCallbackImpl(long frameTimeNanos, void *data) {
     std::lock_guard<std::mutex> lockGuard(gFrameTimeMutex);
     gPreviousFrameTimeNanos = gLastFrameTimeNanos;
     gLastFrameTimeNanos = frameTimeNanos;
-    // LOGI("frameTimeNanos: %d", frameTimeNanos);
-    // LOGI("diff: %d", frameTimeNanos - gPreviousFrameTimeNanos);
+    /// LOGI("frameTimeNanos: %d", frameTimeNanos);
+    static long frameIndex = 0;
+    if((frameIndex++) % 60 == 0) {
+        LOGI("frame diff: %d", frameTimeNanos - gPreviousFrameTimeNanos);
+    }
     AChoreographer *choreographer = AChoreographer_getInstance();
     if (!choreographer) {
         LOGE("Couldn't get the choreographer from the frame callback");
@@ -690,6 +694,7 @@ static void frameCallbackImpl(long frameTimeNanos, void *data) {
  * @TODO - provide a way to signal graceful thread exit.
  */
 static void choreographerThreadRun() {
+    LOGI("On Choreographer thread");
     ALooper *looper = ALooper_forThread();
     if (!looper) {
         looper = ALooper_prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS);
@@ -959,38 +964,38 @@ static GLuint createTexture(GLuint width, GLuint height) {
     return ret;
 }
 
-static void updateTexture(GLuint width, GLuint height, GLubyte *data) {
+// static void updateTexture(GLuint width, GLuint height, GLubyte *data) {
 
-    glBindTexture(GL_TEXTURE_2D, gTextureID);
-    checkGlError("glBindTexture");
+//     glBindTexture(GL_TEXTURE_2D, gTextureID);
+//     checkGlError("glBindTexture");
 
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+//     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+//     glPixelStorei(GL_PACK_ALIGNMENT, 1);
 
-    // @todo use glTexSubImage2D to be faster here, but add check to make sure
-    // height/width are the same.
-    // glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA,
-    // GL_UNSIGNED_BYTE, data);
-    // checkGlError("glTexSubImage2D");
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
-                 GL_UNSIGNED_BYTE, data);
-    checkGlError("glTexImage2D");
-}
+//     // @todo use glTexSubImage2D to be faster here, but add check to make sure
+//     // height/width are the same.
+//     // glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA,
+//     // GL_UNSIGNED_BYTE, data);
+//     // checkGlError("glTexSubImage2D");
+//     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
+//                  GL_UNSIGNED_BYTE, data);
+//     checkGlError("glTexImage2D");
+// }
 
-static void imagingCallback(void *userdata, const OSVR_TimeValue *timestamp,
-                            const OSVR_ImagingReport *report) {
+// static void imagingCallback(void *userdata, const OSVR_TimeValue *timestamp,
+//                             const OSVR_ImagingReport *report) {
 
-    OSVR_ClientContext *ctx = (OSVR_ClientContext *)userdata;
+//     OSVR_ClientContext *ctx = (OSVR_ClientContext *)userdata;
 
-    gReportNumber++;
-    GLuint width = report->state.metadata.width;
-    GLuint height = report->state.metadata.height;
-    gLastFrameWidth = width;
-    gLastFrameHeight = height;
-    GLuint size = width * height * 4;
+//     gReportNumber++;
+//     GLuint width = report->state.metadata.width;
+//     GLuint height = report->state.metadata.height;
+//     gLastFrameWidth = width;
+//     gLastFrameHeight = height;
+//     GLuint size = width * height * 4;
 
-    gLastFrame = report->state.data;
-}
+//     gLastFrame = report->state.data;
+// }
 #if SUPPORT_OPENGL
 inline GLuint GetEyeTextureOpenGL(int eye) {
     return (eye == 0) ? gLeftEyeTextureID : gRightEyeTextureID;
@@ -1109,7 +1114,7 @@ static bool setupOSVR() {
         //            workingDirectory.string().c_str());
 
         // auto-start the server
-        osvrClientAttemptServerAutoStart();
+        //osvrClientAttemptServerAutoStart();
 
         if (!gClientContext) {
             // LOGI("[OSVR] Creating ClientContext...");
@@ -1204,148 +1209,148 @@ static bool setupRenderManager() {
         return false;
     }
 }
-static const GLfloat gTriangleColors[] = {
-    // white
-    1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+// static const GLfloat gTriangleColors[] = {
+//     // white
+//     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+//     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
 
-    // green
-    0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
-    0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
+//     // green
+//     0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
+//     0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
 
-    // blue
-    0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-    0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+//     // blue
+//     0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+//     0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
 
-    // green/purple
-    0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-    0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+//     // green/purple
+//     0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+//     0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
 
-    // red/green
-    0.75f, 0.75f, 0.0f, 1.0f, 0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
-    0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+//     // red/green
+//     0.75f, 0.75f, 0.0f, 1.0f, 0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+//     0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
 
-    // red/blue
-    0.75f, 0.0f, 0.75f, 1.0f, 0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
-    0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f};
+//     // red/blue
+//     0.75f, 0.0f, 0.75f, 1.0f, 0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+//     0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f};
 
-static const GLfloat gTriangleTexCoordinates[] = {
-    // A cube face (letters are unique vertices)
-    // A--B
-    // |  |
-    // D--C
+// static const GLfloat gTriangleTexCoordinates[] = {
+//     // A cube face (letters are unique vertices)
+//     // A--B
+//     // |  |
+//     // D--C
 
-    // As two triangles (clockwise)
-    // A B D
-    // B C D
+//     // As two triangles (clockwise)
+//     // A B D
+//     // B C D
 
-    // white
-    1.0f, 0.0f, // A
-    1.0f, 1.0f, // B
-    0.0f, 0.0f, // D
-    1.0f, 1.0f, // B
-    0.0f, 1.0f, // C
-    0.0f, 0.0f, // D
+//     // white
+//     1.0f, 0.0f, // A
+//     1.0f, 1.0f, // B
+//     0.0f, 0.0f, // D
+//     1.0f, 1.0f, // B
+//     0.0f, 1.0f, // C
+//     0.0f, 0.0f, // D
 
-    // green
-    1.0f, 0.0f, // A
-    1.0f, 1.0f, // B
-    0.0f, 0.0f, // D
-    1.0f, 1.0f, // B
-    0.0f, 1.0f, // C
-    0.0f, 0.0f, // D
+//     // green
+//     1.0f, 0.0f, // A
+//     1.0f, 1.0f, // B
+//     0.0f, 0.0f, // D
+//     1.0f, 1.0f, // B
+//     0.0f, 1.0f, // C
+//     0.0f, 0.0f, // D
 
-    // blue
-    1.0f, 1.0f, // A
-    0.0f, 1.0f, // B
-    1.0f, 0.0f, // D
-    0.0f, 1.0f, // B
-    0.0f, 0.0f, // C
-    1.0f, 0.0f, // D
+//     // blue
+//     1.0f, 1.0f, // A
+//     0.0f, 1.0f, // B
+//     1.0f, 0.0f, // D
+//     0.0f, 1.0f, // B
+//     0.0f, 0.0f, // C
+//     1.0f, 0.0f, // D
 
-    // blue-green
-    1.0f, 0.0f, // A
-    1.0f, 1.0f, // B
-    0.0f, 0.0f, // D
-    1.0f, 1.0f, // B
-    0.0f, 1.0f, // C
-    0.0f, 0.0f, // D
+//     // blue-green
+//     1.0f, 0.0f, // A
+//     1.0f, 1.0f, // B
+//     0.0f, 0.0f, // D
+//     1.0f, 1.0f, // B
+//     0.0f, 1.0f, // C
+//     0.0f, 0.0f, // D
 
-    // yellow
-    0.0f, 0.0f, // A
-    1.0f, 0.0f, // B
-    0.0f, 1.0f, // D
-    1.0f, 0.0f, // B
-    1.0f, 1.0f, // C
-    0.0f, 1.0f, // D
+//     // yellow
+//     0.0f, 0.0f, // A
+//     1.0f, 0.0f, // B
+//     0.0f, 1.0f, // D
+//     1.0f, 0.0f, // B
+//     1.0f, 1.0f, // C
+//     0.0f, 1.0f, // D
 
-    // purple/magenta
-    1.0f, 1.0f, // A
-    0.0f, 1.0f, // B
-    1.0f, 0.0f, // D
-    0.0f, 1.0f, // B
-    0.0f, 0.0f, // C
-    1.0f, 0.0f, // D
-};
+//     // purple/magenta
+//     1.0f, 1.0f, // A
+//     0.0f, 1.0f, // B
+//     1.0f, 0.0f, // D
+//     0.0f, 1.0f, // B
+//     0.0f, 0.0f, // C
+//     1.0f, 0.0f, // D
+// };
 
-static const GLfloat gTriangleVertices[] = {
-    // A cube face (letters are unique vertices)
-    // A--B
-    // |  |
-    // D--C
+// static const GLfloat gTriangleVertices[] = {
+//     // A cube face (letters are unique vertices)
+//     // A--B
+//     // |  |
+//     // D--C
 
-    // As two triangles (clockwise)
-    // A B D
-    // B C D
+//     // As two triangles (clockwise)
+//     // A B D
+//     // B C D
 
-    // glNormal3f(0.0, 0.0, -1.0);
-    1.0f, 1.0f, -1.0f,   // A
-    1.0f, -1.0f, -1.0f,  // B
-    -1.0f, 1.0f, -1.0f,  // D
-    1.0f, -1.0f, -1.0f,  // B
-    -1.0f, -1.0f, -1.0f, // C
-    -1.0f, 1.0f, -1.0f,  // D
+//     // glNormal3f(0.0, 0.0, -1.0);
+//     1.0f, 1.0f, -1.0f,   // A
+//     1.0f, -1.0f, -1.0f,  // B
+//     -1.0f, 1.0f, -1.0f,  // D
+//     1.0f, -1.0f, -1.0f,  // B
+//     -1.0f, -1.0f, -1.0f, // C
+//     -1.0f, 1.0f, -1.0f,  // D
 
-    // glNormal3f(0.0, 0.0, 1.0);
-    -1.0f, 1.0f, 1.0f,  // A
-    -1.0f, -1.0f, 1.0f, // B
-    1.0f, 1.0f, 1.0f,   // D
-    -1.0f, -1.0f, 1.0f, // B
-    1.0f, -1.0f, 1.0f,  // C
-    1.0f, 1.0f, 1.0f,   // D
+//     // glNormal3f(0.0, 0.0, 1.0);
+//     -1.0f, 1.0f, 1.0f,  // A
+//     -1.0f, -1.0f, 1.0f, // B
+//     1.0f, 1.0f, 1.0f,   // D
+//     -1.0f, -1.0f, 1.0f, // B
+//     1.0f, -1.0f, 1.0f,  // C
+//     1.0f, 1.0f, 1.0f,   // D
 
-    //        glNormal3f(0.0, -1.0, 0.0);
-    1.0f, -1.0f, 1.0f,   // A
-    -1.0f, -1.0f, 1.0f,  // B
-    1.0f, -1.0f, -1.0f,  // D
-    -1.0f, -1.0f, 1.0f,  // B
-    -1.0f, -1.0f, -1.0f, // C
-    1.0f, -1.0f, -1.0f,  // D
+//     //        glNormal3f(0.0, -1.0, 0.0);
+//     1.0f, -1.0f, 1.0f,   // A
+//     -1.0f, -1.0f, 1.0f,  // B
+//     1.0f, -1.0f, -1.0f,  // D
+//     -1.0f, -1.0f, 1.0f,  // B
+//     -1.0f, -1.0f, -1.0f, // C
+//     1.0f, -1.0f, -1.0f,  // D
 
-    //        glNormal3f(0.0, 1.0, 0.0);
-    1.0f, 1.0f, 1.0f,   // A
-    1.0f, 1.0f, -1.0f,  // B
-    -1.0f, 1.0f, 1.0f,  // D
-    1.0f, 1.0f, -1.0f,  // B
-    -1.0f, 1.0f, -1.0f, // C
-    -1.0f, 1.0f, 1.0f,  // D
+//     //        glNormal3f(0.0, 1.0, 0.0);
+//     1.0f, 1.0f, 1.0f,   // A
+//     1.0f, 1.0f, -1.0f,  // B
+//     -1.0f, 1.0f, 1.0f,  // D
+//     1.0f, 1.0f, -1.0f,  // B
+//     -1.0f, 1.0f, -1.0f, // C
+//     -1.0f, 1.0f, 1.0f,  // D
 
-    //        glNormal3f(-1.0, 0.0, 0.0);
-    -1.0f, 1.0f, 1.0f,   // A
-    -1.0f, 1.0f, -1.0f,  // B
-    -1.0f, -1.0f, 1.0f,  // D
-    -1.0f, 1.0f, -1.0f,  // B
-    -1.0f, -1.0f, -1.0f, // C
-    -1.0f, -1.0f, 1.0f,  // D
+//     //        glNormal3f(-1.0, 0.0, 0.0);
+//     -1.0f, 1.0f, 1.0f,   // A
+//     -1.0f, 1.0f, -1.0f,  // B
+//     -1.0f, -1.0f, 1.0f,  // D
+//     -1.0f, 1.0f, -1.0f,  // B
+//     -1.0f, -1.0f, -1.0f, // C
+//     -1.0f, -1.0f, 1.0f,  // D
 
-    //        glNormal3f(1.0, 0.0, 0.0);
-    1.0f, -1.0f, 1.0f,  // A
-    1.0f, -1.0f, -1.0f, // B
-    1.0f, 1.0f, 1.0f,   // D
-    1.0f, -1.0f, -1.0f, // B
-    1.0f, 1.0f, -1.0f,  // C
-    1.0f, 1.0f, 1.0f    // D
-};
+//     //        glNormal3f(1.0, 0.0, 0.0);
+//     1.0f, -1.0f, 1.0f,  // A
+//     1.0f, -1.0f, -1.0f, // B
+//     1.0f, 1.0f, 1.0f,   // D
+//     1.0f, -1.0f, -1.0f, // B
+//     1.0f, 1.0f, -1.0f,  // C
+//     1.0f, 1.0f, 1.0f    // D
+// };
 
 static bool setupGraphics(int width, int height) {
     // printGLString("Version", GL_VERSION);
@@ -1365,55 +1370,55 @@ static bool setupGraphics(int width, int height) {
 
     // bool osvrSetupSuccess = setupOSVR();
 
-    gProgram = createProgram(gVertexShader, gFragmentShader);
-    if (!gProgram) {
-        // LOGE("Could not create program.");
-        osvrJniWrapperClass = jniEnvironment->FindClass(
-            "org/osvr/osvrunityjni/OsvrJNIWrapper"); // try to find the class
-        if (osvrJniWrapperClass == nullptr) {
-            return false;
-        } else { // if class found, continue
+    // gProgram = createProgram(gVertexShader, gFragmentShader);
+    // if (!gProgram) {
+    //     // LOGE("Could not create program.");
+    //     osvrJniWrapperClass = jniEnvironment->FindClass(
+    //         "org/osvr/osvrunityjni/OsvrJNIWrapper"); // try to find the class
+    //     if (osvrJniWrapperClass == nullptr) {
+    //         return false;
+    //     } else { // if class found, continue
 
-            jmethodID logmid = jniEnvironment->GetStaticMethodID(
-                osvrJniWrapperClass, "logMsg",
-                "(Ljava/lang/String;)V"); // find method
-            std::string stringy =
-                "[OSVR-Unity-Android]  Could not create program.";
-            jstring jstr2 = jniEnvironment->NewStringUTF(stringy.c_str());
-            jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass, logmid,
-                                                 jstr2);
-        }
-        return false;
-    }
-    gvPositionHandle = glGetAttribLocation(gProgram, "vPosition");
-    checkGlError("glGetAttribLocation");
-    // LOGI("glGetAttribLocation(\"vPosition\") = %d\n", gvPositionHandle);
+    //         jmethodID logmid = jniEnvironment->GetStaticMethodID(
+    //             osvrJniWrapperClass, "logMsg",
+    //             "(Ljava/lang/String;)V"); // find method
+    //         std::string stringy =
+    //             "[OSVR-Unity-Android]  Could not create program.";
+    //         jstring jstr2 = jniEnvironment->NewStringUTF(stringy.c_str());
+    //         jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass, logmid,
+    //                                              jstr2);
+    //     }
+    //     return false;
+    // }
+    // gvPositionHandle = glGetAttribLocation(gProgram, "vPosition");
+    // checkGlError("glGetAttribLocation");
+    // // LOGI("glGetAttribLocation(\"vPosition\") = %d\n", gvPositionHandle);
 
-    gvColorHandle = glGetAttribLocation(gProgram, "vColor");
-    checkGlError("glGetAttribLocation");
-    // LOGI("glGetAttribLocation(\"vColor\") = %d\n", gvColorHandle);
+    // gvColorHandle = glGetAttribLocation(gProgram, "vColor");
+    // checkGlError("glGetAttribLocation");
+    // // LOGI("glGetAttribLocation(\"vColor\") = %d\n", gvColorHandle);
 
-    gvTexCoordinateHandle = glGetAttribLocation(gProgram, "vTexCoordinate");
-    checkGlError("glGetAttribLocation");
-    // LOGI("glGetAttribLocation(\"vTexCoordinate\") = %d\n",
-    // gvTexCoordinateHandle);
+    // gvTexCoordinateHandle = glGetAttribLocation(gProgram, "vTexCoordinate");
+    // checkGlError("glGetAttribLocation");
+    // // LOGI("glGetAttribLocation(\"vTexCoordinate\") = %d\n",
+    // // gvTexCoordinateHandle);
 
-    gvProjectionUniformId = glGetUniformLocation(gProgram, "projection");
-    gvViewUniformId = glGetUniformLocation(gProgram, "view");
-    gvModelUniformId = glGetUniformLocation(gProgram, "model");
-    guTextureUniformId = glGetUniformLocation(gProgram, "uTexture");
+    // gvProjectionUniformId = glGetUniformLocation(gProgram, "projection");
+    // gvViewUniformId = glGetUniformLocation(gProgram, "view");
+    // gvModelUniformId = glGetUniformLocation(gProgram, "model");
+    // guTextureUniformId = glGetUniformLocation(gProgram, "uTexture");
 
-    glViewport(0, 0, width, height);
-    checkGlError("glViewport");
+    // glViewport(0, 0, width, height);
+    // checkGlError("glViewport");
 
-    glDisable(GL_CULL_FACE);
+    //glDisable(GL_CULL_FACE);
 
     // @todo can we resize the texture after it has been created?
     // if not, we may have to delete the dummy one and create a new one after
     // the first imaging report.
     // LOGI("Creating texture... here we go!");
 
-    gTextureID = createTexture(width, height);
+    //gTextureID = createTexture(width, height);
 
     // return osvrSetupSuccess;
     gGraphicsInitializedOnce = true;
@@ -1439,19 +1444,19 @@ static void renderFrame() {
 
     OSVR_ReturnCode rc;
 
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    checkGlError("glClearColor");
-    glViewport(0, 0, gWidth, gHeight);
-    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-    checkGlError("glClear");
+    // glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    // checkGlError("glClearColor");
+    // glViewport(0, 0, gWidth, gHeight);
+    // glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+    // checkGlError("glClear");
 
     if (gRenderManager && gClientContext) {
         osvrClientUpdate(gClientContext);
-        if (gLastFrame != nullptr) {
-            updateTexture(gLastFrameWidth, gLastFrameHeight, gLastFrame);
-            osvrClientFreeImage(gClientContext, gLastFrame);
-            gLastFrame = nullptr;
-        }
+        // if (gLastFrame != nullptr) {
+        //     updateTexture(gLastFrameWidth, gLastFrameHeight, gLastFrame);
+        //     osvrClientFreeImage(gClientContext, gLastFrame);
+        //     gLastFrame = nullptr;
+        // }
 
         OSVR_RenderParams renderParams;
         rc = osvrRenderManagerGetDefaultRenderParams(&renderParams);
@@ -1516,7 +1521,7 @@ static void stop() {
         gClientContext = nullptr;
     }
 
-    osvrClientReleaseAutoStartedServer();
+    //osvrClientReleaseAutoStartedServer();
 }
 
 OSVR_ReturnCode CreateRenderManagerAndroid(OSVR_ClientContext context) {
