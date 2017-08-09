@@ -99,8 +99,8 @@ Sensics, Inc.
 
 #if OSVR_ANDROID
 #include <android/log.h>
-#include <android/choreographer.h>
-#include <android/looper.h>
+// #include <android/choreographer.h>
+// #include <android/looper.h>
 
 #define  LOG_TAG    "osvrUnityRendering"
 #define  LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG,__VA_ARGS__)
@@ -124,6 +124,16 @@ static double s_ipd = 0.063;
 static std::uint32_t viewportWidth = 0;
 static std::uint32_t viewportHeight = 0;
 
+static OSVR_RenderManager s_render = nullptr;
+static OSVR_RenderParams s_renderParams;
+static std::vector<OSVR_RenderInfoOpenGL> s_renderInfo;
+static std::vector<OSVR_RenderInfoOpenGL> s_lastRenderInfo;
+static OSVR_RenderInfoCount numRenderInfo;
+static OSVR_RenderInfoCollection s_renderInfoCollection;
+static OSVR_ProjectionMatrix lastGoodProjMatrix;
+static OSVR_Pose3 lastGoodPose;
+static OSVR_ViewportDescription lastGoodViewportDescription;
+
 #if UNITY_ANDROID
 static JNIEnv *jniEnvironment = 0;
 static jclass osvrJniWrapperClass;
@@ -132,16 +142,7 @@ static jobject unityActivityClassInstance;
 
 static int gWidth = 0;
 static int gHeight = 0;
-//static GLuint gProgram;
-//static GLuint gvPositionHandle;
-//static GLuint gvColorHandle;
-//static GLuint gvTexCoordinateHandle;
-//static GLuint guTextureUniformId;
-//static GLuint gvProjectionUniformId;
-//static GLuint gvViewUniformId;
-//static GLuint gvModelUniformId;
 static GLuint gFrameBuffer;
-//static GLuint gTextureID;
 static GLuint gLeftEyeTextureID;
 static GLuint gRightEyeTextureID;
 static bool gGraphicsInitializedOnce =
@@ -155,47 +156,15 @@ typedef struct OSVR_RenderTargetInfo {
     GLuint frameBufferName;
     GLuint renderBufferName; // @todo - do we need this?
 } OSVR_RenderTargetInfo;
+
 static OSVR_ClientContext gClientContext = NULL;
-//static OSVR_ClientInterface gCamera = NULL;
-//static OSVR_ClientInterface gHead = NULL;
-//static int gReportNumber = 0;
-//static OSVR_ImageBufferElement *gLastFrame = nullptr;
-//static GLuint gLastFrameWidth = 0;
-//static GLuint gLastFrameHeight = 0;
 static GLubyte *gTextureBuffer = nullptr;
 static OSVR_GraphicsLibraryOpenGL gGraphicsLibrary = {0};
-static OSVR_RenderManager gRenderManager = nullptr;
 static OSVR_RenderManagerOpenGL gRenderManagerOGL = nullptr;
 static OSVR_RenderParams gRenderParams = {0};
 static std::vector<OSVR_RenderBufferOpenGL> buffers;
 static std::vector<OSVR_RenderTargetInfo> gRenderTargets;
 static bool contextSet = false;
-
-static const char gVertexShader[] =
-    "uniform mat4 model;\n"
-    "uniform mat4 view;\n"
-    "uniform mat4 projection;\n"
-    "attribute vec4 vPosition;\n"
-    "attribute vec4 vColor;\n"
-    "attribute vec2 vTexCoordinate;\n"
-    "varying vec2 texCoordinate;\n"
-    "varying vec4 fragmentColor;\n"
-    "void main() {\n"
-    "  gl_Position = projection * view * model * vPosition;\n"
-    "  fragmentColor = vColor;\n"
-    "  texCoordinate = vTexCoordinate;\n"
-    "}\n";
-
-static const char gFragmentShader[] =
-    "precision mediump float;\n"
-    "uniform sampler2D uTexture;\n"
-    "varying vec2 texCoordinate;\n"
-    "varying vec4 fragmentColor;\n"
-    "void main()\n"
-    "{\n"
-    "    gl_FragColor = fragmentColor * texture2D(uTexture, texCoordinate);\n"
-    //"    gl_FragColor = texture2D(uTexture, texCoordinate);\n"
-    "}\n";
 
 inline void nanoSecondsToTimeValue(uint64_t nanos, OSVR_TimeValue *tvOut) {
     tvOut->seconds = 0;
@@ -204,20 +173,13 @@ inline void nanoSecondsToTimeValue(uint64_t nanos, OSVR_TimeValue *tvOut) {
 }
 
 #else // Windows, Linux, OSX static variables
-static OSVR_RenderParams s_renderParams;
-static OSVR_RenderManager s_render = nullptr;
+
 static OSVR_RenderManagerD3D11 s_renderD3D = nullptr;
 static OSVR_ClientContext s_clientContext = nullptr;
 static std::vector<OSVR_RenderBufferD3D11> s_renderBuffers;
 static std::vector<OSVR_RenderInfoD3D11> s_renderInfo;
 static std::vector<OSVR_RenderInfoD3D11> s_lastRenderInfo;
-static OSVR_RenderInfoCount numRenderInfo;
-static OSVR_RenderInfoCollection s_renderInfoCollection;
 static OSVR_GraphicsLibraryD3D11 s_libraryD3D;
-
-static OSVR_ProjectionMatrix lastGoodProjMatrix;
-static OSVR_Pose3 lastGoodPose;
-static OSVR_ViewportDescription lastGoodViewportDescription;
 
 // logging
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
@@ -509,8 +471,10 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
 #endif // UNITY_WIN
 }
 
-#if UNITY_WIN
 inline void UpdateRenderInfoCollection() {
+#if !UNITY_WIN && !UNITY_ANDROID
+    return;
+#endif
     if ((OSVR_RETURN_SUCCESS !=
          osvrRenderManagerGetRenderInfoCollection(s_render, s_renderParams,
                                                   &s_renderInfoCollection))) {
@@ -524,19 +488,28 @@ inline void UpdateRenderInfoCollection() {
     // update renderinfo
     s_renderInfo.clear();
     for (OSVR_RenderInfoCount i = 0; i < numRenderInfo; i++) {
+#if UNITY_WIN
         OSVR_RenderInfoD3D11 info;
         if ((OSVR_RETURN_SUCCESS !=
              osvrRenderManagerGetRenderInfoFromCollectionD3D11(
                  s_renderInfoCollection, i, &info))) {
-            DebugLog("[OSVR Rendering Plugin] Could not get render info.");
+            DebugLog("[OSVR Rendering Plugin] Could not get render info (D3D11).");
         }
+#elif UNITY_ANDROID // UNITY_WIN
+        OSVR_RenderInfoOpenGL info;
+        if ((OSVR_RETURN_SUCCESS !=
+             osvrRenderManagerGetRenderInfoFromCollectionOpenGL(
+                 s_renderInfoCollection, i, &info))) {
+            DebugLog("[OSVR Rendering Plugin] Could not get render info (OpenGL).");
+        }
+#endif
+
         s_renderInfo.push_back(info);
     }
     if (numRenderInfo > 0) {
         s_lastRenderInfo = s_renderInfo;
     }
 }
-#endif // UNITY_WIN
 
 // Updates the internal "room to world" transformation (applied to all
 // tracker data for this client context instance) based on the user's head
@@ -577,56 +550,6 @@ static void checkReturnCode(OSVR_ReturnCode returnCode, const char *msg) {
         throw std::runtime_error(msg);
     }
 }
-// RAII wrapper around the RenderManager collection APIs for OpenGL
-class RenderInfoCollectionOpenGL {
-  private:
-    OSVR_RenderManager mRenderManager = nullptr;
-    OSVR_RenderInfoCollection mRenderInfoCollection = nullptr;
-    OSVR_RenderParams mRenderParams = {0};
-
-  public:
-    RenderInfoCollectionOpenGL(OSVR_RenderManager renderManager,
-                               OSVR_RenderParams renderParams)
-        : mRenderManager(renderManager), mRenderParams(renderParams) {
-        OSVR_ReturnCode rc;
-        rc = osvrRenderManagerGetRenderInfoCollection(
-            mRenderManager, mRenderParams, &mRenderInfoCollection);
-        checkReturnCode(
-            rc, "osvrRenderManagerGetRenderInfoCollection call failed.");
-    }
-
-    OSVR_RenderInfoCount getNumRenderInfo() {
-        OSVR_RenderInfoCount ret;
-        OSVR_ReturnCode rc;
-        rc = osvrRenderManagerGetNumRenderInfoInCollection(
-            mRenderInfoCollection, &ret);
-        checkReturnCode(
-            rc, "osvrRenderManagerGetNumRenderInfoInCollection call failed.");
-        return ret;
-    }
-
-    OSVR_RenderInfoOpenGL getRenderInfo(OSVR_RenderInfoCount index) {
-        if (index < 0 || index >= getNumRenderInfo()) {
-            const static char *err = "getRenderInfo called with invalid index";
-            // LOGE(err);
-            throw std::runtime_error(err);
-        }
-        OSVR_RenderInfoOpenGL ret;
-        OSVR_ReturnCode rc;
-        rc = osvrRenderManagerGetRenderInfoFromCollectionOpenGL(
-            mRenderInfoCollection, index, &ret);
-        checkReturnCode(
-            rc,
-            "osvrRenderManagerGetRenderInfoFromCollectionOpenGL call failed.");
-        return ret;
-    }
-
-    ~RenderInfoCollectionOpenGL() {
-        if (mRenderInfoCollection) {
-            osvrRenderManagerReleaseRenderInfoCollection(mRenderInfoCollection);
-        }
-    }
-};
 
 static void checkGlError(const char *op) {
     std::stringstream ss;
@@ -660,77 +583,77 @@ static void checkGlError(const char *op) {
     }
 }
 
-#if OSVR_ANDROID
-static long gPreviousFrameTimeNanos = 0;
-static long gLastFrameTimeNanos = 0;
-static std::mutex gFrameTimeMutex;
+// #if OSVR_ANDROID
+// static long gPreviousFrameTimeNanos = 0;
+// static long gLastFrameTimeNanos = 0;
+// static std::mutex gFrameTimeMutex;
 
-/**
- * This func is called on an app frame callback by the 
- * Choreographer on Android.
- * NOTE: This is offset from the real "last vsync" when the
- * Android build has offset. @todo account for this offset using JNI.
- */
-static void frameCallbackImpl(long frameTimeNanos, void *data) {
-    std::lock_guard<std::mutex> lockGuard(gFrameTimeMutex);
-    gPreviousFrameTimeNanos = gLastFrameTimeNanos;
-    gLastFrameTimeNanos = frameTimeNanos;
-    /// LOGI("frameTimeNanos: %d", frameTimeNanos);
-    static long frameIndex = 0;
-    if((frameIndex++) % 60 == 0) {
-        LOGI("frame diff: %d", frameTimeNanos - gPreviousFrameTimeNanos);
-    }
-    AChoreographer *choreographer = AChoreographer_getInstance();
-    if (!choreographer) {
-        LOGE("Couldn't get the choreographer from the frame callback");
-    }
-    AChoreographer_postFrameCallback(choreographer, frameCallbackImpl, nullptr);
-}
+// /**
+//  * This func is called on an app frame callback by the 
+//  * Choreographer on Android.
+//  * NOTE: This is offset from the real "last vsync" when the
+//  * Android build has offset. @todo account for this offset using JNI.
+//  */
+// static void frameCallbackImpl(long frameTimeNanos, void *data) {
+//     std::lock_guard<std::mutex> lockGuard(gFrameTimeMutex);
+//     gPreviousFrameTimeNanos = gLastFrameTimeNanos;
+//     gLastFrameTimeNanos = frameTimeNanos;
+//     /// LOGI("frameTimeNanos: %d", frameTimeNanos);
+//     static long frameIndex = 0;
+//     if((frameIndex++) % 60 == 0) {
+//         LOGI("frame diff: %d", frameTimeNanos - gPreviousFrameTimeNanos);
+//     }
+//     AChoreographer *choreographer = AChoreographer_getInstance();
+//     if (!choreographer) {
+//         LOGE("Couldn't get the choreographer from the frame callback");
+//     }
+//     AChoreographer_postFrameCallback(choreographer, frameCallbackImpl, nullptr);
+// }
 
-/**
- * Use this function in a std::thread to keep the ALooper pumping AChoreographer
- * callbacks on a separate thread from where it's consumed. Otherwise the polling
- * here will stall the render thread.
- * @TODO - provide a way to signal graceful thread exit.
- */
-static void choreographerThreadRun() {
-    LOGI("On Choreographer thread");
-    ALooper *looper = ALooper_forThread();
-    if (!looper) {
-        looper = ALooper_prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS);
-        if (!looper) {
-            LOGE("Couldn't prepare an ALooper for the choreographer thread");
-            return;
-        }
-    }
+// /**
+//  * Use this function in a std::thread to keep the ALooper pumping AChoreographer
+//  * callbacks on a separate thread from where it's consumed. Otherwise the polling
+//  * here will stall the render thread.
+//  * @TODO - provide a way to signal graceful thread exit.
+//  */
+// static void choreographerThreadRun() {
+//     LOGI("On Choreographer thread");
+//     ALooper *looper = ALooper_forThread();
+//     if (!looper) {
+//         looper = ALooper_prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS);
+//         if (!looper) {
+//             LOGE("Couldn't prepare an ALooper for the choreographer thread");
+//             return;
+//         }
+//     }
 
-    AChoreographer *choreographer = AChoreographer_getInstance();
-    if (!choreographer) {
-        LOGE("Could not get choreographer.");
-        return;
-    }
+//     AChoreographer *choreographer = AChoreographer_getInstance();
+//     if (!choreographer) {
+//         LOGE("Could not get choreographer.");
+//         return;
+//     }
 
-    AChoreographer_postFrameCallback(choreographer, frameCallbackImpl, nullptr);
+//     AChoreographer_postFrameCallback(choreographer, frameCallbackImpl, nullptr);
 
-    while (true) {
-        // @TODO provide a signal for graceful thread exit?
-        int fd_unused = 0;
-        int outEvents_unused = 0;
-        void *outData_unused = nullptr;
-        int rc = ALooper_pollAll(100, &fd_unused, &outEvents_unused,
-                                 &outData_unused);
-    }
-}
-#endif
+//     while (true) {
+//         // @TODO provide a signal for graceful thread exit?
+//         int fd_unused = 0;
+//         int outEvents_unused = 0;
+//         void *outData_unused = nullptr;
+//         int rc = ALooper_pollAll(100, &fd_unused, &outEvents_unused,
+//                                  &outData_unused);
+//     }
+// }
+// #endif
 
 class PassThroughOpenGLContextImpl {
     OSVR_OpenGLToolkitFunctions toolkit;
     int mWidth;
     int mHeight;
 
-#if OSVR_ANDROID
-    std::thread mChoreographerThread;
-#endif
+// #if OSVR_ANDROID
+//     std::thread mChoreographerThread;
+// #endif
 
     static void createImpl(void *data) {}
     static void destroyImpl(void *data) {
@@ -772,11 +695,11 @@ class PassThroughOpenGLContextImpl {
     }
 
   public:
-#if OSVR_ANDROID
-	PassThroughOpenGLContextImpl() : mChoreographerThread(choreographerThreadRun) {
-#else
+// #if OSVR_ANDROID
+// 	PassThroughOpenGLContextImpl() : mChoreographerThread(choreographerThreadRun) {
+// #else
 	PassThroughOpenGLContextImpl() {
-#endif
+// #endif
         memset(&toolkit, 0, sizeof(toolkit));
         toolkit.size = sizeof(toolkit);
         toolkit.data = this;
@@ -823,179 +746,42 @@ class PassThroughOpenGLContextImpl {
 
     bool getRenderTimingInfo(size_t display, size_t whichEye,
                              OSVR_RenderTimingInfo *renderTimingInfoOut) {
-#if OSVR_ANDROID
-        timespec tp;
-        int rv = clock_gettime(CLOCK_MONOTONIC, &tp);
-        if (!rv) {
-            std::lock_guard<std::mutex> lockGuard(gFrameTimeMutex);
-            // uint64_t presentationDeadline = 17683333L; // Shouldn't this bee
-            // at least less than 16,666,666? (1 billion / 60)
-            // that's 1,016,666 nanoseconds greater than the hardware interval
-            // uint64_t hardwareDisplayIntervalNanos = 11111111L; // 90Hz hard
-            // coded, TODO measure this or get it from the API?
-            uint64_t hardwareDisplayIntervalNanos = gLastFrameTimeNanos - gPreviousFrameTimeNanos;
-            uint64_t nowNanos = ((tp.tv_sec * 1000000000L) + tp.tv_nsec);
-            uint64_t timeFromLastNanos = nowNanos >= gLastFrameTimeNanos
-                                             ? nowNanos - gLastFrameTimeNanos
-                                             : 0; // just being safe
-            uint64_t nextNanos = gLastFrameTimeNanos + hardwareDisplayIntervalNanos;
-            uint64_t timeUntilNextNanos =
-                nextNanos >= nowNanos ? nextNanos - nowNanos
-                                      : 0; // 0 here means we missed a vsync
+// #if OSVR_ANDROID
+//         timespec tp;
+//         int rv = clock_gettime(CLOCK_MONOTONIC, &tp);
+//         if (!rv) {
+//             std::lock_guard<std::mutex> lockGuard(gFrameTimeMutex);
+//             // uint64_t presentationDeadline = 17683333L; // Shouldn't this bee
+//             // at least less than 16,666,666? (1 billion / 60)
+//             // that's 1,016,666 nanoseconds greater than the hardware interval
+//             // uint64_t hardwareDisplayIntervalNanos = 11111111L; // 90Hz hard
+//             // coded, TODO measure this or get it from the API?
+//             uint64_t hardwareDisplayIntervalNanos = gLastFrameTimeNanos - gPreviousFrameTimeNanos;
+//             uint64_t nowNanos = ((tp.tv_sec * 1000000000L) + tp.tv_nsec);
+//             uint64_t timeFromLastNanos = nowNanos >= gLastFrameTimeNanos
+//                                              ? nowNanos - gLastFrameTimeNanos
+//                                              : 0; // just being safe
+//             uint64_t nextNanos = gLastFrameTimeNanos + hardwareDisplayIntervalNanos;
+//             uint64_t timeUntilNextNanos =
+//                 nextNanos >= nowNanos ? nextNanos - nowNanos
+//                                       : 0; // 0 here means we missed a vsync
 
-            nanoSecondsToTimeValue(timeFromLastNanos, 
-                &renderTimingInfoOut->timeSincelastVerticalRetrace);
+//             nanoSecondsToTimeValue(timeFromLastNanos, 
+//                 &renderTimingInfoOut->timeSincelastVerticalRetrace);
                 
-            nanoSecondsToTimeValue(timeUntilNextNanos,
-                &renderTimingInfoOut->timeUntilNextPresentRequired);
+//             nanoSecondsToTimeValue(timeUntilNextNanos,
+//                 &renderTimingInfoOut->timeUntilNextPresentRequired);
 
-            nanoSecondsToTimeValue(hardwareDisplayIntervalNanos,
-                &renderTimingInfoOut->hardwareDisplayInterval);
-            return true;
-        }
-        LOGI("clock_gettime call failed.");
-#endif
+//             nanoSecondsToTimeValue(hardwareDisplayIntervalNanos,
+//                 &renderTimingInfoOut->hardwareDisplayInterval);
+//             return true;
+//         }
+//         LOGI("clock_gettime call failed.");
+// #endif
         return false;
     }
 };
 
-static GLuint loadShader(GLenum shaderType, const char *pSource) {
-    GLuint shader = glCreateShader(shaderType);
-    if (shader) {
-        glShaderSource(shader, 1, &pSource, NULL);
-        glCompileShader(shader);
-        GLint compiled = 0;
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
-        if (!compiled) {
-            GLint infoLen = 0;
-            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
-            if (infoLen) {
-                char *buf = (char *)malloc(infoLen);
-                if (buf) {
-                    glGetShaderInfoLog(shader, infoLen, NULL, buf);
-                    // LOGE("Could not compile shader %d:\n%s\n",
-                    // shaderType, buf);
-                    free(buf);
-                }
-                glDeleteShader(shader);
-                shader = 0;
-            }
-        }
-    }
-    return shader;
-}
-
-static GLuint createProgram(const char *pVertexSource,
-                            const char *pFragmentSource) {
-    GLuint vertexShader = loadShader(GL_VERTEX_SHADER, pVertexSource);
-    if (!vertexShader) {
-        return 0;
-    }
-
-    GLuint pixelShader = loadShader(GL_FRAGMENT_SHADER, pFragmentSource);
-    if (!pixelShader) {
-        return 0;
-    }
-
-    GLuint program = glCreateProgram();
-    if (program) {
-        glAttachShader(program, vertexShader);
-        checkGlError("glAttachShader");
-
-        glAttachShader(program, pixelShader);
-        checkGlError("glAttachShader");
-
-        glBindAttribLocation(program, 0, "vPosition");
-        glBindAttribLocation(program, 1, "vColor");
-        glBindAttribLocation(program, 2, "vTexCoordinate");
-
-        glLinkProgram(program);
-        GLint linkStatus = GL_FALSE;
-        glGetProgramiv(program, GL_LINK_STATUS, &linkStatus);
-        if (linkStatus != GL_TRUE) {
-            GLint bufLength = 0;
-            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &bufLength);
-            if (bufLength) {
-                char *buf = (char *)malloc(bufLength);
-                if (buf) {
-                    glGetProgramInfoLog(program, bufLength, NULL, buf);
-                    // LOGE("Could not link program:\n%s\n", buf);
-                    free(buf);
-                }
-            }
-            glDeleteProgram(program);
-            program = 0;
-        }
-    }
-    return program;
-}
-
-static GLuint createTexture(GLuint width, GLuint height) {
-    GLuint ret;
-    glGenTextures(1, &ret);
-    checkGlError("glGenTextures");
-
-    glBindTexture(GL_TEXTURE_2D, ret);
-    checkGlError("glBindTexture");
-
-    glPixelStorei(GL_PACK_ALIGNMENT, 1);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    //    // DEBUG CODE - should be passing null here, but then texture is
-    //    always black.
-    GLubyte *dummyBuffer = new GLubyte[width * height * 4];
-    for (GLuint i = 0; i < width * height * 4; i++) {
-        dummyBuffer[i] = (i % 4 ? 100 : 255);
-    }
-
-    // This dummy texture successfully makes it into the texture and renders,
-    // but subsequent
-    // calls to glTexSubImage2D don't appear to do anything.
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
-                 GL_UNSIGNED_BYTE, dummyBuffer);
-    checkGlError("glTexImage2D");
-    delete[] dummyBuffer;
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    checkGlError("glTexParameteri");
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    checkGlError("glTexParameteri");
-    return ret;
-}
-
-// static void updateTexture(GLuint width, GLuint height, GLubyte *data) {
-
-//     glBindTexture(GL_TEXTURE_2D, gTextureID);
-//     checkGlError("glBindTexture");
-
-//     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-//     glPixelStorei(GL_PACK_ALIGNMENT, 1);
-
-//     // @todo use glTexSubImage2D to be faster here, but add check to make sure
-//     // height/width are the same.
-//     // glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA,
-//     // GL_UNSIGNED_BYTE, data);
-//     // checkGlError("glTexSubImage2D");
-//     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
-//                  GL_UNSIGNED_BYTE, data);
-//     checkGlError("glTexImage2D");
-// }
-
-// static void imagingCallback(void *userdata, const OSVR_TimeValue *timestamp,
-//                             const OSVR_ImagingReport *report) {
-
-//     OSVR_ClientContext *ctx = (OSVR_ClientContext *)userdata;
-
-//     gReportNumber++;
-//     GLuint width = report->state.metadata.width;
-//     GLuint height = report->state.metadata.height;
-//     gLastFrameWidth = width;
-//     gLastFrameHeight = height;
-//     GLuint size = width * height * 4;
-
-//     gLastFrame = report->state.data;
-// }
 #if SUPPORT_OPENGL
 inline GLuint GetEyeTextureOpenGL(int eye) {
     return (eye == 0) ? gLeftEyeTextureID : gRightEyeTextureID;
@@ -1010,17 +796,18 @@ static bool setupRenderTextures(OSVR_RenderManager renderManager) {
 
         gRenderParams.farClipDistanceMeters = 1000000.0f;
         gRenderParams.nearClipDistanceMeters = 0.0000001f;
-        RenderInfoCollectionOpenGL renderInfo(renderManager, gRenderParams);
+
+        UpdateRenderInfoCollection();
 
         OSVR_RenderManagerRegisterBufferState state;
         rc = osvrRenderManagerStartRegisterRenderBuffers(&state);
         checkReturnCode(
             rc, "osvrRenderManagerStartRegisterRenderBuffers call failed.");
 
-        for (OSVR_RenderInfoCount i = 0; i < renderInfo.getNumRenderInfo();
+        for (OSVR_RenderInfoCount i = 0; i < s_lastRenderInfo.size();
              i++) {
             OSVR_RenderInfoOpenGL currentRenderInfo =
-                renderInfo.getRenderInfo(i);
+                s_lastRenderInfo[i];
 
             // Determine the appropriate size for the frame buffer to be used
             // for
@@ -1105,16 +892,10 @@ static bool setupOSVR() {
     }
     OSVR_ReturnCode rc = 0;
     try {
-        // On Android, the current working directory is added to the default
-        // plugin search path.
-        // it also helps the server find its configuration and display files.
-        //            boost::filesystem::current_path("/data/data/com.osvr.android.gles2sample/files");
-        //            auto workingDirectory = boost::filesystem::current_path();
-        //            //LOGI("[OSVR] Current working directory: %s",
-        //            workingDirectory.string().c_str());
-
         // auto-start the server
-        //osvrClientAttemptServerAutoStart();
+        // @todo we also auto-start the server from the C# scripts,
+        // should remove one set of calls.
+        osvrClientAttemptServerAutoStart();
 
         if (!gClientContext) {
             // LOGI("[OSVR] Creating ClientContext...");
@@ -1143,23 +924,6 @@ static bool setupOSVR() {
             } else {
                 // LOGI("[OSVR] Client context reported good status.");
             }
-
-            //                if (OSVR_RETURN_SUCCESS !=
-            //                    osvrClientGetInterface(gClientContext,
-            //                    "/camera", &gCamera)) {
-            //                    //LOGI("Error, could not get the camera
-            //                    interface at /camera.");
-            //                    return false;
-            //                }
-            //
-            //                // Register the imaging callback.
-            //                if (OSVR_RETURN_SUCCESS !=
-            //                    osvrRegisterImagingCallback(gCamera,
-            //                    &imagingCallback, &gClientContext)) {
-            //                    //LOGI("Error, could not register image
-            //                    callback.");
-            //                    return false;
-            //                }
         }
 
         gOSVRInitialized = true;
@@ -1185,7 +949,7 @@ static bool setupRenderManager() {
 
         if (OSVR_RETURN_SUCCESS !=
             osvrCreateRenderManagerOpenGL(gClientContext, "OpenGL",
-                                          gGraphicsLibrary, &gRenderManager,
+                                          gGraphicsLibrary, &s_render,
                                           &gRenderManagerOGL)) {
             std::cerr << "Could not create the RenderManager" << std::endl;
             return false;
@@ -1197,8 +961,8 @@ static bool setupRenderManager() {
                                        gRenderManagerOGL, &openResults) ||
             (openResults.status == OSVR_OPEN_STATUS_FAILURE)) {
             std::cerr << "Could not open display" << std::endl;
-            osvrDestroyRenderManager(gRenderManager);
-            gRenderManager = gRenderManagerOGL = nullptr;
+            osvrDestroyRenderManager(s_render);
+            s_render = gRenderManagerOGL = nullptr;
             return false;
         }
 
@@ -1209,218 +973,14 @@ static bool setupRenderManager() {
         return false;
     }
 }
-// static const GLfloat gTriangleColors[] = {
-//     // white
-//     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-//     1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-
-//     // green
-//     0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
-//     0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
-
-//     // blue
-//     0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-//     0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-
-//     // green/purple
-//     0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-//     0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-
-//     // red/green
-//     0.75f, 0.75f, 0.0f, 1.0f, 0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
-//     0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
-
-//     // red/blue
-//     0.75f, 0.0f, 0.75f, 1.0f, 0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
-//     0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f};
-
-// static const GLfloat gTriangleTexCoordinates[] = {
-//     // A cube face (letters are unique vertices)
-//     // A--B
-//     // |  |
-//     // D--C
-
-//     // As two triangles (clockwise)
-//     // A B D
-//     // B C D
-
-//     // white
-//     1.0f, 0.0f, // A
-//     1.0f, 1.0f, // B
-//     0.0f, 0.0f, // D
-//     1.0f, 1.0f, // B
-//     0.0f, 1.0f, // C
-//     0.0f, 0.0f, // D
-
-//     // green
-//     1.0f, 0.0f, // A
-//     1.0f, 1.0f, // B
-//     0.0f, 0.0f, // D
-//     1.0f, 1.0f, // B
-//     0.0f, 1.0f, // C
-//     0.0f, 0.0f, // D
-
-//     // blue
-//     1.0f, 1.0f, // A
-//     0.0f, 1.0f, // B
-//     1.0f, 0.0f, // D
-//     0.0f, 1.0f, // B
-//     0.0f, 0.0f, // C
-//     1.0f, 0.0f, // D
-
-//     // blue-green
-//     1.0f, 0.0f, // A
-//     1.0f, 1.0f, // B
-//     0.0f, 0.0f, // D
-//     1.0f, 1.0f, // B
-//     0.0f, 1.0f, // C
-//     0.0f, 0.0f, // D
-
-//     // yellow
-//     0.0f, 0.0f, // A
-//     1.0f, 0.0f, // B
-//     0.0f, 1.0f, // D
-//     1.0f, 0.0f, // B
-//     1.0f, 1.0f, // C
-//     0.0f, 1.0f, // D
-
-//     // purple/magenta
-//     1.0f, 1.0f, // A
-//     0.0f, 1.0f, // B
-//     1.0f, 0.0f, // D
-//     0.0f, 1.0f, // B
-//     0.0f, 0.0f, // C
-//     1.0f, 0.0f, // D
-// };
-
-// static const GLfloat gTriangleVertices[] = {
-//     // A cube face (letters are unique vertices)
-//     // A--B
-//     // |  |
-//     // D--C
-
-//     // As two triangles (clockwise)
-//     // A B D
-//     // B C D
-
-//     // glNormal3f(0.0, 0.0, -1.0);
-//     1.0f, 1.0f, -1.0f,   // A
-//     1.0f, -1.0f, -1.0f,  // B
-//     -1.0f, 1.0f, -1.0f,  // D
-//     1.0f, -1.0f, -1.0f,  // B
-//     -1.0f, -1.0f, -1.0f, // C
-//     -1.0f, 1.0f, -1.0f,  // D
-
-//     // glNormal3f(0.0, 0.0, 1.0);
-//     -1.0f, 1.0f, 1.0f,  // A
-//     -1.0f, -1.0f, 1.0f, // B
-//     1.0f, 1.0f, 1.0f,   // D
-//     -1.0f, -1.0f, 1.0f, // B
-//     1.0f, -1.0f, 1.0f,  // C
-//     1.0f, 1.0f, 1.0f,   // D
-
-//     //        glNormal3f(0.0, -1.0, 0.0);
-//     1.0f, -1.0f, 1.0f,   // A
-//     -1.0f, -1.0f, 1.0f,  // B
-//     1.0f, -1.0f, -1.0f,  // D
-//     -1.0f, -1.0f, 1.0f,  // B
-//     -1.0f, -1.0f, -1.0f, // C
-//     1.0f, -1.0f, -1.0f,  // D
-
-//     //        glNormal3f(0.0, 1.0, 0.0);
-//     1.0f, 1.0f, 1.0f,   // A
-//     1.0f, 1.0f, -1.0f,  // B
-//     -1.0f, 1.0f, 1.0f,  // D
-//     1.0f, 1.0f, -1.0f,  // B
-//     -1.0f, 1.0f, -1.0f, // C
-//     -1.0f, 1.0f, 1.0f,  // D
-
-//     //        glNormal3f(-1.0, 0.0, 0.0);
-//     -1.0f, 1.0f, 1.0f,   // A
-//     -1.0f, 1.0f, -1.0f,  // B
-//     -1.0f, -1.0f, 1.0f,  // D
-//     -1.0f, 1.0f, -1.0f,  // B
-//     -1.0f, -1.0f, -1.0f, // C
-//     -1.0f, -1.0f, 1.0f,  // D
-
-//     //        glNormal3f(1.0, 0.0, 0.0);
-//     1.0f, -1.0f, 1.0f,  // A
-//     1.0f, -1.0f, -1.0f, // B
-//     1.0f, 1.0f, 1.0f,   // D
-//     1.0f, -1.0f, -1.0f, // B
-//     1.0f, 1.0f, -1.0f,  // C
-//     1.0f, 1.0f, 1.0f    // D
-// };
 
 static bool setupGraphics(int width, int height) {
-    // printGLString("Version", GL_VERSION);
-    // printGLString("Vendor", GL_VENDOR);
-    // printGLString("Renderer", GL_RENDERER);
-    // printGLString("Extensions", GL_EXTENSIONS);
 
     // initializeGLES2Ext();
     GLint frameBuffer;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &frameBuffer);
     gFrameBuffer = (GLuint)frameBuffer;
-    // LOGI("Window GL_FRAMEBUFFER_BINDING: %d", gFrameBuffer);
 
-    // LOGI("setupGraphics(%d, %d)", width, height);
-    // gWidth = width;
-    // gHeight = height;
-
-    // bool osvrSetupSuccess = setupOSVR();
-
-    // gProgram = createProgram(gVertexShader, gFragmentShader);
-    // if (!gProgram) {
-    //     // LOGE("Could not create program.");
-    //     osvrJniWrapperClass = jniEnvironment->FindClass(
-    //         "org/osvr/osvrunityjni/OsvrJNIWrapper"); // try to find the class
-    //     if (osvrJniWrapperClass == nullptr) {
-    //         return false;
-    //     } else { // if class found, continue
-
-    //         jmethodID logmid = jniEnvironment->GetStaticMethodID(
-    //             osvrJniWrapperClass, "logMsg",
-    //             "(Ljava/lang/String;)V"); // find method
-    //         std::string stringy =
-    //             "[OSVR-Unity-Android]  Could not create program.";
-    //         jstring jstr2 = jniEnvironment->NewStringUTF(stringy.c_str());
-    //         jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass, logmid,
-    //                                              jstr2);
-    //     }
-    //     return false;
-    // }
-    // gvPositionHandle = glGetAttribLocation(gProgram, "vPosition");
-    // checkGlError("glGetAttribLocation");
-    // // LOGI("glGetAttribLocation(\"vPosition\") = %d\n", gvPositionHandle);
-
-    // gvColorHandle = glGetAttribLocation(gProgram, "vColor");
-    // checkGlError("glGetAttribLocation");
-    // // LOGI("glGetAttribLocation(\"vColor\") = %d\n", gvColorHandle);
-
-    // gvTexCoordinateHandle = glGetAttribLocation(gProgram, "vTexCoordinate");
-    // checkGlError("glGetAttribLocation");
-    // // LOGI("glGetAttribLocation(\"vTexCoordinate\") = %d\n",
-    // // gvTexCoordinateHandle);
-
-    // gvProjectionUniformId = glGetUniformLocation(gProgram, "projection");
-    // gvViewUniformId = glGetUniformLocation(gProgram, "view");
-    // gvModelUniformId = glGetUniformLocation(gProgram, "model");
-    // guTextureUniformId = glGetUniformLocation(gProgram, "uTexture");
-
-    // glViewport(0, 0, width, height);
-    // checkGlError("glViewport");
-
-    //glDisable(GL_CULL_FACE);
-
-    // @todo can we resize the texture after it has been created?
-    // if not, we may have to delete the dummy one and create a new one after
-    // the first imaging report.
-    // LOGI("Creating texture... here we go!");
-
-    //gTextureID = createTexture(width, height);
-
-    // return osvrSetupSuccess;
     gGraphicsInitializedOnce = true;
     return true;
 }
@@ -1429,6 +989,7 @@ static bool setupGraphics(int width, int height) {
 * Just the current frame in the display.
 */
 static void renderFrame() {
+
     if (!gOSVRInitialized) {
         // @todo implement some logging/error handling?
         return;
@@ -1444,27 +1005,13 @@ static void renderFrame() {
 
     OSVR_ReturnCode rc;
 
-    // glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    // checkGlError("glClearColor");
-    // glViewport(0, 0, gWidth, gHeight);
-    // glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-    // checkGlError("glClear");
-
-    if (gRenderManager && gClientContext) {
+    if (s_render && gClientContext) {
         osvrClientUpdate(gClientContext);
-        // if (gLastFrame != nullptr) {
-        //     updateTexture(gLastFrameWidth, gLastFrameHeight, gLastFrame);
-        //     osvrClientFreeImage(gClientContext, gLastFrame);
-        //     gLastFrame = nullptr;
-        // }
 
         OSVR_RenderParams renderParams;
         rc = osvrRenderManagerGetDefaultRenderParams(&renderParams);
         checkReturnCode(rc,
                         "osvrRenderManagerGetDefaultRenderParams call failed.");
-
-        RenderInfoCollectionOpenGL renderInfoCollection(gRenderManager,
-                                                        renderParams);
 
         // Get the present started
         OSVR_RenderManagerPresentState presentState;
@@ -1473,12 +1020,13 @@ static void renderFrame() {
             rc, "osvrRenderManagerStartPresentRenderBuffers call failed.");
 
         for (OSVR_RenderInfoCount renderInfoCount = 0;
-             renderInfoCount < renderInfoCollection.getNumRenderInfo();
+             renderInfoCount < s_lastRenderInfo.size();
              renderInfoCount++) {
 
             // get the current render info
             OSVR_RenderInfoOpenGL currentRenderInfo =
-                renderInfoCollection.getRenderInfo(renderInfoCount);
+                s_lastRenderInfo[renderInfoCount];
+
             // Set color and depth buffers for the frame buffer
             OSVR_RenderTargetInfo renderTargetInfo =
                 gRenderTargets[renderInfoCount];
@@ -1501,7 +1049,7 @@ static void renderFrame() {
 
         // actually kick off the present
         rc = osvrRenderManagerFinishPresentRenderBuffers(
-            gRenderManager, presentState, renderParams, false);
+            s_render, presentState, renderParams, false);
         checkReturnCode(
             rc, "osvrRenderManagerFinishPresentRenderBuffers call failed.");
     }
@@ -1510,9 +1058,9 @@ static void renderFrame() {
 static void stop() {
     // LOGI("[OSVR] Shutting down...");
 
-    if (gRenderManager) {
-        osvrDestroyRenderManager(gRenderManager);
-        gRenderManager = gRenderManagerOGL = nullptr;
+    if (s_render) {
+        osvrDestroyRenderManager(s_render);
+        s_render = gRenderManagerOGL = nullptr;
     }
 
     // is this needed? Maybe not. the display config manages the lifetime.
@@ -1521,7 +1069,9 @@ static void stop() {
         gClientContext = nullptr;
     }
 
-    //osvrClientReleaseAutoStartedServer();
+    // @todo: The C# scripts also call this. Only one set is necessary, though
+    // they are both idempotent
+    osvrClientReleaseAutoStartedServer();
 }
 
 OSVR_ReturnCode CreateRenderManagerAndroid(OSVR_ClientContext context) {
@@ -1566,7 +1116,10 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
 OSVR_ReturnCode UNITY_INTERFACE_API
 CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 #if UNITY_ANDROID
-    return CreateRenderManagerAndroid(context);
+    OSVR_ReturnCode rc = CreateRenderManagerAndroid(context);
+    if(rc == OSVR_RETURN_FAILURE) {
+        return rc;
+    }
 #else
     if (s_render != nullptr) {
         if (osvrRenderManagerGetDoingOkay(s_render)) {
@@ -1655,7 +1208,7 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
         ShutdownRenderManager();
         return OSVR_RETURN_FAILURE;
     }
-
+#endif // non-Android platforms
     // create a new set of RenderParams for passing to GetRenderInfo()
     osvrRenderManagerGetDefaultRenderParams(&s_renderParams);
 
@@ -1663,7 +1216,6 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 
     DebugLog("[OSVR Rendering Plugin] CreateRenderManagerFromUnity Success!");
     return OSVR_RETURN_SUCCESS;
-#endif // non-Android platforms
 }
 
 /// Helper function that handles doing the loop of constructing buffers, and
@@ -1673,6 +1225,7 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
                                                     F &&bufferConstructor,
                                                     G &&bufferCleanup) {
 #if UNITY_ANDROID
+    UpdateRenderInfoCollection();
     return OSVR_RETURN_SUCCESS;
 #else
     /// If we bail any time before the end, we'll automatically clean up the
@@ -1865,10 +1418,13 @@ inline void CleanupBufferD3D11(OSVR_RenderBufferD3D11 &rb) { delete &rb; }
 
 OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 #if UNITY_ANDROID
-    if (!setupRenderTextures(gRenderManager)) {
+    if (!setupRenderTextures(s_render)) {
+        DebugLog("[OSVR Rendering Plugin] Failed to create render textures.");
         return OSVR_RETURN_FAILURE;
-    } else
+    } else {
+        UpdateRenderInfoCollection();
         return OSVR_RETURN_SUCCESS;
+    }
 #else
     if (!s_deviceType) {
         DebugLog("[OSVR Rendering Plugin] Device type not supported.");
@@ -1901,16 +1457,16 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 
 void UNITY_INTERFACE_API SetNearClipDistance(double distance) {
     s_nearClipDistance = distance;
-#if !UNITY_ANDROID
+// #if !UNITY_ANDROID
     s_renderParams.nearClipDistanceMeters = s_nearClipDistance;
-#endif
+// #endif
 }
 
 void UNITY_INTERFACE_API SetFarClipDistance(double distance) {
     s_farClipDistance = distance;
-#if !UNITY_ANDROID
+// #if !UNITY_ANDROID
     s_renderParams.farClipDistanceMeters = s_farClipDistance;
-#endif
+// #endif
 }
 
 void UNITY_INTERFACE_API SetIPD(double ipdMeters) {
@@ -1919,21 +1475,6 @@ void UNITY_INTERFACE_API SetIPD(double ipdMeters) {
 }
 
 OSVR_ViewportDescription UNITY_INTERFACE_API GetViewport(std::uint8_t eye) {
-#if UNITY_ANDROID
-    OSVR_RenderParams renderParams;
-    OSVR_ReturnCode rc = osvrRenderManagerGetDefaultRenderParams(&renderParams);
-    checkReturnCode(rc, "osvrRenderManagerGetDefaultRenderParams call failed.");
-    RenderInfoCollectionOpenGL renderInfoCollection(gRenderManager,
-                                                    renderParams);
-    OSVR_RenderInfoOpenGL currentRenderInfo =
-        renderInfoCollection.getRenderInfo(eye);
-    OSVR_ViewportDescription viewDesc;
-    viewDesc.width = currentRenderInfo.viewport.width;
-    viewDesc.height = currentRenderInfo.viewport.height;
-    viewDesc.left = currentRenderInfo.viewport.left;
-    viewDesc.lower = currentRenderInfo.viewport.lower;
-    return viewDesc;
-#else  // non-Android platoforms
     OSVR_ViewportDescription viewportDescription;
     if (numRenderInfo > 0 && eye <= numRenderInfo - 1) {
         viewportDescription = s_lastRenderInfo[eye].viewport;
@@ -1963,28 +1504,10 @@ OSVR_ViewportDescription UNITY_INTERFACE_API GetViewport(std::uint8_t eye) {
         lastGoodViewportDescription = viewportDescription;
     }
     return viewportDescription;
-#endif // non-Android platforms
 }
 
 OSVR_ProjectionMatrix UNITY_INTERFACE_API
 GetProjectionMatrix(std::uint8_t eye) {
-#if UNITY_ANDROID
-    OSVR_RenderParams renderParams;
-    OSVR_ReturnCode rc = osvrRenderManagerGetDefaultRenderParams(&renderParams);
-    checkReturnCode(rc, "osvrRenderManagerGetDefaultRenderParams call failed.");
-    RenderInfoCollectionOpenGL renderInfoCollection(gRenderManager,
-                                                    renderParams);
-    OSVR_RenderInfoOpenGL currentRenderInfo =
-        renderInfoCollection.getRenderInfo(eye);
-    OSVR_ProjectionMatrix proj;
-    proj.left = currentRenderInfo.projection.left;
-    proj.right = currentRenderInfo.projection.right;
-    proj.top = currentRenderInfo.projection.top;
-    proj.bottom = currentRenderInfo.projection.bottom;
-    proj.nearClip = currentRenderInfo.projection.nearClip;
-    proj.farClip = currentRenderInfo.projection.farClip;
-    return proj;
-#else
     OSVR_ProjectionMatrix pm;
     if (numRenderInfo > 0 && eye <= numRenderInfo - 1) {
         pm = s_lastRenderInfo[eye].projection;
@@ -1998,20 +1521,9 @@ GetProjectionMatrix(std::uint8_t eye) {
         pm = lastGoodProjMatrix;
     }
     return pm;
-#endif // non-Android platforms
 }
 
 OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
-#if UNITY_ANDROID
-    OSVR_RenderParams renderParams;
-    OSVR_ReturnCode rc = osvrRenderManagerGetDefaultRenderParams(&renderParams);
-    checkReturnCode(rc, "osvrRenderManagerGetDefaultRenderParams call failed.");
-    RenderInfoCollectionOpenGL renderInfoCollection(gRenderManager,
-                                                    renderParams);
-    OSVR_RenderInfoOpenGL currentRenderInfo =
-        renderInfoCollection.getRenderInfo(eye);
-    return currentRenderInfo.pose;
-#else
     OSVR_Pose3 pose;
     osvrPose3SetIdentity(&pose);
     if (numRenderInfo > 0 && eye <= numRenderInfo - 1) {
@@ -2025,7 +1537,6 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
         pose = lastGoodPose;
     }
     return pose;
-#endif // non-Android platforms
 }
 
 // --------------------------------------------------------------------------
@@ -2252,9 +1763,7 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
     case kOsvrEventID_Shutdown:
         break;
     case kOsvrEventID_Update:
-#if UNITY_WIN
         UpdateRenderInfoCollection();
-#endif
         break;
     case kOsvrEventID_SetRoomRotationUsingHead:
         SetRoomRotationUsingHead();
