@@ -56,7 +56,7 @@ target_include_directories(osvrUnityRenderingPlugin PRIVATE ${Boost_INCLUDE_DIRS
 
 if (OPENGL_FOUND AND GLEW_FOUND)
     target_include_directories(osvrUnityRenderingPlugin PRIVATE ${OPENGL_INCLUDE_DIRS})
-    target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} GLEW::GLEW JsonCpp::JsonCpp SDL2::SDL2 osvr::osvrClientKit osvrRenderManager::osvrRenderManager ${EXTRA_ANDROID_LINKER_FLAGS})
+    target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} GLEW::GLEW JsonCpp::JsonCpp SDL2::SDL2 osvr::osvrClientKit osvrRenderManager::osvrRenderManager android ${EXTRA_ANDROID_LINKER_FLAGS})
     # Handle static glew.
     if(GLEW_LIBRARY MATCHES ".*s.lib")
         target_compile_definitions(osvrUnityRenderingPlugin PRIVATE GLEW_STATIC)
@@ -64,11 +64,11 @@ if (OPENGL_FOUND AND GLEW_FOUND)
 endif()
 if (OPENGL_FOUND)
     target_include_directories(osvrUnityRenderingPlugin PRIVATE ${OPENGL_INCLUDE_DIRS})
-    target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} JsonCpp::JsonCpp osvr::osvrClientKit osvrRenderManager::osvrRenderManager ${EXTRA_ANDROID_LINKER_FLAGS})
+    target_link_libraries(osvrUnityRenderingPlugin ${OPENGL_LIBRARY} JsonCpp::JsonCpp osvr::osvrClientKit osvrRenderManager::osvrRenderManager android ${EXTRA_ANDROID_LINKER_FLAGS})
 endif()
 if(OPENGLES2_FOUND)
     target_include_directories(osvrUnityRenderingPlugin PRIVATE ${OPENGLES2_INCLUDE_DIR})
-	target_link_libraries(osvrUnityRenderingPlugin PRIVATE ${OPENGLES2_LIBRARIES} JsonCpp::JsonCpp osvr::osvrClientKit osvrRenderManager::osvrRenderManager ${EXTRA_ANDROID_LINKER_FLAGS})
+	target_link_libraries(osvrUnityRenderingPlugin PRIVATE ${OPENGLES2_LIBRARIES} JsonCpp::JsonCpp osvr::osvrClientKit osvrRenderManager::osvrRenderManager android ${EXTRA_ANDROID_LINKER_FLAGS})
 endif()
 
 # Install docs, license, sample config
