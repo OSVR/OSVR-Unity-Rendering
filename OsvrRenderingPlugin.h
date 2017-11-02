@@ -28,7 +28,7 @@ Sensics, Inc.
 #include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
 #include <osvr/Util/ClientOpaqueTypesC.h>
 #include <osvr/Util/ReturnCodesC.h>
-
+#include <osvr/ResetYaw/ResetYaw.h>
 typedef void(UNITY_INTERFACE_API *DebugFnPtr)(const char *);
 
 extern "C" {

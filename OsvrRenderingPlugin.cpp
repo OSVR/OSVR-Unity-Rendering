@@ -35,7 +35,6 @@ Sensics, Inc.
 #include <osvr/ClientKit/Interface.h>
 #include <osvr/Util/Finally.h>
 #include <osvr/Util/MatrixConventionsC.h>
-
 // standard includes
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 #include <fstream>
@@ -372,7 +371,7 @@ UpdateDistortionMesh(float distanceScale[2], float centerOfProjection[2],
 // Note that this method internally calls osvrClientUpdate() to get a head pose
 // so your callbacks may be called during its execution!
 /// @todo does this actually get called from anywhere or is it dead code?
-void SetRoomRotationUsingHead() { s_render->SetRoomRotationUsingHead(); }
+void SetRoomRotationUsingHead() { /*s_render->SetRoomRotationUsingHead();*/ }
 
 // Clears/resets the internal "room to world" transformation back to an
 // identity transformation - that is, clears the effect of any other
@@ -896,7 +895,8 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
         UpdateRenderInfo();
         break;
     case kOsvrEventID_SetRoomRotationUsingHead:
-        SetRoomRotationUsingHead();
+		osvrResetYaw();
+		//SetRoomRotationUsingHead();
         break;
     case kOsvrEventID_ClearRoomToWorldTransform:
         ClearRoomToWorldTransform();
