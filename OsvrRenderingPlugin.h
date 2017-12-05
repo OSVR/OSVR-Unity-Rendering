@@ -66,7 +66,7 @@ UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API OnRenderEvent(int eventID);
 
 /// @todo should return OSVR_ReturnCode
 UNITY_INTERFACE_EXPORT int UNITY_INTERFACE_API
-SetColorBufferFromUnity(void *texturePtr, std::uint8_t eye);
+SetColorBufferFromUnity(void *texturePtr, std::uint8_t eye, std::uint8_t buffer);
 
 UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API
 SetFarClipDistance(double distance);

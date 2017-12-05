@@ -186,17 +186,32 @@ static const char gFragmentShader[] =
     "}\n";
 
 #else // Windows, Linux, OSX static variables
+
+struct FrameInfo {
+	// Set up the vector of textures to render to and any framebuffer
+	// we need to group them.
+	std::vector<OSVR_RenderBufferD3D11> renderBuffers;
+	ID3D11Texture2D* depthStencilTexture;
+	ID3D11DepthStencilView* depthStencilView;
+	IDXGIKeyedMutex* keyedMutex;
+
+	// I prefer initialization list form
+	FrameInfo() : renderBuffers(2)
+		// vertices default ctor is ok, creates empty vector
+	{
+		// use vertices.push_back(...); to fill vertices
+	}
+
+};
+static std::vector<FrameInfo*> frameInfo;
 static OSVR_RenderParams s_renderParams;
 static OSVR_RenderManager s_render = nullptr;
 static OSVR_RenderManagerD3D11 s_renderD3D = nullptr;
 static OSVR_ClientContext s_clientContext = nullptr;
-static std::vector<OSVR_RenderBufferD3D11> s_renderBuffers;
 static std::vector<OSVR_RenderInfoD3D11> s_renderInfo;
 static std::vector<OSVR_RenderInfoD3D11> s_lastRenderInfo;
-static OSVR_RenderInfoCount numRenderInfo;
-static OSVR_RenderInfoCollection s_renderInfoCollection;
 static OSVR_GraphicsLibraryD3D11 s_libraryD3D;
-
+static OSVR_RenderInfoCount numRenderInfo;
 static OSVR_ProjectionMatrix lastGoodProjMatrix;
 static OSVR_Pose3 lastGoodPose;
 static OSVR_ViewportDescription lastGoodViewportDescription;
@@ -209,8 +224,13 @@ static std::streambuf *s_oldCerr = nullptr;
 #endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 #endif // end Windows, Linux, OSX
 
+static int numBuffers = 2; 
+static int iterations = 0;
+
 static void *s_leftEyeTexturePtr = nullptr;
 static void *s_rightEyeTexturePtr = nullptr;
+static void *s_leftEyeTexturePtrBuffer2 = nullptr;
+static void *s_rightEyeTexturePtrBuffer2 = nullptr;
 
 // D3D11 vars
 #if SUPPORT_D3D11
@@ -228,7 +248,7 @@ enum RenderEvents {
     kOsvrEventID_Render = 0,
     kOsvrEventID_Shutdown = 1,
     kOsvrEventID_Update = 2,
-    kOsvrEventID_SetRoomRotationUsingHead = 3,
+    kOsvrEventID_ConstructBuffers = 3,
     kOsvrEventID_ClearRoomToWorldTransform = 4
 };
 
@@ -491,31 +511,37 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
 }
 
 #if UNITY_WIN
-inline void UpdateRenderInfoCollection() {
-    if ((OSVR_RETURN_SUCCESS !=
-         osvrRenderManagerGetRenderInfoCollection(s_render, s_renderParams,
-                                                  &s_renderInfoCollection))) {
-        DebugLog("[OSVR Rendering Plugin] UpdateRenderInfo Could not get "
-                 "renderinfo collection.");
-        ShutdownRenderManager();
-    }
-    osvrRenderManagerGetNumRenderInfoInCollection(s_renderInfoCollection,
-                                                  &numRenderInfo);
+inline void UpdateRenderInfo() {
+	// Do a call to get the information we need to construct our
+	// color and depth render-to-texture buffers.
+	
+	OSVR_RenderParams renderParams;
+	osvrRenderManagerGetDefaultRenderParams(&renderParams);
 
-    // update renderinfo
-    s_renderInfo.clear();
-    for (OSVR_RenderInfoCount i = 0; i < numRenderInfo; i++) {
-        OSVR_RenderInfoD3D11 info;
-        if ((OSVR_RETURN_SUCCESS !=
-             osvrRenderManagerGetRenderInfoFromCollectionD3D11(
-                 s_renderInfoCollection, i, &info))) {
-            DebugLog("[OSVR Rendering Plugin] Could not get render info.");
-        }
-        s_renderInfo.push_back(info);
-    }
-    if (numRenderInfo > 0) {
-        s_lastRenderInfo = s_renderInfo;
-    }
+	if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetNumRenderInfo(
+		s_render, renderParams, &numRenderInfo))) {
+		std::cerr << "Could not get context number of render infos."
+			<< std::endl;
+		osvrDestroyRenderManager(s_render);
+		return;
+	}
+
+	s_renderInfo.clear();
+	for (OSVR_RenderInfoCount i = 0; i < numRenderInfo; i++) {
+		OSVR_RenderInfoD3D11 info;
+		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetRenderInfoD3D11(
+			s_renderD3D, i, renderParams, &info))) {
+			std::cerr << "Could not get render info " << i
+				<< std::endl;
+			osvrDestroyRenderManager(s_render);
+			return;
+		}
+		s_renderInfo.push_back(info);
+	}
+	if (numRenderInfo > 0)
+	{
+		s_lastRenderInfo = s_renderInfo;
+	}
 }
 #endif // UNITY_WIN
 
@@ -1526,7 +1552,7 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
     // create a new set of RenderParams for passing to GetRenderInfo()
     osvrRenderManagerGetDefaultRenderParams(&s_renderParams);
 
-    UpdateRenderInfoCollection();
+    UpdateRenderInfo();
 
     DebugLog("[OSVR Rendering Plugin] CreateRenderManagerFromUnity Success!");
     return OSVR_RETURN_SUCCESS;
@@ -1571,7 +1597,7 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
     // Register our constructed buffers so that we can use them for
     // presentation.
 
-    UpdateRenderInfoCollection();
+    UpdateRenderInfo();
 
     OSVR_RenderManagerRegisterBufferState registerBufferState;
     if ((OSVR_RETURN_SUCCESS !=
@@ -1590,7 +1616,7 @@ inline OSVR_ReturnCode applyRenderBufferConstructor(const int numBuffers,
         }
     }
     if ((OSVR_RETURN_SUCCESS != osvrRenderManagerFinishRegisterRenderBuffers(
-                                    s_render, registerBufferState, false))) {
+                                    s_render, registerBufferState, true))) {
         DebugLog("[OSVR Rendering Plugin]Could not finish registering render "
                  "buffers");
         ShutdownRenderManager();
@@ -1676,12 +1702,20 @@ inline void CleanupBufferOpenGL(OSVR_RenderBufferOpenGL &rb) {
 #endif // SUPPORT_OPENGL
 
 #if SUPPORT_D3D11
-inline ID3D11Texture2D *GetEyeTextureD3D11(int eye) {
-    return reinterpret_cast<ID3D11Texture2D *>(eye == 0 ? s_leftEyeTexturePtr
-                                                        : s_rightEyeTexturePtr);
+inline ID3D11Texture2D *GetEyeTextureD3D11(int eye, int buffer) {
+	if (buffer == 0)
+	{
+		return reinterpret_cast<ID3D11Texture2D *>(eye == 0 ? s_leftEyeTexturePtr
+			: s_rightEyeTexturePtr);
+	}
+	else
+	{
+		return reinterpret_cast<ID3D11Texture2D *>(eye == 0 ? s_leftEyeTexturePtrBuffer2
+			: s_rightEyeTexturePtrBuffer2);
+	}
 }
 
-inline OSVR_ReturnCode ConstructBuffersD3D11(int eye) {
+inline OSVR_ReturnCode ConstructBuffersD3D11(int eye, int buffer, FrameInfo* fInfo) {
     DebugLog("[OSVR Rendering Plugin] ConstructBuffersD3D11");
     HRESULT hr;
     // The color buffer for this eye.  We need to put this into
@@ -1689,7 +1723,7 @@ inline OSVR_ReturnCode ConstructBuffersD3D11(int eye) {
     // to fill in the Direct3D portion.
     //  Note that this texture format must be RGBA and unsigned byte,
     // so that we can present it to Direct3D for DirectMode.
-    ID3D11Texture2D *D3DTexture = GetEyeTextureD3D11(eye);
+    ID3D11Texture2D *D3DTexture = GetEyeTextureD3D11(eye, buffer);
     unsigned width = static_cast<unsigned>(s_renderInfo[eye].viewport.width);
     unsigned height = static_cast<unsigned>(s_renderInfo[eye].viewport.height);
 
@@ -1722,7 +1756,64 @@ inline OSVR_ReturnCode ConstructBuffersD3D11(int eye) {
     OSVR_RenderBufferD3D11 rbD3D;
     rbD3D.colorBuffer = D3DTexture;
     rbD3D.colorBufferView = renderTargetView;
-    s_renderBuffers.push_back(rbD3D);
+	fInfo->renderBuffers.push_back(rbD3D);
+    //s_renderBuffers.push_back(rbD3D);
+
+	IDXGIKeyedMutex* keyedMutex = nullptr;
+	hr = D3DTexture->QueryInterface(
+		__uuidof(IDXGIKeyedMutex), (LPVOID*)&keyedMutex);
+	if (FAILED(hr) || keyedMutex == nullptr) {
+		std::cerr << "Could not get mutex pointer" << std::endl;
+		return -2;
+	}
+	fInfo->keyedMutex = keyedMutex;
+
+	//==================================================================
+	// Create a depth buffer
+
+	// Make the depth/stencil texture.
+	D3D11_TEXTURE2D_DESC textureDescription = { 0 };
+	textureDescription.SampleDesc.Count = 1;
+	textureDescription.SampleDesc.Quality = 0;
+	textureDescription.Usage = D3D11_USAGE_DEFAULT;
+	textureDescription.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	textureDescription.Width = width;
+	textureDescription.Height = height;
+	textureDescription.MipLevels = 1;
+	textureDescription.ArraySize = 1;
+	textureDescription.CPUAccessFlags = 0;
+	textureDescription.MiscFlags = 0;
+	/// @todo Make this a parameter
+	textureDescription.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	ID3D11Texture2D* depthStencilBuffer;
+	hr = s_libraryD3D.device->CreateTexture2D(
+		&textureDescription, NULL, &depthStencilBuffer);
+	if (FAILED(hr)) {
+		std::cerr << "Could not create depth/stencil texture"
+			<< std::endl;
+		return -4;
+	}
+	fInfo->depthStencilTexture = depthStencilBuffer;
+
+	// Create the depth/stencil view description
+	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDescription;
+	memset(&depthStencilViewDescription, 0, sizeof(depthStencilViewDescription));
+	depthStencilViewDescription.Format = textureDescription.Format;
+	depthStencilViewDescription.ViewDimension =
+		D3D11_DSV_DIMENSION_TEXTURE2D;
+	depthStencilViewDescription.Texture2D.MipSlice = 0;
+
+	ID3D11DepthStencilView* depthStencilView;
+	hr = s_libraryD3D.device->CreateDepthStencilView(
+		depthStencilBuffer,
+		&depthStencilViewDescription,
+		&depthStencilView);
+	if (FAILED(hr)) {
+		std::cerr << "Could not create depth/stencil view"
+			<< std::endl;
+		return -5;
+	}
+	fInfo->depthStencilView = depthStencilView;
 
     return OSVR_RETURN_SUCCESS;
 }
@@ -1741,21 +1832,59 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
         DebugLog("[OSVR Rendering Plugin] Device type not supported.");
         return OSVR_RETURN_FAILURE;
     }
-    UpdateRenderInfoCollection();
+    UpdateRenderInfo();
 
     // construct buffers
-    const int n = static_cast<int>(numRenderInfo);
+    //const int n = static_cast<int>(numRenderInfo);
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
     case OSVRSupportedRenderers::D3D11:
-        return applyRenderBufferConstructor(n, ConstructBuffersD3D11,
-                                            CleanupBufferD3D11);
+		for (int i = 0; i < numBuffers; i++)
+		{
+			FrameInfo* f = new FrameInfo();
+			f->renderBuffers.clear();
+			for (int j = 0; j < numRenderInfo; j++)
+			{
+				ConstructBuffersD3D11(i, j, f);
+			}
+			frameInfo.push_back(f);
+		}
+
+		// Register our constructed buffers so that we can use them for
+		// presentation.
+		OSVR_RenderManagerRegisterBufferState registerBufferState;
+		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerStartRegisterRenderBuffers(
+			&registerBufferState))) {
+			std::cerr << "Could not start registering render buffers" << std::endl;
+			osvrDestroyRenderManager(s_render);
+			return -4;
+		}
+		for (size_t i = 0; i < frameInfo.size(); i++) {
+			for (int j = 0; j < numRenderInfo; j++)
+			{
+				if ((OSVR_RETURN_SUCCESS != osvrRenderManagerRegisterRenderBufferD3D11(
+					registerBufferState, frameInfo[i]->renderBuffers[j]))) {
+					std::cerr << "Could not register render buffer " << i << std::endl;
+					osvrDestroyRenderManager(s_render);
+					return -5;
+				}
+			}
+			
+		}
+		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerFinishRegisterRenderBuffers(
+			s_render, registerBufferState, false))) {
+			std::cerr << "Could not finish registering render buffers" << std::endl;
+			osvrDestroyRenderManager(s_render);
+			return -6;
+		}
+        //return applyRenderBufferConstructor(n, ConstructBuffersD3D11,
+                                           // CleanupBufferD3D11);
         break;
 #endif
 #if SUPPORT_OPENGL
     case OSVRSupportedRenderers::OpenGL:
-        return applyRenderBufferConstructor(n, ConstructBuffersOpenGL,
-                                            CleanupBufferOpenGL);
+       // return applyRenderBufferConstructor(n, ConstructBuffersOpenGL,
+                                          //  CleanupBufferOpenGL);
         break;
 #endif
     case OSVRSupportedRenderers::EmptyRenderer:
@@ -1909,7 +2038,7 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 // For more reference, see:
 // http://docs.unity3d.com/ScriptReference/Texture.GetNativeTexturePtr.html
 int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr,
-                                                std::uint8_t eye) {
+	std::uint8_t eye, std::uint8_t buffer) {
     if (!s_deviceType) {
         return OSVR_RETURN_FAILURE;
     }
@@ -1925,10 +2054,32 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr,
     return OSVR_RETURN_SUCCESS;
 #else
     if (eye == 0) {
-        s_leftEyeTexturePtr = texturePtr;
+		if (buffer == 0)
+		{
+			DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity eye 0 buffer 0");
+
+			s_leftEyeTexturePtr = texturePtr;
+		}
+		else
+		{
+			DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity eye 1 buffer 0");
+
+			s_leftEyeTexturePtrBuffer2 = texturePtr;
+		}
     } else {
-        s_rightEyeTexturePtr = texturePtr;
-    }
+		if (buffer == 0)
+		{
+			DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity eye 0 buffer 1");
+
+			s_rightEyeTexturePtr = texturePtr;
+		}
+		else
+		{
+			DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity eye 1 buffer 1");
+
+			s_rightEyeTexturePtrBuffer2 = texturePtr;
+		}
+	}
 
     return OSVR_RETURN_SUCCESS;
 #endif
@@ -1937,13 +2088,13 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr,
 // Renders the view from our Unity cameras by copying data at
 // Unity.RenderTexture.GetNativeTexturePtr() to RenderManager colorBuffers
 void RenderViewD3D11(const OSVR_RenderInfoD3D11 &ri,
-                     ID3D11RenderTargetView *renderTargetView, int eyeIndex) {
+                     ID3D11RenderTargetView *renderTargetView, int eyeIndex, int frame) {
     auto context = ri.library.context;
     // Set up to render to the textures for this eye
     context->OMSetRenderTargets(1, &renderTargetView, NULL);
 
     // copy the updated RenderTexture from Unity to RenderManager colorBuffer
-    s_renderBuffers[eyeIndex].colorBuffer = GetEyeTextureD3D11(eyeIndex);
+    frameInfo[frame]->renderBuffers[eyeIndex].colorBuffer = GetEyeTextureD3D11(eyeIndex, frame);
 }
 #endif // SUPPORT_D3D11
 
@@ -2030,12 +2181,53 @@ inline void DoRender() {
     switch (s_deviceType.getDeviceTypeEnum()) {
 #if SUPPORT_D3D11
     case OSVRSupportedRenderers::D3D11: {
+
+
+		int frame = iterations % numBuffers;
+
+		// Grab and lock the mutex, so that we will be able to render
+		// to it whether or not RenderManager locks it on our behalf.
+		// it will not be auto-locked when we're in the non-ATW case.
+		//std::cout << "RenderThread: locking buffer for frame " << frame << " using key " << 0 << std::endl;
+		/*auto hr = frameInfo[frame]->keyedMutex->AcquireSync(0, 500);
+		if (FAILED(hr) || hr == E_FAIL || hr == WAIT_ABANDONED || hr == WAIT_TIMEOUT) {
+			std::cerr << "RenderThread: could not lock buffer for frame " << frame << std::endl;
+			switch (hr) {
+			case E_FAIL:
+				std::cerr << "RenderThread: error == E_FAIL" << std::endl;
+				break;
+			case WAIT_ABANDONED:
+				std::cerr << "RenderThread: error == WAIT_ABANDONED" << std::endl;
+				break;
+			case WAIT_TIMEOUT:
+				std::cerr << "RenderThread: error == WAIT_TIMEOUT" << std::endl;
+				break;
+			default:
+				std::cerr << "RenderThread: error == (unknown error type: " << hr << ")" << std::endl;
+				break;
+			}
+			osvrDestroyRenderManager(s_render);
+			return;
+		}*/
+
+
         const auto n = static_cast<int>(numRenderInfo);
         // Render into each buffer using the specified information.
         for (int i = 0; i < n; ++i) {
-            RenderViewD3D11(s_renderInfo[i], s_renderBuffers[i].colorBufferView,
-                            i);
+            RenderViewD3D11(s_renderInfo[i], frameInfo[frame]->renderBuffers[i].colorBufferView,
+                            i, frame);
         }
+
+		// Grab and lock the mutex, so that we will be able to render
+		// to it whether or not RenderManager locks it on our behalf.
+		// it will not be auto-locked when we're in the non-ATW case.
+		//std::cout << "RenderThread: Unlocking buffer for frame " << frame << " using key " << 1 << std::endl;
+		/*hr = frameInfo[frame]->keyedMutex->ReleaseSync(0);
+		if (FAILED(hr)) {
+			std::cerr << "RenderThread: could not unlock buffer for frame " << frame << std::endl;
+			osvrDestroyRenderManager(s_render);
+			return;
+		}*/
 
         // Send the rendered results to the screen
         OSVR_RenderManagerPresentState presentState;
@@ -2045,14 +2237,25 @@ inline void DoRender() {
                      "render buffers");
             ShutdownRenderManager();
         }
-        OSVR_ViewportDescription fullView;
-        fullView.left = fullView.lower = 0;
-        fullView.width = fullView.height = 1;
+		// create normalized cropping viewports for side-by-side rendering to a single render target
+		std::vector<OSVR_ViewportDescription> NVCPs;
+		double fraction = 1.0 / s_renderInfo.size();
+		for (size_t i = 0; i < s_renderInfo.size(); i++) {
+			OSVR_ViewportDescription v;
+			v.left = fraction * i;
+			v.lower = 0.0;
+			v.width = fraction;
+			v.height = 1;
+			NVCPs.push_back(v);
+		}
+		OSVR_ViewportDescription fullView;
+		fullView.left = fullView.lower = 0;
+		fullView.width = fullView.height = 1;
         for (size_t i = 0; i < numRenderInfo; i++) {
             if ((OSVR_RETURN_SUCCESS !=
                  osvrRenderManagerPresentRenderBufferD3D11(
-                     presentState, s_renderBuffers[i], s_renderInfo[i],
-                     fullView))) {
+				 presentState, frameInfo[frame]->renderBuffers[i], s_renderInfo[i],
+				 fullView))) {
                 DebugLog(
                     "[OSVR Rendering Plugin] Could not present render buffer ");
                 ShutdownRenderManager();
@@ -2066,6 +2269,9 @@ inline void DoRender() {
                      "render buffers");
             ShutdownRenderManager();
         }
+
+		iterations++;
+
         break;
     }
 #endif // SUPPORT_D3D11
@@ -2120,14 +2326,15 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
         break;
     case kOsvrEventID_Update:
 #if UNITY_WIN
-        UpdateRenderInfoCollection();
+        UpdateRenderInfo();
 #endif
         break;
-    case kOsvrEventID_SetRoomRotationUsingHead:
-        SetRoomRotationUsingHead();
+	case kOsvrEventID_ConstructBuffers:
+		ConstructRenderBuffers();
+       // SetRoomRotationUsingHead();
         break;
     case kOsvrEventID_ClearRoomToWorldTransform:
-        ClearRoomToWorldTransform();
+       // ClearRoomToWorldTransform();
         break;
     default:
         break;
