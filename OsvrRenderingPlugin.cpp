@@ -446,7 +446,7 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
     }
 
     case kUnityGfxDeviceEventShutdown: {
-        DebugLog("[OSVR Rendering Plugin] OnGraphicsDeviceEvent(Shutdown).\n");
+       // DebugLog("[OSVR Rendering Plugin] OnGraphicsDeviceEvent(Shutdown).\n");
         /// Here, we want to dispatch before we reset the device type, so the
         /// right device type gets shut down. Thus we return instead of break.
         dispatchEventToRenderer(s_deviceType, eventType);
