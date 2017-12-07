@@ -520,9 +520,8 @@ inline void UpdateRenderInfo() {
 
 	if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetNumRenderInfo(
 		s_render, renderParams, &numRenderInfo))) {
-		std::cerr << "Could not get context number of render infos."
-			<< std::endl;
-		osvrDestroyRenderManager(s_render);
+		DebugLog("[OSVR Rendering Plugin] Could not get context number of render infos.");
+		ShutdownRenderManager();
 		return;
 	}
 
@@ -531,9 +530,8 @@ inline void UpdateRenderInfo() {
 		OSVR_RenderInfoD3D11 info;
 		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetRenderInfoD3D11(
 			s_renderD3D, i, renderParams, &info))) {
-			std::cerr << "Could not get render info " << i
-				<< std::endl;
-			osvrDestroyRenderManager(s_render);
+			DebugLog("[OSVR Rendering Plugin] Could not get render info " + i);
+			ShutdownRenderManager();
 			return;
 		}
 		s_renderInfo.push_back(info);
@@ -1448,8 +1446,10 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
     if (s_render != nullptr) {
         osvrDestroyRenderManager(s_render);
         s_render = nullptr;
-        s_rightEyeTexturePtr = nullptr;
         s_leftEyeTexturePtr = nullptr;
+		s_leftEyeTexturePtrBuffer2 = nullptr;
+		s_rightEyeTexturePtr = nullptr;
+		s_rightEyeTexturePtrBuffer2 = nullptr;
     }
     s_clientContext = nullptr;
 #endif
@@ -1856,26 +1856,26 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerStartRegisterRenderBuffers(
 			&registerBufferState))) {
 			std::cerr << "Could not start registering render buffers" << std::endl;
-			osvrDestroyRenderManager(s_render);
-			return -4;
+			ShutdownRenderManager();			
+			return OSVR_RETURN_FAILURE;
 		}
 		for (size_t i = 0; i < frameInfo.size(); i++) {
 			for (int j = 0; j < numRenderInfo; j++)
 			{
 				if ((OSVR_RETURN_SUCCESS != osvrRenderManagerRegisterRenderBufferD3D11(
 					registerBufferState, frameInfo[i]->renderBuffers[j]))) {
-					std::cerr << "Could not register render buffer " << i << std::endl;
-					osvrDestroyRenderManager(s_render);
-					return -5;
+					DebugLog("[OSVR Rendering Plugin] Could not register render buffer ");
+					ShutdownRenderManager();
+					return OSVR_RETURN_FAILURE;
 				}
 			}
 			
 		}
 		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerFinishRegisterRenderBuffers(
 			s_render, registerBufferState, false))) {
-			std::cerr << "Could not finish registering render buffers" << std::endl;
-			osvrDestroyRenderManager(s_render);
-			return -6;
+			DebugLog("[OSVR Rendering Plugin] Could not finish registering render buffers");
+			ShutdownRenderManager();
+			return OSVR_RETURN_FAILURE;
 		}
         //return applyRenderBufferConstructor(n, ConstructBuffersD3D11,
                                            // CleanupBufferD3D11);
