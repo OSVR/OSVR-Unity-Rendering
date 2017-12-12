@@ -323,7 +323,7 @@ inline void DoEventGraphicsDeviceD3D11(UnityGfxDeviceEventType eventType) {
     case kUnityGfxDeviceEventShutdown: {
         // Close the Renderer interface cleanly.
         // This should be handled in ShutdownRenderManager
-        /// @todo delete library.D3D11; library.D3D11 = nullptr; ?
+        /// @todo delete library.D3D11; library.D3D11 = nullptr; 
         break;
     }
     }
@@ -450,7 +450,7 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
         /// Here, we want to dispatch before we reset the device type, so the
         /// right device type gets shut down. Thus we return instead of break.
         dispatchEventToRenderer(s_deviceType, eventType);
-        s_deviceType.reset();
+       // s_deviceType.reset();
         return;
     }
 
@@ -512,9 +512,13 @@ void UNITY_INTERFACE_API UnityPluginUnload() {
 
 #if UNITY_WIN
 inline void UpdateRenderInfo() {
+	
+	if (s_render == nullptr)
+	{
+		return;
+	}
 	// Do a call to get the information we need to construct our
 	// color and depth render-to-texture buffers.
-	
 	OSVR_RenderParams renderParams;
 	osvrRenderManagerGetDefaultRenderParams(&renderParams);
 
@@ -1450,6 +1454,17 @@ void UNITY_INTERFACE_API ShutdownRenderManager() {
 		s_leftEyeTexturePtrBuffer2 = nullptr;
 		s_rightEyeTexturePtr = nullptr;
 		s_rightEyeTexturePtrBuffer2 = nullptr;
+		//s_renderInfo.clear();
+		//s_lastRenderInfo.clear();
+		/*for (int i = 0; i < frameInfo.size(); i++)
+		{
+			for (int j = 0; j < frameInfo[i]->renderBuffers.size(); j++)
+			{
+				frameInfo[i]->renderBuffers[j] = nullptr;
+			}
+
+		}*/
+		frameInfo.clear();
     }
     s_clientContext = nullptr;
 #endif
@@ -1471,7 +1486,8 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 
         DebugLog("[OSVR Rendering Plugin] RenderManager already created, "
                  "but not doing OK. Will shut down before creating again.");
-        ShutdownRenderManager();
+      //  ShutdownRenderManager();
+		return OSVR_RETURN_SUCCESS;
     }
     if (s_clientContext != nullptr) {
         DebugLog(
@@ -1855,7 +1871,7 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 		OSVR_RenderManagerRegisterBufferState registerBufferState;
 		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerStartRegisterRenderBuffers(
 			&registerBufferState))) {
-			std::cerr << "Could not start registering render buffers" << std::endl;
+			DebugLog("[OSVR Rendering Plugin] Could not start registering render buffers");
 			ShutdownRenderManager();			
 			return OSVR_RETURN_FAILURE;
 		}
@@ -2010,7 +2026,7 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 #else
     OSVR_Pose3 pose;
     osvrPose3SetIdentity(&pose);
-    if (numRenderInfo > 0 && eye <= numRenderInfo - 1) {
+    if (numRenderInfo > 0 && eye <= numRenderInfo - 1 && s_render != nullptr) {
         pose = s_lastRenderInfo[eye].pose;
         lastGoodPose = pose;
     } else {
