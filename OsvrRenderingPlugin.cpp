@@ -117,7 +117,8 @@ static JNIEnv *jniEnvironment = 0;
 static jclass osvrJniWrapperClass;
 static jmethodID logMsgId;
 static jobject unityActivityClassInstance;
-
+static const char* OSVR_JNI_CLASS_PATH = "org/osvr/osvrunityjni/OsvrJNIWrapper";
+static const char* OSVR_JNI_LOG_METHOD_NAME = "logMsg";
 static int gWidth = 0;
 static int gHeight = 0;
 static GLuint gProgram;
@@ -160,7 +161,7 @@ static OSVR_RenderParams gRenderParams = { 0 };
 //static std::vector<OSVR_RenderBufferOpenGL> buffers;
 //static std::vector<OSVR_RenderTargetInfoOpenGL> gRenderTargets;
 static bool contextSet = false;
-static jmethodID logmid = nullptr;
+static jmethodID androidDebugLogMethodID = nullptr;
 struct FrameInfoOpenGL {
 	// Set up the vector of textures to render to and any framebuffer
 	// we need to group them.
@@ -270,16 +271,18 @@ void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) { s_debugLog = d; }
 
 // Only for debugging purposes, as this causes some errors at shutdown
 inline void DebugLog(const char *str) {
-	//@todo complete logMsg implementation in JNI plugin
-	// for now just return on Android
 #if UNITY_ANDROID
-	if (logmid != nullptr)
+	//@todo resolve issue where uncommenting this code
+	//causes a crash when the scene switches or quits
+	/*
+	if (androidDebugLogMethodID != nullptr)
 	{
-		jstring jstr2 = jniEnvironment->NewStringUTF(str);
-		jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass,
-			logmid, jstr2);
-	}
+	jstring jstr = jniEnvironment->NewStringUTF(str);
+	jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass,
+	androidDebugLogMethodID, jstr);
+	*/
 	return;
+
 #else // all platforms besides Android
 #if !defined(NDEBUG) || defined(ENABLE_LOGGING)
 	if (s_debugLog != nullptr) {
@@ -403,15 +406,15 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
 	case kUnityGfxDeviceEventInitialize: {
 #if UNITY_ANDROID
 		osvrJniWrapperClass = jniEnvironment->FindClass(
-			"org/osvr/osvrunityjni/OsvrJNIWrapper"); // try to find the class
+			OSVR_JNI_CLASS_PATH); // try to find the class
 		if (osvrJniWrapperClass == nullptr) {
 			return;
 		}
 		else { // if osvrJniWrapperClass found, continue
 
 			// get the Android logger method ID
-			logmid = jniEnvironment->GetStaticMethodID(
-				osvrJniWrapperClass, "logMsg",
+			androidDebugLogMethodID = jniEnvironment->GetStaticMethodID(
+				osvrJniWrapperClass, OSVR_JNI_LOG_METHOD_NAME,
 				"(Ljava/lang/String;)V"); // find method
 			// get the method ID for setting the GL context
 			jmethodID setGlContextId = jniEnvironment->GetStaticMethodID(
@@ -422,13 +425,14 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
 			else {
 				jlong currentEglContextHandle =
 					jniEnvironment->CallStaticLongMethod(
-					osvrJniWrapperClass, setGlContextId); // call mathod
+					osvrJniWrapperClass, setGlContextId); // call method to set Unity GL context
+
 				// example code for logging the context ID
 				/*long myLongValue = (long)currentEglContextHandle;
 				std::string stringy = "[OSVR-Unity-Android]  setCurrentContext with handle : " + std::to_string(myLongValue);
 				jstring jstr2 = jniEnvironment->NewStringUTF(stringy.c_str());
 				jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass,
-				logmid, jstr2);*/
+				androidDebugLogMethodID, jstr2);*/
 				contextSet = true;
 			}
 			// get the display width and height via JNI
@@ -1308,13 +1312,13 @@ static bool setupGraphics(int width, int height) {
 		}
 		else { // if class found, continue
 
-			jmethodID logmid = jniEnvironment->GetStaticMethodID(
+			jmethodID androidDebugLogMethodID = jniEnvironment->GetStaticMethodID(
 				osvrJniWrapperClass, "logMsg",
 				"(Ljava/lang/String;)V"); // find method
 			std::string stringy =
 				"[OSVR-Unity-Android]  Could not create program.";
 			jstring jstr2 = jniEnvironment->NewStringUTF(stringy.c_str());
-			jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass, logmid,
+			jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass, androidDebugLogMethodID,
 				jstr2);
 		}
 		return false;
@@ -1482,7 +1486,7 @@ void ShutdownRenderManagerAndroid() {
 #endif
 
 void UNITY_INTERFACE_API ShutdownRenderManager() {
-	DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
+	//DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
 #if UNITY_ANDROID
 	ShutdownRenderManagerAndroid();
 	return;
