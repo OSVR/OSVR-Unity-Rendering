@@ -15,6 +15,7 @@ typedef enum UnityGfxRenderer
 	kUnityGfxRendererPS4               = 13, // PlayStation 4
 	kUnityGfxRendererXboxOne           = 14, // Xbox One        
 	kUnityGfxRendererMetal             = 16, // iOS Metal
+	kUnityGfxRendererOpenGLCore		   = 17, // Desktop OpenGL core
 	kUnityGfxRendererD3D12             = 18, // Direct3D 12
 } UnityGfxRenderer;
 
