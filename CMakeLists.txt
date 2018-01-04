@@ -31,6 +31,14 @@ find_package(SDL2)
 set (osvrUnityRenderingPlugin_SOURCES
     OsvrRenderingPlugin.h
     OsvrRenderingPlugin.cpp
+	OsvrUnityRenderer.cpp
+	OsvrUnityRenderer.h
+	OsvrAndroidRenderer.cpp
+	OsvrAndroidRenderer.h
+	OsvrD3DRenderer.cpp
+	OsvrD3DRenderer.h
+	OsvrOpenGLRenderer.cpp
+	OsvrOpenGLRenderer.h
     PluginConfig.h
     UnityRendererType.h
 )

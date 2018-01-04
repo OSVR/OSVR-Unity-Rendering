@@ -30,7 +30,6 @@ Sensics, Inc.
 #include <osvr/Util/ClientOpaqueTypesC.h>
 #include <osvr/Util/ReturnCodesC.h>
 #include <cstdint>
-#include "OsvrUnityRenderer.h"
 
 typedef void(UNITY_INTERFACE_API *DebugFnPtr)(const char *);
 
