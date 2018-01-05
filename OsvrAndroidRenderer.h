@@ -24,8 +24,6 @@
 class OsvrAndroidRenderer : public OsvrUnityRenderer{
 public:
 	OsvrAndroidRenderer();
-	~OsvrAndroidRenderer();
-	
 	virtual OSVR_ReturnCode ConstructRenderBuffers();
 	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context);
 	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye);
@@ -37,6 +35,8 @@ public:
 	virtual void SetIPD(double ipdMeters);
 	virtual void SetNearClipDistance(double distance);
 	virtual void ShutdownRenderManager();
+	virtual void UpdateRenderInfo();
+
 #if UNITY_ANDROID
 	 JNIEnv *jniEnvironment = 0;
 	 jclass osvrJniWrapperClass;
@@ -93,6 +93,8 @@ public:
 		bool setupRenderTextures(OSVR_RenderManager renderManager);
 		OSVR_ClientContext gClientContext = NULL;
 		OSVR_RenderManager gRenderManager = nullptr;
+		OSVR_RenderManagerOpenGL gRenderManagerOGL = nullptr;
+
 		bool gGraphicsInitializedOnce =
 			false; // if setupGraphics has been called at least once
 		bool gOSVRInitialized = false;
@@ -127,9 +129,12 @@ public:
 		GLuint gLastFrameWidth = 0;
 		GLuint gLastFrameHeight = 0;
 		GLubyte *gTextureBuffer = nullptr;
+
+#if UNITY_ANDROID
 		OSVR_GraphicsLibraryOpenGL gGraphicsLibrary = { 0 };
-		OSVR_RenderManagerOpenGL gRenderManagerOGL = nullptr;
 		OSVR_RenderParams gRenderParams = { 0 };
+#endif
+
 		// std::vector<OSVR_RenderBufferOpenGL> buffers;
 		// std::vector<OSVR_RenderTargetInfoOpenGL> gRenderTargets;
 		bool contextSet = false;

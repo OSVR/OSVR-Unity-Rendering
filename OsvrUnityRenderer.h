@@ -44,8 +44,15 @@ Sensics, Inc.
 
 class OsvrUnityRenderer {
 public:
-	OsvrUnityRenderer();
-	~OsvrUnityRenderer();
+	OsvrUnityRenderer::OsvrUnityRenderer()
+	{
+
+	}
+
+	OsvrUnityRenderer::~OsvrUnityRenderer()
+	{
+
+	}
 	virtual OSVR_ReturnCode ConstructRenderBuffers();
 	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context);
 	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye);
@@ -57,6 +64,7 @@ public:
 	virtual void SetIPD(double ipdMeters);
 	virtual void SetNearClipDistance(double distance);
 	virtual void ShutdownRenderManager();
+	virtual void UpdateRenderInfo();
 	//@todo debuglog
 
 protected:
@@ -85,5 +93,6 @@ protected:
 		kOsvrEventID_ConstructBuffers = 3,
 		kOsvrEventID_ClearRoomToWorldTransform = 4
 	};
+
 };
 

@@ -2,10 +2,10 @@
 #include "OsvrAndroidRenderer.h"
 
 
-OsvrAndroidRenderer::OsvrAndroidRenderer()
-	{
+OsvrAndroidRenderer::OsvrAndroidRenderer() : OsvrUnityRenderer()
+{
 		
-	}
+}
 
 OSVR_ReturnCode OsvrAndroidRenderer::ConstructRenderBuffers()
 	{
@@ -1039,6 +1039,10 @@ void OsvrAndroidRenderer::ShutdownRenderManager()
 
 	osvrClientReleaseAutoStartedServer();
 	contextSet = false;
+}
+
+void OsvrAndroidRenderer::UpdateRenderInfo()
+{
 }
 
 

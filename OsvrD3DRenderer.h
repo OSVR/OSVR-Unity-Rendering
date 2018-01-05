@@ -1,87 +1,68 @@
-/** @file
-@brief Header
-@date 2015
-@author
-Sensics, Inc.
-<http://sensics.com/osvr>
-*/
 
-// Copyright 2015 Sensics, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//        http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-#pragma once
 
-#include "PluginConfig.h"
+// D3D- specific includes
+// Include headers for the graphics APIs we support
+#if SUPPORT_D3D11
+#include <d3d11.h>
 
-#include "Unity/IUnityGraphics.h"
-#include "Unity/IUnityInterface.h"
-#include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
-#include "osvr/RenderKit/RenderManagerC.h"
-#include <osvr/Util/ClientOpaqueTypesC.h>
-#include <osvr/Util/ReturnCodesC.h>
-#include <cstdint>
+#include "Unity/IUnityGraphicsD3D11.h"
+#include <osvr/RenderKit/GraphicsLibraryD3D11.h>
+#include <osvr/RenderKit/RenderManagerD3D11C.h>
 
-typedef void(UNITY_INTERFACE_API *DebugFnPtr)(const char *);
+#endif // SUPPORT_D3D11
 
-extern "C" {
+#include "OsvrUnityRenderer.h"
+class OsvrD3DRenderer : public OsvrUnityRenderer{
+public:
+	OsvrD3DRenderer();
+	virtual OSVR_ReturnCode ConstructRenderBuffers();
+	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context);
+	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye);
+	virtual OSVR_ProjectionMatrix GetProjectionMatrix(std::uint8_t eye);
+	virtual OSVR_ViewportDescription GetViewport(std::uint8_t eye);
+	virtual void OnRenderEvent();
+	virtual void OnInitializeGraphicsDeviceEvent();
+	virtual void SetFarClipDistance(double distance);
+	virtual void SetIPD(double ipdMeters);
+	virtual void SetNearClipDistance(double distance);
+	virtual void ShutdownRenderManager();
+	virtual void UpdateRenderInfo();
+	virtual void* GetEyeTexture(int eye, int buffer);
 
-// No apparent UpdateDistortionMeshes symbol found?
 
-/// @todo These are all the exported symbols, and they all are decorated to use
-/// stdcall - yet somehow the managed code refers to some as cdecl. Either those
-/// functions are never getting used, or something else is happening there.
+protected:
 
-UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
-ConstructRenderBuffers();
+private:
+	struct FrameInfoD3D11 {
+		// Set up the vector of textures to render to and any framebuffer
+		// we need to group them.
+		std::vector<OSVR_RenderBufferD3D11> renderBuffers;
+		ID3D11Texture2D* depthStencilTexture;
+		ID3D11DepthStencilView* depthStencilView;
+		IDXGIKeyedMutex* keyedMutex;
+		FrameInfoD3D11() : renderBuffers(2)
+		{
+		}
 
-UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
-CreateRenderManagerFromUnity(OSVR_ClientContext context);
+	};
+	std::vector<FrameInfoD3D11*> frameInfo;
+	OSVR_RenderParams s_renderParams;
+	OSVR_RenderManager s_render = nullptr;
+	OSVR_RenderManagerD3D11 s_renderD3D = nullptr;
+	OSVR_ClientContext s_clientContext = nullptr;
+	std::vector<OSVR_RenderInfoD3D11> s_renderInfo;
+	std::vector<OSVR_RenderInfoD3D11> s_lastRenderInfo;
+	OSVR_GraphicsLibraryD3D11 s_libraryD3D;
+	OSVR_RenderInfoCount numRenderInfo;
+	OSVR_ProjectionMatrix lastGoodProjMatrix;
+	OSVR_Pose3 lastGoodPose;
+	OSVR_ViewportDescription lastGoodViewportDescription;
+	D3D11_TEXTURE2D_DESC s_textureDesc;
+	void *s_leftEyeTexturePtr = nullptr;
+	void *s_rightEyeTexturePtr = nullptr;
+	void *s_leftEyeTexturePtrBuffer2 = nullptr;
+	void *s_rightEyeTexturePtrBuffer2 = nullptr;
 
-UNITY_INTERFACE_EXPORT OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye);
+	OSVR_ReturnCode ConstructBuffersD3D11(int eye, int buffer, FrameInfoD3D11* fInfo);
 
-UNITY_INTERFACE_EXPORT OSVR_ProjectionMatrix
-    UNITY_INTERFACE_API
-	GetProjectionMatrix(std::uint8_t eye);
-
-UNITY_INTERFACE_EXPORT UnityRenderingEvent UNITY_INTERFACE_API
-GetRenderEventFunc();
-
-UNITY_INTERFACE_EXPORT OSVR_ViewportDescription
-    UNITY_INTERFACE_API
-	GetViewport(std::uint8_t eye);
-
-UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d);
-
-UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API OnRenderEvent(int eventID);
-
-/// @todo should return OSVR_ReturnCode
-UNITY_INTERFACE_EXPORT int UNITY_INTERFACE_API
-SetColorBufferFromUnity(void *texturePtr, std::uint8_t eye, std::uint8_t buffer);
-
-UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API
-SetFarClipDistance(double distance);
-
-UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API SetIPD(double ipdMeters);
-
-UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API
-SetNearClipDistance(double distance);
-UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API ShutdownRenderManager();
-
-UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API
-UnityPluginLoad(IUnityInterfaces *unityInterfaces);
-
-UNITY_INTERFACE_EXPORT void UNITY_INTERFACE_API UnityPluginUnload();
-
-// UpdateDistortionMesh no longer exported - buggy, not used.
-
-} // extern "C"
+};
