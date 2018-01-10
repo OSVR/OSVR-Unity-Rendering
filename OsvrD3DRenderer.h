@@ -9,7 +9,6 @@
 #include <osvr/RenderKit/GraphicsLibraryD3D11.h>
 #include <osvr/RenderKit/RenderManagerD3D11C.h>
 
-#endif // SUPPORT_D3D11
 
 #include "OsvrUnityRenderer.h"
 
@@ -67,3 +66,4 @@ private:
 	OSVR_ReturnCode ConstructBuffersD3D11(int eye, int buffer, FrameInfoD3D11* fInfo);
 
 };
+#endif // SUPPORT_D3D11

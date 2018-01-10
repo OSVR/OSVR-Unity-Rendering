@@ -4,7 +4,7 @@
 
 OsvrD3DRenderer::OsvrD3DRenderer() : OsvrUnityRenderer()
 {
-	
+
 }
 void OsvrD3DRenderer::SetColorBuffer(void *texturePtr, std::uint8_t eye, std::uint8_t buffer)
 {
@@ -142,7 +142,7 @@ OSVR_ReturnCode OsvrD3DRenderer::ConstructBuffersD3D11(int eye, int buffer, Fram
 		&textureDescription, NULL, &depthStencilBuffer);
 	if (FAILED(hr)) {
 		//std::cerr << "Could not create depth/stencil texture"
-			//<< std::endl;
+		//<< std::endl;
 		return -4;
 	}
 	fInfo->depthStencilTexture = depthStencilBuffer;
@@ -162,7 +162,7 @@ OSVR_ReturnCode OsvrD3DRenderer::ConstructBuffersD3D11(int eye, int buffer, Fram
 		&depthStencilView);
 	if (FAILED(hr)) {
 		//std::cerr << "Could not create depth/stencil view"
-			//<< std::endl;
+		//<< std::endl;
 		return -5;
 	}
 	fInfo->depthStencilView = depthStencilView;
@@ -224,7 +224,7 @@ OSVR_ReturnCode OsvrD3DRenderer::CreateRenderManager(OSVR_ClientContext context)
 
 		DebugLog("[OSVR Rendering Plugin] RenderManager already created, "
 			"but not doing OK. Will shut down before creating again.");
-		  ShutdownRenderManager();
+		ShutdownRenderManager();
 		return OSVR_RETURN_SUCCESS;
 	}
 	if (s_clientContext != nullptr) {
@@ -280,7 +280,7 @@ OSVR_ReturnCode OsvrD3DRenderer::CreateRenderManager(OSVR_ClientContext context)
 	}
 	if (openResults.library.device == nullptr) {
 		//DebugLog("[OSVR Rendering Plugin] Could not get device when opening "
-			//"display");
+		//"display");
 
 		ShutdownRenderManager();
 		return OSVR_RETURN_FAILURE;
@@ -444,7 +444,7 @@ void OsvrD3DRenderer::OnRenderEvent()
 	if ((OSVR_RETURN_SUCCESS !=
 		osvrRenderManagerStartPresentRenderBuffers(&presentState))) {
 		//DebugLog("[OSVR Rendering Plugin] Could not start presenting "
-			//"render buffers");
+		//"render buffers");
 		ShutdownRenderManager();
 	}
 	// create normalized cropping viewports for side-by-side rendering to a single render target
@@ -467,7 +467,7 @@ void OsvrD3DRenderer::OnRenderEvent()
 			presentState, frameInfo[frame]->renderBuffers[i], s_renderInfo[i],
 			fullView))) {
 			//DebugLog(
-				//"[OSVR Rendering Plugin] Could not present render buffer ");
+			//"[OSVR Rendering Plugin] Could not present render buffer ");
 			ShutdownRenderManager();
 		}
 	}
@@ -476,7 +476,7 @@ void OsvrD3DRenderer::OnRenderEvent()
 		osvrRenderManagerFinishPresentRenderBuffers(
 		s_render, presentState, s_renderParams, true))) {
 		//DebugLog("[OSVR Rendering Plugin] Could not finish presenting "
-			//"render buffers");
+		//"render buffers");
 		ShutdownRenderManager();
 	}
 
@@ -538,7 +538,5 @@ void OsvrD3DRenderer::ShutdownRenderManager()
 	s_clientContext = nullptr;
 
 }
-
-
 
 

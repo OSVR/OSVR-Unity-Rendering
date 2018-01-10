@@ -21,8 +21,8 @@ Sensics, Inc.
 // limitations under the License.
 
 /// Both of these need to be enabled to force-enable logging to files.
-#define ENABLE_LOGGING 1
-#define ENABLE_LOGFILE 1
+#define ENABLE_LOGGING 0
+#define ENABLE_LOGFILE 0
 
 // Internal includes
 #include "OsvrRenderingPlugin.h"
@@ -72,11 +72,13 @@ static OsvrUnityRenderer* osvrUnityRenderer = nullptr;
 
 
 // logging
+#if UNITY_WIN
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 static std::ofstream s_debugLogFile;
 static std::streambuf *s_oldCout = nullptr;
 static std::streambuf *s_oldCerr = nullptr;
 #endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
+#endif
 
 static int numBuffers = 2;
 static int iterations = 0;
@@ -101,8 +103,8 @@ enum RenderEvents {
 
 // Allow writing to the Unity debug console from inside DLL land.
 static DebugFnPtr s_debugLog = nullptr;
-void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) { 
-	s_debugLog = d; 
+void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) {
+	s_debugLog = d;
 	osvrUnityRenderer->SetDebugLog(d);
 }
 
@@ -191,7 +193,7 @@ OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
 	}
 
 	case kUnityGfxDeviceEventShutdown: {
-		
+
 		return;
 	}
 
@@ -290,8 +292,8 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 
 	/*if (!s_deviceType) {
-		DebugLog("[OSVR Rendering Plugin] Device type not supported.");
-		return OSVR_RETURN_FAILURE;
+	DebugLog("[OSVR Rendering Plugin] Device type not supported.");
+	return OSVR_RETURN_FAILURE;
 	}*/
 	if (osvrUnityRenderer != nullptr)
 	{
@@ -369,7 +371,7 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr,
 	std::uint8_t eye, std::uint8_t buffer) {
 	/*if (!s_deviceType) {
-		return OSVR_RETURN_FAILURE;
+	return OSVR_RETURN_FAILURE;
 	}*/
 
 	DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity");
@@ -388,7 +390,7 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr,
 void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
 	// Unknown graphics device type? Do nothing.
 	/*if (!s_deviceType) {
-		return;
+	return;
 	}*/
 
 	switch (eventID) {

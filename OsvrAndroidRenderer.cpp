@@ -1,38 +1,115 @@
 #include "OsvrAndroidRenderer.h"
 
+static GLuint gvPositionHandle;
+static GLuint gvColorHandle;
+static GLuint gvTexCoordinateHandle;
+static GLuint guTextureUniformId;
+static GLuint gvProjectionUniformId;
+static GLuint gvViewUniformId;
+static GLuint gvModelUniformId;
+static GLuint gFrameBuffer;
+static GLuint gTextureID;
+static GLuint gLeftEyeTextureID;
+static GLuint gLeftEyeTextureIDBuffer2;
+static GLuint gRightEyeTextureID;
+static GLuint gRightEyeTextureIDBuffer2;
+static GLuint gProgram;
+
+typedef struct OSVR_RenderTargetInfoOpenGL {
+	GLuint colorBufferName;
+	GLuint depthBufferName;
+	GLuint frameBufferName;
+	GLuint renderBufferName; // @todo - do we need this?
+} OSVR_RenderTargetInfoOpenGL;
+OSVR_ClientInterface gCamera = NULL;
+OSVR_ClientInterface gHead = NULL;
+static int gReportNumber = 0;
+OSVR_ImageBufferElement *gLastFrame = nullptr;
+static GLuint gLastFrameWidth = 0;
+static GLuint gLastFrameHeight = 0;
+static GLubyte *gTextureBuffer = nullptr;
+
+static bool gGraphicsInitializedOnce = false; // if setupGraphics has been called at least once
+static bool gOSVRInitialized = false;
+static bool gRenderManagerInitialized = false;
+static int gWidth = 0;
+static int gHeight = 0;
+static bool contextSet = false;
+
+OSVR_GraphicsLibraryOpenGL gGraphicsLibrary = { 0 };
+OSVR_RenderParams gRenderParams = { 0 };
+
+// std::vector<OSVR_RenderBufferOpenGL> buffers;
+// std::vector<OSVR_RenderTargetInfoOpenGL> gRenderTargets;
+struct FrameInfoOpenGL {
+	// Set up the vector of textures to render to and any framebuffer
+	// we need to group them.
+	std::vector<OSVR_RenderTargetInfoOpenGL> renderBuffers;
+	FrameInfoOpenGL() : renderBuffers(2)
+	{
+	}
+
+};
+std::vector<FrameInfoOpenGL*> frameInfoOGL;
+
+const char gVertexShader[] =
+"uniform mat4 model;\n"
+"uniform mat4 view;\n"
+"uniform mat4 projection;\n"
+"attribute vec4 vPosition;\n"
+"attribute vec4 vColor;\n"
+"attribute vec2 vTexCoordinate;\n"
+"varying vec2 texCoordinate;\n"
+"varying vec4 fragmentColor;\n"
+"void main() {\n"
+"  gl_Position = projection * view * model * vPosition;\n"
+"  fragmentColor = vColor;\n"
+"  texCoordinate = vTexCoordinate;\n"
+"}\n";
+
+const char gFragmentShader[] =
+"precision mediump float;\n"
+"uniform sampler2D uTexture;\n"
+"varying vec2 texCoordinate;\n"
+"varying vec4 fragmentColor;\n"
+"void main()\n"
+"{\n"
+"    gl_FragColor = fragmentColor * texture2D(uTexture, texCoordinate);\n"
+//"    gl_FragColor = texture2D(uTexture, texCoordinate);\n"
+"}\n";
 
 OsvrAndroidRenderer::OsvrAndroidRenderer() : OsvrUnityRenderer()
 {
-		
+
 }
 
 OSVR_ReturnCode OsvrAndroidRenderer::ConstructRenderBuffers()
-	{
-		if (!setupRenderTextures(gRenderManager)) {
-			return OSVR_RETURN_FAILURE;
-		}
-		else
-			return OSVR_RETURN_SUCCESS;
+{
+	if (!setupRenderTextures(gRenderManager)) {
+		return OSVR_RETURN_FAILURE;
 	}
+	else
+		return OSVR_RETURN_SUCCESS;
+}
 
 OSVR_ReturnCode OsvrAndroidRenderer::CreateRenderManager(OSVR_ClientContext context)
-	{
-		gClientContext = context;
-		if (setupOSVR()) {
-			if (setupGraphics(gWidth, gHeight)) {
-				if (setupRenderManager()) {
-					return OSVR_RETURN_SUCCESS;
-				}
-				else
-					return 3;
+{
+	gClientContext = context;
+	if (setupOSVR()) {
+		if (setupGraphics(gWidth, gHeight)) {
+			if (setupRenderManager()) {
+				return OSVR_RETURN_SUCCESS;
 			}
 			else
-				return 2;
+				return 3;
 		}
 		else
-			return 1;
+			return 2;
+	}
+	else
+		return 1;
 
-		return OSVR_RETURN_SUCCESS;
+	return OSVR_RETURN_SUCCESS;
 }
 
 void OsvrAndroidRenderer::SetColorBuffer(void *texturePtr, std::uint8_t eye, std::uint8_t buffer)
@@ -509,334 +586,334 @@ bool OsvrAndroidRenderer::setupRenderTextures(OSVR_RenderManager renderManager) 
 }
 
 bool OsvrAndroidRenderer::setupOSVR() {
-		if (gOSVRInitialized) {
-			return true;
-		}
-		OSVR_ReturnCode rc = 0;
-		try {
-			// On Android, the current working directory is added to the default
-			// plugin search path.
-			// it also helps the server find its configuration and display files.
-			//            boost::filesystem::current_path("/data/data/com.osvr.android.gles2sample/files");
-			//            auto workingDirectory = boost::filesystem::current_path();
-			//            //LOGI("[OSVR] Current working directory: %s",
-			//            workingDirectory.string().c_str());
+	if (gOSVRInitialized) {
+		return true;
+	}
+	OSVR_ReturnCode rc = 0;
+	try {
+		// On Android, the current working directory is added to the default
+		// plugin search path.
+		// it also helps the server find its configuration and display files.
+		//            boost::filesystem::current_path("/data/data/com.osvr.android.gles2sample/files");
+		//            auto workingDirectory = boost::filesystem::current_path();
+		//            //LOGI("[OSVR] Current working directory: %s",
+		//            workingDirectory.string().c_str());
 
-			// auto-start the server
-			osvrClientAttemptServerAutoStart();
+		// auto-start the server
+		osvrClientAttemptServerAutoStart();
 
+		if (!gClientContext) {
+			// LOGI("[OSVR] Creating ClientContext...");
+			gClientContext =
+				osvrClientInit("com.osvr.android.examples.OSVROpenGL", 0);
 			if (!gClientContext) {
-				// LOGI("[OSVR] Creating ClientContext...");
-				gClientContext =
-					osvrClientInit("com.osvr.android.examples.OSVROpenGL", 0);
-				if (!gClientContext) {
-					// LOGI("[OSVR] could not create client context");
-					return false;
-				}
-
-				// temporary workaround to DisplayConfig issue,
-				// display sometimes fails waiting for the tree from the server.
-				// LOGI("[OSVR] Calling update a few times...");
-				for (int i = 0; i < 10000; i++) {
-					rc = osvrClientUpdate(gClientContext);
-					if (rc != OSVR_RETURN_SUCCESS) {
-						// LOGI("[OSVR] Error while updating client context.");
-						return false;
-					}
-				}
-
-				rc = osvrClientCheckStatus(gClientContext);
-				if (rc != OSVR_RETURN_SUCCESS) {
-					// LOGI("[OSVR] Client context reported bad status.");
-					return false;
-				}
-				else {
-					// LOGI("[OSVR] Client context reported good status.");
-				}
-
-				//                if (OSVR_RETURN_SUCCESS !=
-				//                    osvrClientGetInterface(gClientContext,
-				//                    "/camera", &gCamera)) {
-				//                    //LOGI("Error, could not get the camera
-				//                    interface at /camera.");
-				//                    return false;
-				//                }
-				//
-				//                // Register the imaging callback.
-				//                if (OSVR_RETURN_SUCCESS !=
-				//                    osvrRegisterImagingCallback(gCamera,
-				//                    &imagingCallback, &gClientContext)) {
-				//                    //LOGI("Error, could not register image
-				//                    callback.");
-				//                    return false;
-				//                }
+				// LOGI("[OSVR] could not create client context");
+				return false;
 			}
 
-			gOSVRInitialized = true;
-			return true;
-		}
-		catch (const std::runtime_error &ex) {
-			// LOGI("[OSVR] OSVR initialization failed: %s", ex.what());
-			return false;
-		}
-	}
+			// temporary workaround to DisplayConfig issue,
+			// display sometimes fails waiting for the tree from the server.
+			// LOGI("[OSVR] Calling update a few times...");
+			for (int i = 0; i < 10000; i++) {
+				rc = osvrClientUpdate(gClientContext);
+				if (rc != OSVR_RETURN_SUCCESS) {
+					// LOGI("[OSVR] Error while updating client context.");
+					return false;
+				}
+			}
 
-	// Idempotent call to setup render manager
+			rc = osvrClientCheckStatus(gClientContext);
+			if (rc != OSVR_RETURN_SUCCESS) {
+				// LOGI("[OSVR] Client context reported bad status.");
+				return false;
+			}
+			else {
+				// LOGI("[OSVR] Client context reported good status.");
+			}
+
+			//                if (OSVR_RETURN_SUCCESS !=
+			//                    osvrClientGetInterface(gClientContext,
+			//                    "/camera", &gCamera)) {
+			//                    //LOGI("Error, could not get the camera
+			//                    interface at /camera.");
+			//                    return false;
+			//                }
+			//
+			//                // Register the imaging callback.
+			//                if (OSVR_RETURN_SUCCESS !=
+			//                    osvrRegisterImagingCallback(gCamera,
+			//                    &imagingCallback, &gClientContext)) {
+			//                    //LOGI("Error, could not register image
+			//                    callback.");
+			//                    return false;
+			//                }
+		}
+
+		gOSVRInitialized = true;
+		return true;
+	}
+	catch (const std::runtime_error &ex) {
+		// LOGI("[OSVR] OSVR initialization failed: %s", ex.what());
+		return false;
+	}
+}
+
+// Idempotent call to setup render manager
 bool OsvrAndroidRenderer::setupRenderManager() {
 #if UNITY_ANDROID
-		if (!gOSVRInitialized || !gGraphicsInitializedOnce) {
-			return false;
-		}
-		if (gRenderManagerInitialized) {
-			return true;
-		}
-		try {
-			PassThroughOpenGLContextImpl *glContextImpl =
-				new PassThroughOpenGLContextImpl();
-			gGraphicsLibrary.toolkit = glContextImpl->getToolkit();
-
-			if (OSVR_RETURN_SUCCESS !=
-				osvrCreateRenderManagerOpenGL(gClientContext, "OpenGL",
-				gGraphicsLibrary, &gRenderManager,
-				&gRenderManagerOGL)) {
-				std::cerr << "Could not create the RenderManager" << std::endl;
-				return false;
-			}
-
-			// Open the display and make sure this worked
-			OSVR_OpenResultsOpenGL openResults;
-			if (OSVR_RETURN_SUCCESS != osvrRenderManagerOpenDisplayOpenGL(
-				gRenderManagerOGL, &openResults) ||
-				(openResults.status == OSVR_OPEN_STATUS_FAILURE)) {
-				std::cerr << "Could not open display" << std::endl;
-				osvrDestroyRenderManager(gRenderManager);
-				gRenderManager = gRenderManagerOGL = nullptr;
-				return false;
-			}
-
-			gRenderManagerInitialized = true;
-			return true;
-		}
-		catch (const std::runtime_error &ex) {
-			// LOGI("[OSVR] RenderManager initialization failed: %s", ex.what());
-			return false;
-		}
+	if (!gOSVRInitialized || !gGraphicsInitializedOnce) {
+		return false;
 	}
-	static const GLfloat gTriangleColors[] = {
-		// white
-		1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-		1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-
-		// green
-		0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
-		0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
-
-		// blue
-		0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-		0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-
-		// green/purple
-		0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-		0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-
-		// red/green
-		0.75f, 0.75f, 0.0f, 1.0f, 0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
-		0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
-
-		// red/blue
-		0.75f, 0.0f, 0.75f, 1.0f, 0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
-		0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f };
-
-	static const GLfloat gTriangleTexCoordinates[] = {
-		// A cube face (letters are unique vertices)
-		// A--B
-		// |  |
-		// D--C
-
-		// As two triangles (clockwise)
-		// A B D
-		// B C D
-
-		// white
-		1.0f, 0.0f, // A
-		1.0f, 1.0f, // B
-		0.0f, 0.0f, // D
-		1.0f, 1.0f, // B
-		0.0f, 1.0f, // C
-		0.0f, 0.0f, // D
-
-		// green
-		1.0f, 0.0f, // A
-		1.0f, 1.0f, // B
-		0.0f, 0.0f, // D
-		1.0f, 1.0f, // B
-		0.0f, 1.0f, // C
-		0.0f, 0.0f, // D
-
-		// blue
-		1.0f, 1.0f, // A
-		0.0f, 1.0f, // B
-		1.0f, 0.0f, // D
-		0.0f, 1.0f, // B
-		0.0f, 0.0f, // C
-		1.0f, 0.0f, // D
-
-		// blue-green
-		1.0f, 0.0f, // A
-		1.0f, 1.0f, // B
-		0.0f, 0.0f, // D
-		1.0f, 1.0f, // B
-		0.0f, 1.0f, // C
-		0.0f, 0.0f, // D
-
-		// yellow
-		0.0f, 0.0f, // A
-		1.0f, 0.0f, // B
-		0.0f, 1.0f, // D
-		1.0f, 0.0f, // B
-		1.0f, 1.0f, // C
-		0.0f, 1.0f, // D
-
-		// purple/magenta
-		1.0f, 1.0f, // A
-		0.0f, 1.0f, // B
-		1.0f, 0.0f, // D
-		0.0f, 1.0f, // B
-		0.0f, 0.0f, // C
-		1.0f, 0.0f, // D
-	};
-
-	static const GLfloat gTriangleVertices[] = {
-		// A cube face (letters are unique vertices)
-		// A--B
-		// |  |
-		// D--C
-
-		// As two triangles (clockwise)
-		// A B D
-		// B C D
-
-		// glNormal3f(0.0, 0.0, -1.0);
-		1.0f, 1.0f, -1.0f,   // A
-		1.0f, -1.0f, -1.0f,  // B
-		-1.0f, 1.0f, -1.0f,  // D
-		1.0f, -1.0f, -1.0f,  // B
-		-1.0f, -1.0f, -1.0f, // C
-		-1.0f, 1.0f, -1.0f,  // D
-
-		// glNormal3f(0.0, 0.0, 1.0);
-		-1.0f, 1.0f, 1.0f,  // A
-		-1.0f, -1.0f, 1.0f, // B
-		1.0f, 1.0f, 1.0f,   // D
-		-1.0f, -1.0f, 1.0f, // B
-		1.0f, -1.0f, 1.0f,  // C
-		1.0f, 1.0f, 1.0f,   // D
-
-		//        glNormal3f(0.0, -1.0, 0.0);
-		1.0f, -1.0f, 1.0f,   // A
-		-1.0f, -1.0f, 1.0f,  // B
-		1.0f, -1.0f, -1.0f,  // D
-		-1.0f, -1.0f, 1.0f,  // B
-		-1.0f, -1.0f, -1.0f, // C
-		1.0f, -1.0f, -1.0f,  // D
-
-		//        glNormal3f(0.0, 1.0, 0.0);
-		1.0f, 1.0f, 1.0f,   // A
-		1.0f, 1.0f, -1.0f,  // B
-		-1.0f, 1.0f, 1.0f,  // D
-		1.0f, 1.0f, -1.0f,  // B
-		-1.0f, 1.0f, -1.0f, // C
-		-1.0f, 1.0f, 1.0f,  // D
-
-		//        glNormal3f(-1.0, 0.0, 0.0);
-		-1.0f, 1.0f, 1.0f,   // A
-		-1.0f, 1.0f, -1.0f,  // B
-		-1.0f, -1.0f, 1.0f,  // D
-		-1.0f, 1.0f, -1.0f,  // B
-		-1.0f, -1.0f, -1.0f, // C
-		-1.0f, -1.0f, 1.0f,  // D
-
-		//        glNormal3f(1.0, 0.0, 0.0);
-		1.0f, -1.0f, 1.0f,  // A
-		1.0f, -1.0f, -1.0f, // B
-		1.0f, 1.0f, 1.0f,   // D
-		1.0f, -1.0f, -1.0f, // B
-		1.0f, 1.0f, -1.0f,  // C
-		1.0f, 1.0f, 1.0f    // D
-#endif
+	if (gRenderManagerInitialized) {
 		return true;
+	}
+	try {
+		PassThroughOpenGLContextImpl *glContextImpl =
+			new PassThroughOpenGLContextImpl();
+		gGraphicsLibrary.toolkit = glContextImpl->getToolkit();
+
+		if (OSVR_RETURN_SUCCESS !=
+			osvrCreateRenderManagerOpenGL(gClientContext, "OpenGL",
+			gGraphicsLibrary, &gRenderManager,
+			&gRenderManagerOGL)) {
+			std::cerr << "Could not create the RenderManager" << std::endl;
+			return false;
+		}
+
+		// Open the display and make sure this worked
+		OSVR_OpenResultsOpenGL openResults;
+		if (OSVR_RETURN_SUCCESS != osvrRenderManagerOpenDisplayOpenGL(
+			gRenderManagerOGL, &openResults) ||
+			(openResults.status == OSVR_OPEN_STATUS_FAILURE)) {
+			std::cerr << "Could not open display" << std::endl;
+			osvrDestroyRenderManager(gRenderManager);
+			gRenderManager = gRenderManagerOGL = nullptr;
+			return false;
+		}
+
+		gRenderManagerInitialized = true;
+		return true;
+	}
+	catch (const std::runtime_error &ex) {
+		// LOGI("[OSVR] RenderManager initialization failed: %s", ex.what());
+		return false;
+	}
+}
+static const GLfloat gTriangleColors[] = {
+	// white
+	1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+
+	// green
+	0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
+	0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
+
+	// blue
+	0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+	0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+
+	// green/purple
+	0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+	0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+
+	// red/green
+	0.75f, 0.75f, 0.0f, 1.0f, 0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+	0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+
+	// red/blue
+	0.75f, 0.0f, 0.75f, 1.0f, 0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+	0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f };
+
+static const GLfloat gTriangleTexCoordinates[] = {
+	// A cube face (letters are unique vertices)
+	// A--B
+	// |  |
+	// D--C
+
+	// As two triangles (clockwise)
+	// A B D
+	// B C D
+
+	// white
+	1.0f, 0.0f, // A
+	1.0f, 1.0f, // B
+	0.0f, 0.0f, // D
+	1.0f, 1.0f, // B
+	0.0f, 1.0f, // C
+	0.0f, 0.0f, // D
+
+	// green
+	1.0f, 0.0f, // A
+	1.0f, 1.0f, // B
+	0.0f, 0.0f, // D
+	1.0f, 1.0f, // B
+	0.0f, 1.0f, // C
+	0.0f, 0.0f, // D
+
+	// blue
+	1.0f, 1.0f, // A
+	0.0f, 1.0f, // B
+	1.0f, 0.0f, // D
+	0.0f, 1.0f, // B
+	0.0f, 0.0f, // C
+	1.0f, 0.0f, // D
+
+	// blue-green
+	1.0f, 0.0f, // A
+	1.0f, 1.0f, // B
+	0.0f, 0.0f, // D
+	1.0f, 1.0f, // B
+	0.0f, 1.0f, // C
+	0.0f, 0.0f, // D
+
+	// yellow
+	0.0f, 0.0f, // A
+	1.0f, 0.0f, // B
+	0.0f, 1.0f, // D
+	1.0f, 0.0f, // B
+	1.0f, 1.0f, // C
+	0.0f, 1.0f, // D
+
+	// purple/magenta
+	1.0f, 1.0f, // A
+	0.0f, 1.0f, // B
+	1.0f, 0.0f, // D
+	0.0f, 1.0f, // B
+	0.0f, 0.0f, // C
+	1.0f, 0.0f, // D
 };
 
+static const GLfloat gTriangleVertices[] = {
+	// A cube face (letters are unique vertices)
+	// A--B
+	// |  |
+	// D--C
+
+	// As two triangles (clockwise)
+	// A B D
+	// B C D
+
+	// glNormal3f(0.0, 0.0, -1.0);
+	1.0f, 1.0f, -1.0f,   // A
+	1.0f, -1.0f, -1.0f,  // B
+	-1.0f, 1.0f, -1.0f,  // D
+	1.0f, -1.0f, -1.0f,  // B
+	-1.0f, -1.0f, -1.0f, // C
+	-1.0f, 1.0f, -1.0f,  // D
+
+	// glNormal3f(0.0, 0.0, 1.0);
+	-1.0f, 1.0f, 1.0f,  // A
+	-1.0f, -1.0f, 1.0f, // B
+	1.0f, 1.0f, 1.0f,   // D
+	-1.0f, -1.0f, 1.0f, // B
+	1.0f, -1.0f, 1.0f,  // C
+	1.0f, 1.0f, 1.0f,   // D
+
+	//        glNormal3f(0.0, -1.0, 0.0);
+	1.0f, -1.0f, 1.0f,   // A
+	-1.0f, -1.0f, 1.0f,  // B
+	1.0f, -1.0f, -1.0f,  // D
+	-1.0f, -1.0f, 1.0f,  // B
+	-1.0f, -1.0f, -1.0f, // C
+	1.0f, -1.0f, -1.0f,  // D
+
+	//        glNormal3f(0.0, 1.0, 0.0);
+	1.0f, 1.0f, 1.0f,   // A
+	1.0f, 1.0f, -1.0f,  // B
+	-1.0f, 1.0f, 1.0f,  // D
+	1.0f, 1.0f, -1.0f,  // B
+	-1.0f, 1.0f, -1.0f, // C
+	-1.0f, 1.0f, 1.0f,  // D
+
+	//        glNormal3f(-1.0, 0.0, 0.0);
+	-1.0f, 1.0f, 1.0f,   // A
+	-1.0f, 1.0f, -1.0f,  // B
+	-1.0f, -1.0f, 1.0f,  // D
+	-1.0f, 1.0f, -1.0f,  // B
+	-1.0f, -1.0f, -1.0f, // C
+	-1.0f, -1.0f, 1.0f,  // D
+
+	//        glNormal3f(1.0, 0.0, 0.0);
+	1.0f, -1.0f, 1.0f,  // A
+	1.0f, -1.0f, -1.0f, // B
+	1.0f, 1.0f, 1.0f,   // D
+	1.0f, -1.0f, -1.0f, // B
+	1.0f, 1.0f, -1.0f,  // C
+	1.0f, 1.0f, 1.0f    // D
+};
+#endif
+return true;
+}
 bool OsvrAndroidRenderer::setupGraphics(int width, int height) {
 #if UNITY_ANDROID
-		// initializeGLES2Ext();
-		GLint frameBuffer;
-		glGetIntegerv(GL_FRAMEBUFFER_BINDING, &frameBuffer);
-		gFrameBuffer = (GLuint)frameBuffer;
-		// LOGI("Window GL_FRAMEBUFFER_BINDING: %d", gFrameBuffer);
+	// initializeGLES2Ext();
+	GLint frameBuffer;
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &frameBuffer);
+	gFrameBuffer = (GLuint)frameBuffer;
+	// LOGI("Window GL_FRAMEBUFFER_BINDING: %d", gFrameBuffer);
 
-		// LOGI("setupGraphics(%d, %d)", width, height);
-		// gWidth = width;
-		// gHeight = height;
+	// LOGI("setupGraphics(%d, %d)", width, height);
+	// gWidth = width;
+	// gHeight = height;
 
-		// bool osvrSetupSuccess = setupOSVR();
+	// bool osvrSetupSuccess = setupOSVR();
 
-		gProgram = createProgram(gVertexShader, gFragmentShader);
-		if (!gProgram) {
-			// LOGE("Could not create program.");
-			osvrJniWrapperClass = jniEnvironment->FindClass(
-				"org/osvr/osvrunityjni/OsvrJNIWrapper"); // try to find the class
-			if (osvrJniWrapperClass == nullptr) {
-				return false;
-			}
-			else { // if class found, continue
-
-				jmethodID androidDebugLogMethodID = jniEnvironment->GetStaticMethodID(
-					osvrJniWrapperClass, "logMsg",
-					"(Ljava/lang/String;)V"); // find method
-				std::string stringy =
-					"[OSVR-Unity-Android]  Could not create program.";
-				jstring jstr2 = jniEnvironment->NewStringUTF(stringy.c_str());
-				jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass, androidDebugLogMethodID,
-					jstr2);
-			}
+	gProgram = createProgram(gVertexShader, gFragmentShader);
+	if (!gProgram) {
+		// LOGE("Could not create program.");
+		osvrJniWrapperClass = jniEnvironment->FindClass(
+			"org/osvr/osvrunityjni/OsvrJNIWrapper"); // try to find the class
+		if (osvrJniWrapperClass == nullptr) {
 			return false;
 		}
-		gvPositionHandle = glGetAttribLocation(gProgram, "vPosition");
-		checkGlError("glGetAttribLocation");
-		// LOGI("glGetAttribLocation(\"vPosition\") = %d\n", gvPositionHandle);
+		else { // if class found, continue
 
-		gvColorHandle = glGetAttribLocation(gProgram, "vColor");
-		checkGlError("glGetAttribLocation");
-		// LOGI("glGetAttribLocation(\"vColor\") = %d\n", gvColorHandle);
-
-		gvTexCoordinateHandle = glGetAttribLocation(gProgram, "vTexCoordinate");
-		checkGlError("glGetAttribLocation");
-		// LOGI("glGetAttribLocation(\"vTexCoordinate\") = %d\n",
-		// gvTexCoordinateHandle);
-
-		gvProjectionUniformId = glGetUniformLocation(gProgram, "projection");
-		gvViewUniformId = glGetUniformLocation(gProgram, "view");
-		gvModelUniformId = glGetUniformLocation(gProgram, "model");
-		guTextureUniformId = glGetUniformLocation(gProgram, "uTexture");
-
-		glViewport(0, 0, width, height);
-		checkGlError("glViewport");
-
-		glDisable(GL_CULL_FACE);
-
-		// @todo can we resize the texture after it has been created?
-		// if not, we may have to delete the dummy one and create a new one after
-		// the first imaging report.
-		// LOGI("Creating texture... here we go!");
-
-		gTextureID = createTexture(width, height);
-
-		// return osvrSetupSuccess;
-		gGraphicsInitializedOnce = true;
-#endif
-		return true;
+			jmethodID androidDebugLogMethodID = jniEnvironment->GetStaticMethodID(
+				osvrJniWrapperClass, "logMsg",
+				"(Ljava/lang/String;)V"); // find method
+			std::string stringy =
+				"[OSVR-Unity-Android]  Could not create program.";
+			jstring jstr2 = jniEnvironment->NewStringUTF(stringy.c_str());
+			jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass, androidDebugLogMethodID,
+				jstr2);
+		}
+		return false;
 	}
+	gvPositionHandle = glGetAttribLocation(gProgram, "vPosition");
+	checkGlError("glGetAttribLocation");
+	// LOGI("glGetAttribLocation(\"vPosition\") = %d\n", gvPositionHandle);
+
+	gvColorHandle = glGetAttribLocation(gProgram, "vColor");
+	checkGlError("glGetAttribLocation");
+	// LOGI("glGetAttribLocation(\"vColor\") = %d\n", gvColorHandle);
+
+	gvTexCoordinateHandle = glGetAttribLocation(gProgram, "vTexCoordinate");
+	checkGlError("glGetAttribLocation");
+	// LOGI("glGetAttribLocation(\"vTexCoordinate\") = %d\n",
+	// gvTexCoordinateHandle);
+
+	gvProjectionUniformId = glGetUniformLocation(gProgram, "projection");
+	gvViewUniformId = glGetUniformLocation(gProgram, "view");
+	gvModelUniformId = glGetUniformLocation(gProgram, "model");
+	guTextureUniformId = glGetUniformLocation(gProgram, "uTexture");
+
+	glViewport(0, 0, width, height);
+	checkGlError("glViewport");
+
+	glDisable(GL_CULL_FACE);
+
+	// @todo can we resize the texture after it has been created?
+	// if not, we may have to delete the dummy one and create a new one after
+	// the first imaging report.
+	// LOGI("Creating texture... here we go!");
+
+	gTextureID = createTexture(width, height);
+
+	// return osvrSetupSuccess;
+	gGraphicsInitializedOnce = true;
+#endif
+	return true;
+}
 
 OSVR_Pose3 OsvrAndroidRenderer::GetEyePose(std::uint8_t eye)
 {

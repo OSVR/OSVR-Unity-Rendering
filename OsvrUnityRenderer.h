@@ -92,16 +92,16 @@ public:
 protected:
 	// logging
 	DebugFnPtr s_debugLog = nullptr;
-	OsvrUnityRenderer::OsvrUnityRenderer()
+	OsvrUnityRenderer()
 	{
 
 	}
 
-	OsvrUnityRenderer::~OsvrUnityRenderer()
+	~OsvrUnityRenderer()
 	{
 
 	}
-	void OsvrUnityRenderer::DebugLog(const char *str)
+	void DebugLog(const char *str)
 	{
 		if (s_debugLog != nullptr) {
 			s_debugLog(str);
