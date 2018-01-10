@@ -41,9 +41,57 @@ Sensics, Inc.
 #include <osvr/Util/ReturnCodesC.h>
 #include <cstdint>
 
+//logging 
+#define ENABLE_LOGGING 1
+#define ENABLE_LOGFILE 1
+#if UNITY_WIN
+#define NO_MINMAX
+#define WIN32_LEAN_AND_MEAN
+// logging on windows
+#if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
+#include <fstream>
+#include <iostream>
+#endif // end define ENABLE_LOGGING
+#include <memory>
+#endif
 
 class OsvrUnityRenderer {
 public:
+	virtual OSVR_ReturnCode ConstructRenderBuffers(){ return OSVR_RETURN_FAILURE; }
+	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context){ return OSVR_RETURN_FAILURE; }
+	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye)
+	{
+		OSVR_Pose3 pose;
+		return pose;
+	}
+	virtual OSVR_ProjectionMatrix GetProjectionMatrix(std::uint8_t eye)
+	{
+		OSVR_ProjectionMatrix pm;
+		return pm;
+	}
+	virtual OSVR_ViewportDescription GetViewport(std::uint8_t eye)
+	{
+		OSVR_ViewportDescription viewportDescription;
+		return viewportDescription;
+	}
+	virtual void OnRenderEvent(){}
+	virtual void OnInitializeGraphicsDeviceEvent(){}
+	virtual void SetFarClipDistance(double distance){}
+	virtual void SetIPD(double ipdMeters){}
+	virtual void SetNearClipDistance(double distance){}
+	virtual void ShutdownRenderManager(){}
+	virtual void UpdateRenderInfo(){}
+	virtual void SetColorBuffer(void *texturePtr, std::uint8_t eye, std::uint8_t buffer){}
+	void SetDebugLog(DebugFnPtr d)
+	{
+		s_debugLog = d;
+
+	}
+	//@todo debuglog
+
+protected:
+	// logging
+	DebugFnPtr s_debugLog = nullptr;
 	OsvrUnityRenderer::OsvrUnityRenderer()
 	{
 
@@ -53,21 +101,13 @@ public:
 	{
 
 	}
-	virtual OSVR_ReturnCode ConstructRenderBuffers();
-	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context);
-	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye);
-	virtual OSVR_ProjectionMatrix GetProjectionMatrix(std::uint8_t eye);
-	virtual OSVR_ViewportDescription GetViewport(std::uint8_t eye);
-	virtual void OnRenderEvent();
-	virtual void OnInitializeGraphicsDeviceEvent();
-	virtual void SetFarClipDistance(double distance);
-	virtual void SetIPD(double ipdMeters);
-	virtual void SetNearClipDistance(double distance);
-	virtual void ShutdownRenderManager();
-	virtual void UpdateRenderInfo();
-	//@todo debuglog
+	void OsvrUnityRenderer::DebugLog(const char *str)
+	{
+		if (s_debugLog != nullptr) {
+			s_debugLog(str);
+		}
 
-protected:
+	}
 	IUnityInterfaces *s_UnityInterfaces = nullptr;
 	IUnityGraphics *s_Graphics = nullptr;
 	UnityRendererType s_deviceType = {};

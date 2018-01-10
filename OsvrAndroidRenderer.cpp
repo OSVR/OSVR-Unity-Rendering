@@ -1,4 +1,3 @@
-#include "OsvrUnityRenderer.h"
 #include "OsvrAndroidRenderer.h"
 
 
@@ -34,6 +33,32 @@ OSVR_ReturnCode OsvrAndroidRenderer::CreateRenderManager(OSVR_ClientContext cont
 			return 1;
 
 		return OSVR_RETURN_SUCCESS;
+}
+
+void OsvrAndroidRenderer::SetColorBuffer(void *texturePtr, std::uint8_t eye, std::uint8_t buffer)
+{
+#if UNITY_ANDROID
+	if (eye == 0) {
+		if (buffer == 0)
+		{
+			gLeftEyeTextureID = (GLuint)texturePtr;
+		}
+		else
+		{
+			gLeftEyeTextureIDBuffer2 = (GLuint)texturePtr;
+		}
+	}
+	else {
+		if (buffer == 0)
+		{
+			gRightEyeTextureID = (GLuint)texturePtr;
+		}
+		else
+		{
+			gRightEyeTextureIDBuffer2 = (GLuint)texturePtr;
+		}
+	}
+#endif
 }
 
 #if UNITY_ANDROID

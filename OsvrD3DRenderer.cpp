@@ -6,7 +6,29 @@ OsvrD3DRenderer::OsvrD3DRenderer() : OsvrUnityRenderer()
 {
 	
 }
-
+void OsvrD3DRenderer::SetColorBuffer(void *texturePtr, std::uint8_t eye, std::uint8_t buffer)
+{
+	if (eye == 0) {
+		if (buffer == 0)
+		{
+			s_leftEyeTexturePtr = texturePtr;
+		}
+		else
+		{
+			s_leftEyeTexturePtrBuffer2 = texturePtr;
+		}
+	}
+	else {
+		if (buffer == 0)
+		{
+			s_rightEyeTexturePtr = texturePtr;
+		}
+		else
+		{
+			s_rightEyeTexturePtrBuffer2 = texturePtr;
+		}
+	}
+}
 
 #if UNITY_WIN
 void OsvrD3DRenderer::UpdateRenderInfo()
@@ -194,20 +216,20 @@ OSVR_ReturnCode OsvrD3DRenderer::CreateRenderManager(OSVR_ClientContext context)
 {
 	if (s_render != nullptr) {
 		if (osvrRenderManagerGetDoingOkay(s_render)) {
-			//DebugLog("[OSVR Rendering Plugin] RenderManager already created "
-				//"and doing OK - will just return success without trying "
-				//"to re-initialize.");
+			DebugLog("[OSVR Rendering Plugin] RenderManager already created "
+				"and doing OK - will just return success without trying "
+				"to re-initialize.");
 			return OSVR_RETURN_SUCCESS;
 		}
 
-		//DebugLog("[OSVR Rendering Plugin] RenderManager already created, "
-			//"but not doing OK. Will shut down before creating again.");
-		//  ShutdownRenderManager();
+		DebugLog("[OSVR Rendering Plugin] RenderManager already created, "
+			"but not doing OK. Will shut down before creating again.");
+		  ShutdownRenderManager();
 		return OSVR_RETURN_SUCCESS;
 	}
 	if (s_clientContext != nullptr) {
-		//DebugLog(
-			//"[OSVR Rendering Plugin] Client context already set! Replacing...");
+		DebugLog(
+			"[OSVR Rendering Plugin] Client context already set! Replacing...");
 	}
 	s_clientContext = context;
 

@@ -29,6 +29,8 @@ Sensics, Inc.
 #include "Unity/IUnityGraphics.h"
 #include "UnityRendererType.h"
 #include "OsvrUnityRenderer.h"
+#include "OsvrD3DRenderer.h"
+#include "OsvrAndroidRenderer.h"
 
 // Library includes
 #include <osvr/ClientKit/Context.h>
@@ -48,18 +50,6 @@ Sensics, Inc.
 #include <memory>
 #endif
 
-
-
-#if UNITY_WIN || UNITY_LINUX
-// Needed for render buffer calls.  OSVR will have called glewInit() for us
-// when we open the display.
-#include <GL/glew.h>
-#include <GL/gl.h>
-#elif UNITY_OSX
-// Mac OpenGL include
-#include <OpenGL/OpenGL.h>
-#include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
-#endif
 
 // VARIABLES
 static IUnityInterfaces *s_UnityInterfaces = nullptr;
@@ -111,7 +101,10 @@ enum RenderEvents {
 
 // Allow writing to the Unity debug console from inside DLL land.
 static DebugFnPtr s_debugLog = nullptr;
-void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) { s_debugLog = d; }
+void UNITY_INTERFACE_API LinkDebug(DebugFnPtr d) { 
+	s_debugLog = d; 
+	osvrUnityRenderer->SetDebugLog(d);
+}
 
 // Only for debugging purposes, as this causes some errors at shutdown
 inline void DebugLog(const char *str) {
@@ -174,11 +167,26 @@ static void UNITY_INTERFACE_API
 OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
 	switch (eventType) {
 	case kUnityGfxDeviceEventInitialize: {
-		/*if (osvrUnityRenderer == nullptr)
+		if (osvrUnityRenderer == nullptr)
 		{
-			osvrUnityRenderer = new OsvrUnityRenderer();
+#if SUPPORT_D3D11
+			osvrUnityRenderer = new OsvrD3DRenderer();
+			IUnityGraphicsD3D11 *d3d11 =
+				s_UnityInterfaces->Get<IUnityGraphicsD3D11>();
+
+			OsvrD3DRenderer* d3d = dynamic_cast<OsvrD3DRenderer*>(osvrUnityRenderer);
+			// Put the device and context into a structure to let RenderManager
+			// know to use this one rather than creating its own.
+			d3d->s_libraryD3D.device = d3d11->GetDevice();
+			ID3D11DeviceContext *ctx = nullptr;
+			d3d->s_libraryD3D.device->GetImmediateContext(&ctx);
+			d3d->s_libraryD3D.context = ctx;
+#elif UNITY_ANDROID
+			osvrUnityRenderer = new OsvrAndroidRenderer();
+
+#endif
 		}
-		osvrUnityRenderer->OnInitializeGraphicsDeviceEvent();*/
+		//osvrUnityRenderer->OnInitializeGraphicsDeviceEvent();
 		break;
 	}
 
@@ -281,15 +289,15 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 
 OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 
-	if (!s_deviceType) {
+	/*if (!s_deviceType) {
 		DebugLog("[OSVR Rendering Plugin] Device type not supported.");
 		return OSVR_RETURN_FAILURE;
-	}
+	}*/
 	if (osvrUnityRenderer != nullptr)
 	{
-		osvrUnityRenderer->UpdateRenderInfo();
+		return osvrUnityRenderer->ConstructRenderBuffers();
 	}
-
+	return OSVR_RETURN_FAILURE;
 }
 
 void UNITY_INTERFACE_API SetNearClipDistance(double distance) {
@@ -360,12 +368,16 @@ OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye) {
 // http://docs.unity3d.com/ScriptReference/Texture.GetNativeTexturePtr.html
 int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr,
 	std::uint8_t eye, std::uint8_t buffer) {
-	if (!s_deviceType) {
+	/*if (!s_deviceType) {
 		return OSVR_RETURN_FAILURE;
-	}
+	}*/
 
 	DebugLog("[OSVR Rendering Plugin] SetColorBufferFromUnity");
-
+	if (osvrUnityRenderer != nullptr)
+	{
+		osvrUnityRenderer->SetColorBuffer(texturePtr, eye, buffer);
+	}
+	return OSVR_RETURN_SUCCESS;
 }
 // --------------------------------------------------------------------------
 // UnityRenderEvent
@@ -375,9 +387,9 @@ int UNITY_INTERFACE_API SetColorBufferFromUnity(void *texturePtr,
 /// GetRenderEventFunc returning it would be sufficient...
 void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
 	// Unknown graphics device type? Do nothing.
-	if (!s_deviceType) {
+	/*if (!s_deviceType) {
 		return;
-	}
+	}*/
 
 	switch (eventID) {
 		// Call the Render loop

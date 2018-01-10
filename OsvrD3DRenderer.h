@@ -12,9 +12,11 @@
 #endif // SUPPORT_D3D11
 
 #include "OsvrUnityRenderer.h"
-class OsvrD3DRenderer : public OsvrUnityRenderer{
+
+class OsvrD3DRenderer : public OsvrUnityRenderer {
 public:
 	OsvrD3DRenderer();
+	~OsvrD3DRenderer();
 	virtual OSVR_ReturnCode ConstructRenderBuffers();
 	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context);
 	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye);
@@ -28,9 +30,8 @@ public:
 	virtual void ShutdownRenderManager();
 	virtual void UpdateRenderInfo();
 	virtual void* GetEyeTexture(int eye, int buffer);
-
-
-protected:
+	virtual void SetColorBuffer(void *texturePtr, std::uint8_t eye, std::uint8_t buffer);
+	OSVR_GraphicsLibraryD3D11 s_libraryD3D;
 
 private:
 	struct FrameInfoD3D11 {
@@ -52,7 +53,7 @@ private:
 	OSVR_ClientContext s_clientContext = nullptr;
 	std::vector<OSVR_RenderInfoD3D11> s_renderInfo;
 	std::vector<OSVR_RenderInfoD3D11> s_lastRenderInfo;
-	OSVR_GraphicsLibraryD3D11 s_libraryD3D;
+	//OSVR_GraphicsLibraryD3D11 s_libraryD3D;
 	OSVR_RenderInfoCount numRenderInfo;
 	OSVR_ProjectionMatrix lastGoodProjMatrix;
 	OSVR_Pose3 lastGoodPose;

@@ -1,7 +1,10 @@
 #if UNITY_ANDROID
 #include <dlfcn.h>
 #include <jni.h>
+#include <GL/glew.h>
+#include <GL/gl.h>
 #endif
+#include "OsvrUnityRenderer.h"
 
 #include <osvr/ClientKit/ContextC.h>
 #include <osvr/ClientKit/DisplayC.h>
@@ -20,10 +23,10 @@
 #include <thread>
 #include <vector>
 #include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
-#include "OsvrUnityRenderer.h"
 class OsvrAndroidRenderer : public OsvrUnityRenderer{
 public:
 	OsvrAndroidRenderer();
+	~OsvrAndroidRenderer();
 	virtual OSVR_ReturnCode ConstructRenderBuffers();
 	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context);
 	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye);
@@ -36,6 +39,8 @@ public:
 	virtual void SetNearClipDistance(double distance);
 	virtual void ShutdownRenderManager();
 	virtual void UpdateRenderInfo();
+	virtual void SetColorBuffer(void *texturePtr, std::uint8_t eye, std::uint8_t buffer);
+
 
 #if UNITY_ANDROID
 	 JNIEnv *jniEnvironment = 0;
@@ -101,6 +106,10 @@ public:
 		bool gRenderManagerInitialized = false;
 		int gWidth = 0;
 		int gHeight = 0;
+		bool contextSet = false;
+
+#if UNITY_ANDROID
+
 		GLuint gvPositionHandle;
 		GLuint gvColorHandle;
 		GLuint gvTexCoordinateHandle;
@@ -130,14 +139,11 @@ public:
 		GLuint gLastFrameHeight = 0;
 		GLubyte *gTextureBuffer = nullptr;
 
-#if UNITY_ANDROID
 		OSVR_GraphicsLibraryOpenGL gGraphicsLibrary = { 0 };
 		OSVR_RenderParams gRenderParams = { 0 };
-#endif
 
 		// std::vector<OSVR_RenderBufferOpenGL> buffers;
 		// std::vector<OSVR_RenderTargetInfoOpenGL> gRenderTargets;
-		bool contextSet = false;
 		struct FrameInfoOpenGL {
 			// Set up the vector of textures to render to and any framebuffer
 			// we need to group them.
@@ -148,5 +154,6 @@ public:
 
 		};
 		std::vector<FrameInfoOpenGL*> frameInfoOGL;
-		
+#endif
+
 };

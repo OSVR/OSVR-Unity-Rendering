@@ -31,7 +31,6 @@ find_package(SDL2)
 set (osvrUnityRenderingPlugin_SOURCES
     OsvrRenderingPlugin.h
     OsvrRenderingPlugin.cpp
-	OsvrUnityRenderer.cpp
 	OsvrUnityRenderer.h
 	OsvrAndroidRenderer.cpp
 	OsvrAndroidRenderer.h
