@@ -41,19 +41,6 @@ Sensics, Inc.
 #include <osvr/Util/ReturnCodesC.h>
 #include <cstdint>
 
-//logging 
-#define ENABLE_LOGGING 1
-#define ENABLE_LOGFILE 1
-#if UNITY_WIN
-#define NO_MINMAX
-#define WIN32_LEAN_AND_MEAN
-// logging on windows
-#if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
-#include <fstream>
-#include <iostream>
-#endif // end define ENABLE_LOGGING
-#include <memory>
-#endif
 
 class OsvrUnityRenderer {
 public:

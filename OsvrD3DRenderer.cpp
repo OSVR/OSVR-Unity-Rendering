@@ -1,3 +1,5 @@
+#include "OsvrRenderingPlugin.h"
+#if SUPPORT_D3D11
 #include "OsvrUnityRenderer.h"
 #include "OsvrD3DRenderer.h"
 
@@ -538,5 +540,7 @@ void OsvrD3DRenderer::ShutdownRenderManager()
 	s_clientContext = nullptr;
 
 }
+#endif
+
 
 

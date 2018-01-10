@@ -698,7 +698,11 @@ bool OsvrAndroidRenderer::setupRenderManager() {
 		// LOGI("[OSVR] RenderManager initialization failed: %s", ex.what());
 		return false;
 	}
+#endif
+	return false;
 }
+#if UNITY_ANDROID
+
 static const GLfloat gTriangleColors[] = {
 	// white
 	1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
@@ -842,8 +846,7 @@ static const GLfloat gTriangleVertices[] = {
 	1.0f, 1.0f, 1.0f    // D
 };
 #endif
-return true;
-}
+
 bool OsvrAndroidRenderer::setupGraphics(int width, int height) {
 #if UNITY_ANDROID
 	// initializeGLES2Ext();
