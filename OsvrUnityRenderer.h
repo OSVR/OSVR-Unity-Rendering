@@ -1,12 +1,12 @@
 /** @file
 @brief Header
-@date 2015
+@date 2017
 @author
 Sensics, Inc.
 <http://sensics.com/osvr>
 */
 
-// Copyright 2015 Sensics, Inc.
+// Copyright 2017 Sensics, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,7 +41,8 @@ Sensics, Inc.
 #include <osvr/Util/ReturnCodesC.h>
 #include <cstdint>
 
-
+//Abstract class for Unity Rendering plugin
+//Constains virtual function declarations for render-type-specific sublclasses
 class OsvrUnityRenderer {
 public:
 	virtual OSVR_ReturnCode ConstructRenderBuffers(){ return OSVR_RETURN_FAILURE; }
@@ -74,7 +75,6 @@ public:
 		s_debugLog = d;
 
 	}
-	//@todo debuglog
 
 protected:
 	// logging
@@ -108,6 +108,8 @@ protected:
 	std::uint32_t viewportWidth = 0;
 	std::uint32_t viewportHeight = 0;
 
+	//"double-buffered" swap chain
+	//alternate buffers every frame
 	int numBuffers = 2;
 	int iterations = 0;
 

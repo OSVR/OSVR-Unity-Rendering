@@ -46,7 +46,7 @@ void OsvrD3DRenderer::UpdateRenderInfo()
 
 	if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetNumRenderInfo(
 		s_render, renderParams, &numRenderInfo))) {
-		//DebugLog("[OSVR Rendering Plugin] Could not get context number of render infos.");
+		DebugLog("[OSVR Rendering Plugin] Could not get context number of render infos.");
 		ShutdownRenderManager();
 		return;
 	}
@@ -56,7 +56,7 @@ void OsvrD3DRenderer::UpdateRenderInfo()
 		OSVR_RenderInfoD3D11 info;
 		if ((OSVR_RETURN_SUCCESS != osvrRenderManagerGetRenderInfoD3D11(
 			s_renderD3D, i, renderParams, &info))) {
-			//DebugLog("[OSVR Rendering Plugin] Could not get render info " + i);
+			DebugLog("[OSVR Rendering Plugin] Could not get render info.");
 			ShutdownRenderManager();
 			return;
 		}
@@ -101,8 +101,7 @@ OSVR_ReturnCode OsvrD3DRenderer::ConstructBuffersD3D11(int eye, int buffer, Fram
 	hr = s_renderInfo[eye].library.device->CreateRenderTargetView(
 		D3DTexture, &renderTargetViewDesc, &renderTargetView);
 	if (FAILED(hr)) {
-		//DebugLog(
-		//	"[OSVR Rendering Plugin] Could not create render target for eye");
+		DebugLog("[OSVR Rendering Plugin] Could not create render target for eye");
 		return OSVR_RETURN_FAILURE;
 	}
 
@@ -111,14 +110,13 @@ OSVR_ReturnCode OsvrD3DRenderer::ConstructBuffersD3D11(int eye, int buffer, Fram
 	rbD3D.colorBuffer = D3DTexture;
 	rbD3D.colorBufferView = renderTargetView;
 	fInfo->renderBuffers.push_back(rbD3D);
-	//s_renderBuffers.push_back(rbD3D);
 
 	IDXGIKeyedMutex* keyedMutex = nullptr;
 	hr = D3DTexture->QueryInterface(
 		__uuidof(IDXGIKeyedMutex), (LPVOID*)&keyedMutex);
 	if (FAILED(hr) || keyedMutex == nullptr) {
-		//std::cerr << "Could not get mutex pointer" << std::endl;
-		return -2;
+		DebugLog("[OSVR Rendering Plugin] Could not mutex pointer");
+		return OSVR_RETURN_FAILURE;
 	}
 	fInfo->keyedMutex = keyedMutex;
 
@@ -143,9 +141,8 @@ OSVR_ReturnCode OsvrD3DRenderer::ConstructBuffersD3D11(int eye, int buffer, Fram
 	hr = s_libraryD3D.device->CreateTexture2D(
 		&textureDescription, NULL, &depthStencilBuffer);
 	if (FAILED(hr)) {
-		//std::cerr << "Could not create depth/stencil texture"
-		//<< std::endl;
-		return -4;
+		DebugLog("[OSVR Rendering Plugin] Could not create depth/stencil texture");
+		return OSVR_RETURN_FAILURE;
 	}
 	fInfo->depthStencilTexture = depthStencilBuffer;
 
@@ -163,9 +160,8 @@ OSVR_ReturnCode OsvrD3DRenderer::ConstructBuffersD3D11(int eye, int buffer, Fram
 		&depthStencilViewDescription,
 		&depthStencilView);
 	if (FAILED(hr)) {
-		//std::cerr << "Could not create depth/stencil view"
-		//<< std::endl;
-		return -5;
+		DebugLog("[OSVR Rendering Plugin] Could not create depth/stencil view");
+		return OSVR_RETURN_FAILURE;
 	}
 	fInfo->depthStencilView = depthStencilView;
 
@@ -190,7 +186,7 @@ OSVR_ReturnCode OsvrD3DRenderer::ConstructRenderBuffers()
 	OSVR_RenderManagerRegisterBufferState registerBufferState;
 	if ((OSVR_RETURN_SUCCESS != osvrRenderManagerStartRegisterRenderBuffers(
 		&registerBufferState))) {
-		//DebugLog("[OSVR Rendering Plugin] Could not start registering render buffers");
+		DebugLog("[OSVR Rendering Plugin] Could not start registering render buffers");
 		ShutdownRenderManager();
 		return OSVR_RETURN_FAILURE;
 	}
@@ -199,7 +195,7 @@ OSVR_ReturnCode OsvrD3DRenderer::ConstructRenderBuffers()
 		{
 			if ((OSVR_RETURN_SUCCESS != osvrRenderManagerRegisterRenderBufferD3D11(
 				registerBufferState, frameInfo[i]->renderBuffers[j]))) {
-				//DebugLog("[OSVR Rendering Plugin] Could not register render buffer ");
+				DebugLog("[OSVR Rendering Plugin] Could not register render buffer ");
 				ShutdownRenderManager();
 				return OSVR_RETURN_FAILURE;
 			}
@@ -208,7 +204,7 @@ OSVR_ReturnCode OsvrD3DRenderer::ConstructRenderBuffers()
 	}
 	if ((OSVR_RETURN_SUCCESS != osvrRenderManagerFinishRegisterRenderBuffers(
 		s_render, registerBufferState, false))) {
-		//DebugLog("[OSVR Rendering Plugin] Could not finish registering render buffers");
+		DebugLog("[OSVR Rendering Plugin] Could not finish registering render buffers");
 		ShutdownRenderManager();
 		return OSVR_RETURN_FAILURE;
 	}
@@ -255,7 +251,7 @@ OSVR_ReturnCode OsvrD3DRenderer::CreateRenderManager(OSVR_ClientContext context)
 		if (OSVR_RETURN_SUCCESS !=
 			osvrCreateRenderManagerD3D11(context, "Direct3D11", s_libraryD3D,
 			&s_render, &s_renderD3D)) {
-			//DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
+			DebugLog("[OSVR Rendering Plugin] Could not create RenderManagerD3D");
 			return OSVR_RETURN_FAILURE;
 		}
 		break;
@@ -263,10 +259,7 @@ OSVR_ReturnCode OsvrD3DRenderer::CreateRenderManager(OSVR_ClientContext context)
 	}
 
 	if (s_render == nullptr) {
-		//DebugLog("[OSVR Rendering Plugin] here we aer.");
-
-		//DebugLog("[OSVR Rendering Plugin] Could not create RenderManager");
-
+		DebugLog("[OSVR Rendering Plugin] Could not create RenderManagerD3D");
 		ShutdownRenderManager();
 		return OSVR_RETURN_FAILURE;
 	}
@@ -281,15 +274,13 @@ OSVR_ReturnCode OsvrD3DRenderer::CreateRenderManager(OSVR_ClientContext context)
 		return OSVR_RETURN_FAILURE;
 	}
 	if (openResults.library.device == nullptr) {
-		//DebugLog("[OSVR Rendering Plugin] Could not get device when opening "
-		//"display");
+		DebugLog("[OSVR Rendering Plugin] Could not get device when opening display");
 
 		ShutdownRenderManager();
 		return OSVR_RETURN_FAILURE;
 	}
 	if (openResults.library.context == nullptr) {
-		//DebugLog("[OSVR Rendering Plugin] Could not get context when opening "
-		//	"display");
+		DebugLog("[OSVR Rendering Plugin] Could not get context when opening display");
 
 		ShutdownRenderManager();
 		return OSVR_RETURN_FAILURE;
@@ -300,7 +291,7 @@ OSVR_ReturnCode OsvrD3DRenderer::CreateRenderManager(OSVR_ClientContext context)
 
 	UpdateRenderInfo();
 
-	//DebugLog("[OSVR Rendering Plugin] CreateRenderManagerFromUnity Success!");
+	DebugLog("[OSVR Rendering Plugin] Created RenderManager Successfully");
 	return OSVR_RETURN_SUCCESS;
 }
 
@@ -316,7 +307,7 @@ OSVR_Pose3 OsvrD3DRenderer::GetEyePose(std::uint8_t eye)
 		std::string errorLog = "[OSVR Rendering Plugin] Error in GetEyePose, "
 			"returning default values. Eye = " +
 			std::to_string(int(eye));
-		//DebugLog(errorLog.c_str());
+		DebugLog(errorLog.c_str());
 		pose = lastGoodPose;
 	}
 	return pose;
@@ -334,7 +325,7 @@ OSVR_ProjectionMatrix OsvrD3DRenderer::GetProjectionMatrix(std::uint8_t eye)
 			"GetProjectionMatrix, returning default values. "
 			"Eye = " +
 			std::to_string(int(eye));
-		//DebugLog(errorLog.c_str());
+		DebugLog(errorLog.c_str());
 		pm = lastGoodProjMatrix;
 	}
 	return pm;
@@ -364,11 +355,11 @@ OSVR_ViewportDescription OsvrD3DRenderer::GetViewport(std::uint8_t eye)
 		std::string errorLog = "[OSVR Rendering Plugin] Error in GetViewport, "
 			"returning cached values. Eye = " +
 			std::to_string(int(eye));
-		//DebugLog(errorLog.c_str());
-		/*viewportDescription.left = 0;
+		DebugLog(errorLog.c_str());
+		viewportDescription.left = 0;
 		viewportDescription.lower = 0;
 		viewportDescription.width = viewportWidth;
-		viewportDescription.height = viewportHeight;*/
+		viewportDescription.height = viewportHeight;
 		lastGoodViewportDescription = viewportDescription;
 	}
 	return viewportDescription;
@@ -392,32 +383,6 @@ void OsvrD3DRenderer::OnRenderEvent()
 {
 	int frame = iterations % numBuffers;
 
-	// Grab and lock the mutex, so that we will be able to render
-	// to it whether or not RenderManager locks it on our behalf.
-	// it will not be auto-locked when we're in the non-ATW case.
-	//std::cout << "RenderThread: locking buffer for frame " << frame << " using key " << 0 << std::endl;
-	/*auto hr = frameInfo[frame]->keyedMutex->AcquireSync(0, 500);
-	if (FAILED(hr) || hr == E_FAIL || hr == WAIT_ABANDONED || hr == WAIT_TIMEOUT) {
-	std::cerr << "RenderThread: could not lock buffer for frame " << frame << std::endl;
-	switch (hr) {
-	case E_FAIL:
-	std::cerr << "RenderThread: error == E_FAIL" << std::endl;
-	break;
-	case WAIT_ABANDONED:
-	std::cerr << "RenderThread: error == WAIT_ABANDONED" << std::endl;
-	break;
-	case WAIT_TIMEOUT:
-	std::cerr << "RenderThread: error == WAIT_TIMEOUT" << std::endl;
-	break;
-	default:
-	std::cerr << "RenderThread: error == (unknown error type: " << hr << ")" << std::endl;
-	break;
-	}
-	osvrDestroyRenderManager(s_render);
-	return;
-	}*/
-
-
 	const auto n = static_cast<int>(numRenderInfo);
 	// Render into each buffer using the specified information.
 	for (int i = 0; i < n; ++i) {
@@ -429,24 +394,11 @@ void OsvrD3DRenderer::OnRenderEvent()
 		// copy the updated RenderTexture from Unity to RenderManager colorBuffer
 		frameInfo[frame]->renderBuffers[i].colorBuffer = reinterpret_cast<ID3D11Texture2D *>(GetEyeTexture(i, frame));
 	}
-
-	// Grab and lock the mutex, so that we will be able to render
-	// to it whether or not RenderManager locks it on our behalf.
-	// it will not be auto-locked when we're in the non-ATW case.
-	//std::cout << "RenderThread: Unlocking buffer for frame " << frame << " using key " << 1 << std::endl;
-	/*hr = frameInfo[frame]->keyedMutex->ReleaseSync(0);
-	if (FAILED(hr)) {
-	std::cerr << "RenderThread: could not unlock buffer for frame " << frame << std::endl;
-	osvrDestroyRenderManager(s_render);
-	return;
-	}*/
-
 	// Send the rendered results to the screen
 	OSVR_RenderManagerPresentState presentState;
 	if ((OSVR_RETURN_SUCCESS !=
 		osvrRenderManagerStartPresentRenderBuffers(&presentState))) {
-		//DebugLog("[OSVR Rendering Plugin] Could not start presenting "
-		//"render buffers");
+		DebugLog("[OSVR Rendering Plugin] Could not start presenting render buffers.");
 		ShutdownRenderManager();
 	}
 	// create normalized cropping viewports for side-by-side rendering to a single render target
@@ -468,8 +420,7 @@ void OsvrD3DRenderer::OnRenderEvent()
 			osvrRenderManagerPresentRenderBufferD3D11(
 			presentState, frameInfo[frame]->renderBuffers[i], s_renderInfo[i],
 			fullView))) {
-			//DebugLog(
-			//"[OSVR Rendering Plugin] Could not present render buffer ");
+			DebugLog("[OSVR Rendering Plugin] Could not present render buffer ");
 			ShutdownRenderManager();
 		}
 	}
@@ -477,8 +428,7 @@ void OsvrD3DRenderer::OnRenderEvent()
 	if ((OSVR_RETURN_SUCCESS !=
 		osvrRenderManagerFinishPresentRenderBuffers(
 		s_render, presentState, s_renderParams, true))) {
-		//DebugLog("[OSVR Rendering Plugin] Could not finish presenting "
-		//"render buffers");
+		DebugLog("[OSVR Rendering Plugin] Could not finish presenting render buffers");
 		ShutdownRenderManager();
 	}
 
@@ -517,7 +467,7 @@ void OsvrD3DRenderer::SetNearClipDistance(double distance)
 }
 void OsvrD3DRenderer::ShutdownRenderManager()
 {
-	//DebugLog("[OSVR Rendering Plugin] Shutting down RenderManager.");
+	DebugLog("[OSVR Rendering Plugin] Shutting down RenderManagerD3D.");
 	if (s_render != nullptr) {
 		osvrDestroyRenderManager(s_render);
 		s_render = nullptr;
@@ -525,16 +475,6 @@ void OsvrD3DRenderer::ShutdownRenderManager()
 		s_leftEyeTexturePtrBuffer2 = nullptr;
 		s_rightEyeTexturePtr = nullptr;
 		s_rightEyeTexturePtrBuffer2 = nullptr;
-		//s_renderInfo.clear();
-		//s_lastRenderInfo.clear();
-		/*for (int i = 0; i < frameInfo.size(); i++)
-		{
-		for (int j = 0; j < frameInfo[i]->renderBuffers.size(); j++)
-		{
-		frameInfo[i]->renderBuffers[j] = nullptr;
-		}
-
-		}*/
 		frameInfo.clear();
 	}
 	s_clientContext = nullptr;

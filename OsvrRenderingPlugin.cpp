@@ -70,7 +70,6 @@ static std::uint32_t viewportHeight = 0;
 static OsvrUnityRenderer* osvrUnityRenderer = nullptr;
 
 
-
 // logging
 #if UNITY_WIN
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
@@ -80,13 +79,6 @@ static std::streambuf *s_oldCerr = nullptr;
 #endif // defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 #endif
 
-static int numBuffers = 2;
-static int iterations = 0;
-
-// OpenGL vars
-#if SUPPORT_OPENGL
-GLuint s_frameBuffer;
-#endif // SUPPORT_OPENGL
 
 // RenderEvents
 // Called from Unity with GL.IssuePluginEvent
