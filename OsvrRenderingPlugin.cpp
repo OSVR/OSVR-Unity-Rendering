@@ -83,11 +83,14 @@ static std::streambuf *s_oldCerr = nullptr;
 // RenderEvents
 // Called from Unity with GL.IssuePluginEvent
 enum RenderEvents {
-	kOsvrEventID_Render = 0,
-	kOsvrEventID_Shutdown = 1,
+	kOsvrEventID_CreateRenderManager = 0,
+	kOsvrEventID_CreateRenderBuffers = 1,
 	kOsvrEventID_Update = 2,
-	kOsvrEventID_ConstructBuffers = 3,
-	kOsvrEventID_ClearRoomToWorldTransform = 4
+	kOsvrEventID_Render = 3,
+	kOsvrEventID_ResetYaw = 4,
+	kOsvrEventID_SetRoomRotationUsingHead = 5,
+	kOsvrEventID_ClearRoomToWorldTransform = 6,
+	kOsvrEventID_Shutdown = 7
 };
 
 // --------------------------------------------------------------------------
@@ -281,7 +284,7 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 	return OSVR_RETURN_SUCCESS;
 }
 
-OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
+OSVR_ReturnCode UNITY_INTERFACE_API CreateRenderBuffers() {
 
 	/*if (!s_deviceType) {
 	DebugLog("[OSVR Rendering Plugin] Device type not supported.");
@@ -289,7 +292,7 @@ OSVR_ReturnCode UNITY_INTERFACE_API ConstructRenderBuffers() {
 	}*/
 	if (osvrUnityRenderer != nullptr)
 	{
-		return osvrUnityRenderer->ConstructRenderBuffers();
+		return osvrUnityRenderer->CreateRenderBuffers();
 	}
 	return OSVR_RETURN_FAILURE;
 }
@@ -386,14 +389,18 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
 	}*/
 
 	switch (eventID) {
-		// Call the Render loop
-	case kOsvrEventID_Render:
+
+	case kOsvrEventID_CreateRenderManager:
 		if (osvrUnityRenderer != nullptr)
 		{
-			osvrUnityRenderer->OnRenderEvent();
+			osvrUnityRenderer->CreateRenderManager(nullptr);
 		}
 		break;
-	case kOsvrEventID_Shutdown:
+	case kOsvrEventID_CreateRenderBuffers:
+		if (osvrUnityRenderer != nullptr)
+		{
+			osvrUnityRenderer->CreateRenderBuffers();
+		}
 		break;
 	case kOsvrEventID_Update:
 		if (osvrUnityRenderer != nullptr)
@@ -401,16 +408,26 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
 			osvrUnityRenderer->UpdateRenderInfo();
 		}
 		break;
-	case kOsvrEventID_ConstructBuffers:
+		case kOsvrEventID_Render:
 		if (osvrUnityRenderer != nullptr)
 		{
-			osvrUnityRenderer->ConstructRenderBuffers();
+			// Call the Render loop
+			osvrUnityRenderer->OnRenderEvent();
 		}
-		// SetRoomRotationUsingHead();
 		break;
-	case kOsvrEventID_ClearRoomToWorldTransform:
-		// ClearRoomToWorldTransform();
-		break;
+		case kOsvrEventID_ResetYaw:
+			//@todo
+			break;
+		case kOsvrEventID_SetRoomRotationUsingHead:
+			//@todo
+			// SetRoomRotationUsingHead();
+			break;
+		case kOsvrEventID_ClearRoomToWorldTransform:
+			//@todo
+			// ClearRoomToWorldTransform();
+			break;
+		case kOsvrEventID_Shutdown:
+			break;
 	default:
 		break;
 	}

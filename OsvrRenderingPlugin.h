@@ -63,7 +63,7 @@ extern "C" {
 	/// functions are never getting used, or something else is happening there.
 
 	UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
-		ConstructRenderBuffers();
+		CreateRenderBuffers();
 
 	UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
 		CreateRenderManagerFromUnity(OSVR_ClientContext context);

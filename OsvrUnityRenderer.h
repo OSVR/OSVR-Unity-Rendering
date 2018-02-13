@@ -45,7 +45,7 @@ Sensics, Inc.
 //Constains virtual function declarations for render-type-specific sublclasses
 class OsvrUnityRenderer {
 public:
-	virtual OSVR_ReturnCode ConstructRenderBuffers(){ return OSVR_RETURN_FAILURE; }
+	virtual OSVR_ReturnCode CreateRenderBuffers(){ return OSVR_RETURN_FAILURE; }
 	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context){ return OSVR_RETURN_FAILURE; }
 	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye)
 	{

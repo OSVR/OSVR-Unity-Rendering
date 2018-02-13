@@ -37,7 +37,7 @@ class OsvrD3DRenderer : public OsvrUnityRenderer {
 public:
 	OsvrD3DRenderer();
 	~OsvrD3DRenderer();
-	virtual OSVR_ReturnCode ConstructRenderBuffers();
+	virtual OSVR_ReturnCode CreateRenderBuffers();
 	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context);
 	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye);
 	virtual OSVR_ProjectionMatrix GetProjectionMatrix(std::uint8_t eye);

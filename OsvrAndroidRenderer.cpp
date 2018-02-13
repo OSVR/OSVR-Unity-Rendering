@@ -104,7 +104,7 @@ OsvrAndroidRenderer::OsvrAndroidRenderer() : OsvrUnityRenderer()
 
 }
 
-OSVR_ReturnCode OsvrAndroidRenderer::ConstructRenderBuffers()
+OSVR_ReturnCode OsvrAndroidRenderer::CreateRenderBuffers()
 {
 	if (!setupRenderTextures(gRenderManager)) {
 		return OSVR_RETURN_FAILURE;
@@ -115,7 +115,7 @@ OSVR_ReturnCode OsvrAndroidRenderer::ConstructRenderBuffers()
 
 OSVR_ReturnCode OsvrAndroidRenderer::CreateRenderManager(OSVR_ClientContext context)
 {
-	gClientContext = context;
+	//gClientContext = context;
 	if (setupOSVR()) {
 		if (setupGraphics(gWidth, gHeight)) {
 			if (setupRenderManager()) {
