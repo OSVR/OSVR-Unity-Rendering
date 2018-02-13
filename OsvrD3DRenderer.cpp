@@ -168,7 +168,7 @@ OSVR_ReturnCode OsvrD3DRenderer::ConstructBuffersD3D11(int eye, int buffer, Fram
 	return OSVR_RETURN_SUCCESS;
 }
 
-OSVR_ReturnCode OsvrD3DRenderer::ConstructRenderBuffers()
+OSVR_ReturnCode OsvrD3DRenderer::CreateRenderBuffers()
 {
 	for (int i = 0; i < numBuffers; i++)
 	{
