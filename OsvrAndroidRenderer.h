@@ -46,6 +46,7 @@ public:
 	~OsvrAndroidRenderer();
 	virtual OSVR_ReturnCode CreateRenderBuffers();
 	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context);
+	virtual OSVR_ReturnCode SetOsvrClientContext(OSVR_ClientContext context);
 	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye);
 	virtual OSVR_ProjectionMatrix GetProjectionMatrix(std::uint8_t eye);
 	virtual OSVR_ViewportDescription GetViewport(std::uint8_t eye);
@@ -66,7 +67,6 @@ protected:
 	bool setupRenderManager();
 	bool setupGraphics(int width, int height);
 	bool setupRenderTextures(OSVR_RenderManager renderManager);
-	OSVR_ClientContext gClientContext = NULL;
 	OSVR_RenderManager gRenderManager = nullptr;
 	OSVR_RenderManagerOpenGL gRenderManagerOGL = nullptr;
 

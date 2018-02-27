@@ -50,6 +50,7 @@ Sensics, Inc.
 #include <memory>
 #endif
 
+OSVR_ClientContext gClientContext = NULL;
 
 // VARIABLES
 static IUnityInterfaces *s_UnityInterfaces = nullptr;
@@ -279,6 +280,16 @@ CreateRenderManagerFromUnity(OSVR_ClientContext context) {
 	if (osvrUnityRenderer != nullptr)
 	{
 		return osvrUnityRenderer->CreateRenderManager(context);
+	}
+
+	return OSVR_RETURN_SUCCESS;
+}
+
+OSVR_ReturnCode UNITY_INTERFACE_API
+SetOsvrClientContextFromUnity(OSVR_ClientContext context) {
+	if (osvrUnityRenderer != nullptr)
+	{
+		return osvrUnityRenderer->SetOsvrClientContext(context);
 	}
 
 	return OSVR_RETURN_SUCCESS;

@@ -115,7 +115,7 @@ OSVR_ReturnCode OsvrAndroidRenderer::CreateRenderBuffers()
 
 OSVR_ReturnCode OsvrAndroidRenderer::CreateRenderManager(OSVR_ClientContext context)
 {
-	//gClientContext = context;
+	//s_clientContext = context;
 	if (setupOSVR()) {
 		if (setupGraphics(gWidth, gHeight)) {
 			if (setupRenderManager()) {
@@ -130,6 +130,12 @@ OSVR_ReturnCode OsvrAndroidRenderer::CreateRenderManager(OSVR_ClientContext cont
 	else
 		return 1;
 
+	return OSVR_RETURN_SUCCESS;
+}
+
+OSVR_ReturnCode OsvrAndroidRenderer::SetOsvrClientContext(OSVR_ClientContext context)
+{
+	s_clientContext = context;
 	return OSVR_RETURN_SUCCESS;
 }
 
@@ -464,9 +470,9 @@ static void updateTexture(GLuint width, GLuint height, GLubyte *data) {
 	// glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA,
 	// GL_UNSIGNED_BYTE, data);
 	// checkGlError("glTexSubImage2D");
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
-		GL_UNSIGNED_BYTE, data);
-	checkGlError("glTexImage2D");
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
+		//GL_UNSIGNED_BYTE, data);
+	//checkGlError("glTexImage2D");
 }
 
 static void imagingCallback(void *userdata, const OSVR_TimeValue *timestamp,
@@ -507,8 +513,8 @@ bool OsvrAndroidRenderer::setupRenderTextures(OSVR_RenderManager renderManager) 
 		checkReturnCode(rc,
 			"osvrRenderManagerGetDefaultRenderParams call failed.");
 
-		gRenderParams.farClipDistanceMeters = 1000000.0f;
-		gRenderParams.nearClipDistanceMeters = 0.0000001f;
+		gRenderParams.farClipDistanceMeters = 100000.0f;
+		gRenderParams.nearClipDistanceMeters = 0.00001f;
 		RenderInfoCollectionOpenGL renderInfo(renderManager, gRenderParams);
 
 		OSVR_RenderManagerRegisterBufferState state;
@@ -623,11 +629,11 @@ bool OsvrAndroidRenderer::setupOSVR() {
 		// auto-start the server
 		osvrClientAttemptServerAutoStart();
 
-		if (!gClientContext) {
+		if (!s_clientContext) {
 			// LOGI("[OSVR] Creating ClientContext...");
-			gClientContext =
+			s_clientContext =
 				osvrClientInit("com.osvr.android.examples.OSVROpenGL", 0);
-			if (!gClientContext) {
+			if (!s_clientContext) {
 				// LOGI("[OSVR] could not create client context");
 				return false;
 			}
@@ -636,14 +642,14 @@ bool OsvrAndroidRenderer::setupOSVR() {
 			// display sometimes fails waiting for the tree from the server.
 			// LOGI("[OSVR] Calling update a few times...");
 			for (int i = 0; i < 10000; i++) {
-				rc = osvrClientUpdate(gClientContext);
+				rc = osvrClientUpdate(s_clientContext);
 				if (rc != OSVR_RETURN_SUCCESS) {
 					// LOGI("[OSVR] Error while updating client context.");
 					return false;
 				}
 			}
 
-			rc = osvrClientCheckStatus(gClientContext);
+			rc = osvrClientCheckStatus(s_clientContext);
 			if (rc != OSVR_RETURN_SUCCESS) {
 				// LOGI("[OSVR] Client context reported bad status.");
 				return false;
@@ -653,7 +659,7 @@ bool OsvrAndroidRenderer::setupOSVR() {
 			}
 
 			//                if (OSVR_RETURN_SUCCESS !=
-			//                    osvrClientGetInterface(gClientContext,
+			//                    osvrClientGetInterface(s_clientContext,
 			//                    "/camera", &gCamera)) {
 			//                    //LOGI("Error, could not get the camera
 			//                    interface at /camera.");
@@ -663,7 +669,7 @@ bool OsvrAndroidRenderer::setupOSVR() {
 			//                // Register the imaging callback.
 			//                if (OSVR_RETURN_SUCCESS !=
 			//                    osvrRegisterImagingCallback(gCamera,
-			//                    &imagingCallback, &gClientContext)) {
+			//                    &imagingCallback, &s_clientContext)) {
 			//                    //LOGI("Error, could not register image
 			//                    callback.");
 			//                    return false;
@@ -694,7 +700,7 @@ bool OsvrAndroidRenderer::setupRenderManager() {
 		gGraphicsLibrary.toolkit = glContextImpl->getToolkit();
 
 		if (OSVR_RETURN_SUCCESS !=
-			osvrCreateRenderManagerOpenGL(gClientContext, "OpenGL",
+			osvrCreateRenderManagerOpenGL(s_clientContext, "OpenGL",
 			gGraphicsLibrary, &gRenderManager,
 			&gRenderManagerOGL)) {
 			std::cerr << "Could not create the RenderManager" << std::endl;
@@ -722,151 +728,6 @@ bool OsvrAndroidRenderer::setupRenderManager() {
 #endif
 	return false;
 }
-#if UNITY_ANDROID
-
-static const GLfloat gTriangleColors[] = {
-	// white
-	1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-	1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-
-	// green
-	0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
-	0.0f, 0.75f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f,
-
-	// blue
-	0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-	0.0f, 0.0f, 0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-
-	// green/purple
-	0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-	0.0f, 0.75f, 0.75f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-
-	// red/green
-	0.75f, 0.75f, 0.0f, 1.0f, 0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
-	0.75f, 0.75f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
-
-	// red/blue
-	0.75f, 0.0f, 0.75f, 1.0f, 0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
-	0.75f, 0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f };
-
-static const GLfloat gTriangleTexCoordinates[] = {
-	// A cube face (letters are unique vertices)
-	// A--B
-	// |  |
-	// D--C
-
-	// As two triangles (clockwise)
-	// A B D
-	// B C D
-
-	// white
-	1.0f, 0.0f, // A
-	1.0f, 1.0f, // B
-	0.0f, 0.0f, // D
-	1.0f, 1.0f, // B
-	0.0f, 1.0f, // C
-	0.0f, 0.0f, // D
-
-	// green
-	1.0f, 0.0f, // A
-	1.0f, 1.0f, // B
-	0.0f, 0.0f, // D
-	1.0f, 1.0f, // B
-	0.0f, 1.0f, // C
-	0.0f, 0.0f, // D
-
-	// blue
-	1.0f, 1.0f, // A
-	0.0f, 1.0f, // B
-	1.0f, 0.0f, // D
-	0.0f, 1.0f, // B
-	0.0f, 0.0f, // C
-	1.0f, 0.0f, // D
-
-	// blue-green
-	1.0f, 0.0f, // A
-	1.0f, 1.0f, // B
-	0.0f, 0.0f, // D
-	1.0f, 1.0f, // B
-	0.0f, 1.0f, // C
-	0.0f, 0.0f, // D
-
-	// yellow
-	0.0f, 0.0f, // A
-	1.0f, 0.0f, // B
-	0.0f, 1.0f, // D
-	1.0f, 0.0f, // B
-	1.0f, 1.0f, // C
-	0.0f, 1.0f, // D
-
-	// purple/magenta
-	1.0f, 1.0f, // A
-	0.0f, 1.0f, // B
-	1.0f, 0.0f, // D
-	0.0f, 1.0f, // B
-	0.0f, 0.0f, // C
-	1.0f, 0.0f, // D
-};
-
-static const GLfloat gTriangleVertices[] = {
-	// A cube face (letters are unique vertices)
-	// A--B
-	// |  |
-	// D--C
-
-	// As two triangles (clockwise)
-	// A B D
-	// B C D
-
-	// glNormal3f(0.0, 0.0, -1.0);
-	1.0f, 1.0f, -1.0f,   // A
-	1.0f, -1.0f, -1.0f,  // B
-	-1.0f, 1.0f, -1.0f,  // D
-	1.0f, -1.0f, -1.0f,  // B
-	-1.0f, -1.0f, -1.0f, // C
-	-1.0f, 1.0f, -1.0f,  // D
-
-	// glNormal3f(0.0, 0.0, 1.0);
-	-1.0f, 1.0f, 1.0f,  // A
-	-1.0f, -1.0f, 1.0f, // B
-	1.0f, 1.0f, 1.0f,   // D
-	-1.0f, -1.0f, 1.0f, // B
-	1.0f, -1.0f, 1.0f,  // C
-	1.0f, 1.0f, 1.0f,   // D
-
-	//        glNormal3f(0.0, -1.0, 0.0);
-	1.0f, -1.0f, 1.0f,   // A
-	-1.0f, -1.0f, 1.0f,  // B
-	1.0f, -1.0f, -1.0f,  // D
-	-1.0f, -1.0f, 1.0f,  // B
-	-1.0f, -1.0f, -1.0f, // C
-	1.0f, -1.0f, -1.0f,  // D
-
-	//        glNormal3f(0.0, 1.0, 0.0);
-	1.0f, 1.0f, 1.0f,   // A
-	1.0f, 1.0f, -1.0f,  // B
-	-1.0f, 1.0f, 1.0f,  // D
-	1.0f, 1.0f, -1.0f,  // B
-	-1.0f, 1.0f, -1.0f, // C
-	-1.0f, 1.0f, 1.0f,  // D
-
-	//        glNormal3f(-1.0, 0.0, 0.0);
-	-1.0f, 1.0f, 1.0f,   // A
-	-1.0f, 1.0f, -1.0f,  // B
-	-1.0f, -1.0f, 1.0f,  // D
-	-1.0f, 1.0f, -1.0f,  // B
-	-1.0f, -1.0f, -1.0f, // C
-	-1.0f, -1.0f, 1.0f,  // D
-
-	//        glNormal3f(1.0, 0.0, 0.0);
-	1.0f, -1.0f, 1.0f,  // A
-	1.0f, -1.0f, -1.0f, // B
-	1.0f, 1.0f, 1.0f,   // D
-	1.0f, -1.0f, -1.0f, // B
-	1.0f, 1.0f, -1.0f,  // C
-	1.0f, 1.0f, 1.0f    // D
-};
-#endif
 
 bool OsvrAndroidRenderer::setupGraphics(int width, int height) {
 #if UNITY_ANDROID
@@ -903,7 +764,7 @@ bool OsvrAndroidRenderer::setupGraphics(int width, int height) {
 		}
 		return false;
 	}
-	gvPositionHandle = glGetAttribLocation(gProgram, "vPosition");
+	/*gvPositionHandle = glGetAttribLocation(gProgram, "vPosition");
 	checkGlError("glGetAttribLocation");
 	// LOGI("glGetAttribLocation(\"vPosition\") = %d\n", gvPositionHandle);
 
@@ -931,7 +792,7 @@ bool OsvrAndroidRenderer::setupGraphics(int width, int height) {
 	// the first imaging report.
 	// LOGI("Creating texture... here we go!");
 
-	gTextureID = createTexture(width, height);
+	gTextureID = createTexture(width, height);*/
 
 	// return osvrSetupSuccess;
 	gGraphicsInitializedOnce = true;
@@ -1020,13 +881,13 @@ void OsvrAndroidRenderer::OnRenderEvent()
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 	checkGlError("glClear");
 
-	if (gRenderManager && gClientContext) {
-		osvrClientUpdate(gClientContext);
-		if (gLastFrame != nullptr) {
+	if (gRenderManager && s_clientContext) {
+		//osvrClientUpdate(s_clientContext);
+		/*if (gLastFrame != nullptr) {
 			updateTexture(gLastFrameWidth, gLastFrameHeight, gLastFrame);
-			osvrClientFreeImage(gClientContext, gLastFrame);
+			osvrClientFreeImage(s_clientContext, gLastFrame);
 			gLastFrame = nullptr;
-		}
+		}*/
 
 		OSVR_RenderParams renderParams;
 		rc = osvrRenderManagerGetDefaultRenderParams(&renderParams);
@@ -1082,7 +943,7 @@ void OsvrAndroidRenderer::OnRenderEvent()
 }
 
 void OsvrAndroidRenderer::OnInitializeGraphicsDeviceEvent()
-{
+{/*
 #if UNITY_ANDROID
 	osvrJniWrapperClass = jniEnvironment->FindClass(
 		OSVR_JNI_CLASS_PATH); // try to find the class
@@ -1104,13 +965,15 @@ void OsvrAndroidRenderer::OnInitializeGraphicsDeviceEvent()
 		else {
 			jlong currentEglContextHandle =
 				jniEnvironment->CallStaticLongMethod(
-				osvrJniWrapperClass, setGlContextId); // call mathod
+				osvrJniWrapperClass, setGlContextId); // call method
 			// example code for logging the context ID
 			/*long myLongValue = (long)currentEglContextHandle;
 			std::string stringy = "[OSVR-Unity-Android]  setCurrentContext with handle : " + std::to_string(myLongValue);
 			jstring jstr2 = jniEnvironment->NewStringUTF(stringy.c_str());
 			jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass,
 			androidDebugLogMethodID, jstr2);*/
+
+	/*
 			contextSet = true;
 		}
 		// get the display width and height via JNI
@@ -1130,6 +993,7 @@ void OsvrAndroidRenderer::OnInitializeGraphicsDeviceEvent()
 		}
 	}
 #endif
+	*/
 }
 
 
@@ -1158,9 +1022,9 @@ void OsvrAndroidRenderer::ShutdownRenderManager()
 	}
 
 	// is this needed? Maybe not. the display config manages the lifetime.
-	if (gClientContext != nullptr) {
-		osvrClientShutdown(gClientContext);
-		gClientContext = nullptr;
+	if (s_clientContext != nullptr) {
+		//osvrClientShutdown(s_clientContext);
+		s_clientContext = nullptr;
 	}
 
 	osvrClientReleaseAutoStartedServer();

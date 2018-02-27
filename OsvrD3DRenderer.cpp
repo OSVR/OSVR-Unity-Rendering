@@ -246,7 +246,6 @@ OSVR_ReturnCode OsvrD3DRenderer::CreateRenderManager(OSVR_ClientContext context)
 	/// s_deviceType.getDeviceTypeEnum() at this point, right?
 	switch (s_deviceType.getDeviceTypeEnum()) {
 
-#if SUPPORT_D3D11
 	case OSVRSupportedRenderers::D3D11:
 		if (OSVR_RETURN_SUCCESS !=
 			osvrCreateRenderManagerD3D11(context, "Direct3D11", s_libraryD3D,
@@ -255,7 +254,6 @@ OSVR_ReturnCode OsvrD3DRenderer::CreateRenderManager(OSVR_ClientContext context)
 			return OSVR_RETURN_FAILURE;
 		}
 		break;
-#endif // SUPPORT_D3D11
 	}
 
 	if (s_render == nullptr) {
@@ -292,6 +290,12 @@ OSVR_ReturnCode OsvrD3DRenderer::CreateRenderManager(OSVR_ClientContext context)
 	UpdateRenderInfo();
 
 	DebugLog("[OSVR Rendering Plugin] Created RenderManager Successfully");
+	return OSVR_RETURN_SUCCESS;
+}
+
+OSVR_ReturnCode OsvrD3DRenderer::SetOsvrClientContext(OSVR_ClientContext context)
+{
+	s_clientContext = context;
 	return OSVR_RETURN_SUCCESS;
 }
 

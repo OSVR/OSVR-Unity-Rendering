@@ -68,6 +68,9 @@ extern "C" {
 	UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
 		CreateRenderManagerFromUnity(OSVR_ClientContext context);
 
+	UNITY_INTERFACE_EXPORT OSVR_ReturnCode UNITY_INTERFACE_API
+		SetOsvrClientContextFromUnity(OSVR_ClientContext context);
+
 	UNITY_INTERFACE_EXPORT OSVR_Pose3 UNITY_INTERFACE_API GetEyePose(std::uint8_t eye);
 
 	UNITY_INTERFACE_EXPORT OSVR_ProjectionMatrix

@@ -39,6 +39,7 @@ public:
 	~OsvrD3DRenderer();
 	virtual OSVR_ReturnCode CreateRenderBuffers();
 	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context);
+	virtual OSVR_ReturnCode SetOsvrClientContext(OSVR_ClientContext context);
 	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye);
 	virtual OSVR_ProjectionMatrix GetProjectionMatrix(std::uint8_t eye);
 	virtual OSVR_ViewportDescription GetViewport(std::uint8_t eye);
@@ -70,7 +71,6 @@ private:
 	OSVR_RenderParams s_renderParams;
 	OSVR_RenderManager s_render = nullptr;
 	OSVR_RenderManagerD3D11 s_renderD3D = nullptr;
-	OSVR_ClientContext s_clientContext = nullptr;
 	std::vector<OSVR_RenderInfoD3D11> s_renderInfo;
 	std::vector<OSVR_RenderInfoD3D11> s_lastRenderInfo;
 	//OSVR_GraphicsLibraryD3D11 s_libraryD3D;

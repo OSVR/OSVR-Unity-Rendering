@@ -47,6 +47,7 @@ class OsvrUnityRenderer {
 public:
 	virtual OSVR_ReturnCode CreateRenderBuffers(){ return OSVR_RETURN_FAILURE; }
 	virtual OSVR_ReturnCode CreateRenderManager(OSVR_ClientContext context){ return OSVR_RETURN_FAILURE; }
+	virtual OSVR_ReturnCode SetOsvrClientContext(OSVR_ClientContext context){ return OSVR_RETURN_FAILURE; }
 	virtual OSVR_Pose3 GetEyePose(std::uint8_t eye)
 	{
 		OSVR_Pose3 pose;
@@ -77,6 +78,7 @@ public:
 	}
 
 protected:
+	OSVR_ClientContext s_clientContext = nullptr;
 	// logging
 	DebugFnPtr s_debugLog = nullptr;
 	OsvrUnityRenderer()
