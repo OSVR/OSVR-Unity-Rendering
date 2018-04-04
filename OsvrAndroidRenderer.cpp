@@ -19,7 +19,26 @@ Sensics, Inc.
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// AChoreographer dynamic loaded code based on this Apache 2.0 licensed
+// sample from googlesamples:
+// https://github.com/googlesamples/android-ndk/blob/master/teapots/choreographer-30fps/src/main/cpp/ChoreographerNativeActivity.cpp
+
+
 #include "OsvrAndroidRenderer.h"
+
+#if UNITY_ANDROID
+#include <dlfcn.h>
+#include <thread>
+#include <mutex>
+#include <android/looper.h>
+#include <android/log.h>
+
+#define  LOG_TAG    "osvrRenderer"
+#define  LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG,__VA_ARGS__)
+#define  LOGE(...)  __android_log_print(ANDROID_LOG_ERROR,LOG_TAG,__VA_ARGS__)
+
+#endif
 
 static GLuint gvPositionHandle;
 static GLuint gvColorHandle;
@@ -98,6 +117,7 @@ const char gFragmentShader[] =
 "    gl_FragColor = fragmentColor * texture2D(uTexture, texCoordinate);\n"
 //"    gl_FragColor = texture2D(uTexture, texCoordinate);\n"
 "}\n";
+
 
 OsvrAndroidRenderer::OsvrAndroidRenderer() : OsvrUnityRenderer()
 {
@@ -267,10 +287,146 @@ static void checkGlError(const char *op) {
 	}
 }
 
+static long gPreviousFrameTimeNanos = 0;
+static long gLastFrameTimeNanos = 0;
+static std::mutex gFrameTimeMutex;
+
+
+static bool gChoreographerAPISupported = true;
+static bool gChoreographerAPILoaded = false;
+
+// AChoreographer dynamic loaded code based on this Apache 2.0 licensed
+// sample from googlesamples:
+// https://github.com/googlesamples/android-ndk/blob/master/teapots/choreographer-30fps/src/main/cpp/ChoreographerNativeActivity.cpp
+
+// Declaration for native chreographer API.
+struct AChoreographer;
+typedef void (*AChoreographer_frameCallback)(long frameTimeNanos, void* data);
+typedef AChoreographer* (*func_AChoreographer_getInstance)();
+typedef void (*func_AChoreographer_postFrameCallback)(
+    AChoreographer* choreographer, AChoreographer_frameCallback callback,
+    void* data);
+
+static func_AChoreographer_getInstance AChoreographer_getInstance_ = nullptr;
+static func_AChoreographer_postFrameCallback AChoreographer_postFrameCallback_ = nullptr;
+
+static bool LoadAChoreographerAPI() {
+	if(!gChoreographerAPISupported) {
+		return false;
+	}
+
+	if(gChoreographerAPILoaded) {
+		return true;
+	}
+
+	// Native Choreographer API is supported in API level 24~.
+	void *lib = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
+	if(!lib) {
+		gChoreographerAPISupported = false;
+		LOGE("Could not load libandroid.so with dlopen. Frame timing is disabled.");
+		return nullptr;
+	}
+
+	// Retrieve function pointers from shared object.
+	AChoreographer_getInstance_ =
+		reinterpret_cast<func_AChoreographer_getInstance>(
+			dlsym(lib, "AChoreographer_getInstance"));
+	AChoreographer_postFrameCallback_ =
+		reinterpret_cast<func_AChoreographer_postFrameCallback>(
+			dlsym(lib, "AChoreographer_postFrameCallback"));
+	if(!AChoreographer_getInstance_ || !AChoreographer_postFrameCallback_) {
+		gChoreographerAPISupported = false;
+		LOGE("Could not dynamically load AChoreographer_getInstance and/or AChoreographer_postFrameCallback. Frame timing is disabled.");
+		return nullptr;
+	}
+	
+	gChoreographerAPILoaded = true;
+	return true;
+}
+
+static AChoreographer* AChoreographer_getInstance_DYNAMIC() {
+	if(!LoadAChoreographerAPI() || !AChoreographer_getInstance_) {
+		return nullptr;
+	}
+	return AChoreographer_getInstance_();
+}
+
+static void AChoreographer_postFrameCallback_DYNAMIC(
+	AChoreographer* choreographer, AChoreographer_frameCallback frameCallback, void* data)
+{
+	if(!LoadAChoreographerAPI() || !AChoreographer_postFrameCallback_) {
+		return;
+	}
+	AChoreographer_postFrameCallback_(choreographer, frameCallback, data);
+}
+
+
+/**
+ * This func is called on an app frame callback by the 
+ * Choreographer on Android.
+ * NOTE: This is offset from the real "last vsync" when the
+ * Android build has offset. @todo account for this offset using JNI.
+ */
+static void frameCallbackImpl(long frameTimeNanos, void *data) {
+    std::lock_guard<std::mutex> lockGuard(gFrameTimeMutex);
+    gPreviousFrameTimeNanos = gLastFrameTimeNanos;
+    gLastFrameTimeNanos = frameTimeNanos;
+    AChoreographer *choreographer = AChoreographer_getInstance_DYNAMIC();
+    if (!choreographer) {
+        LOGE("Couldn't get the choreographer from the frame callback");
+    }
+    AChoreographer_postFrameCallback_DYNAMIC(choreographer, frameCallbackImpl, nullptr);
+}
+
+/**
+ * Use this function in a std::thread to keep the ALooper pumping AChoreographer
+ * callbacks on a separate thread from where it's consumed. Otherwise the polling
+ * here will stall the render thread.
+ * @TODO - provide a way to signal graceful thread exit.
+ */
+static void choreographerThreadRun() {
+    //LOGI("On Choreographer thread");
+    ALooper *looper = ALooper_forThread();
+    if (!looper) {
+        looper = ALooper_prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS);
+        if (!looper) {
+            LOGE("Couldn't prepare an ALooper for the choreographer thread");
+            return;
+        }
+    }
+
+    AChoreographer *choreographer = AChoreographer_getInstance_DYNAMIC();
+    if (!choreographer) {
+        LOGE("Could not get choreographer.");
+        return;
+    }
+
+    AChoreographer_postFrameCallback_DYNAMIC(choreographer, frameCallbackImpl, nullptr);
+
+    while (true) {
+        // @TODO provide a signal for graceful thread exit?
+        int fd_unused = 0;
+        int outEvents_unused = 0;
+        void *outData_unused = nullptr;
+        int rc = ALooper_pollAll(100, &fd_unused, &outEvents_unused,
+                                 &outData_unused);
+    }
+}
+
+inline void nanoSecondsToTimeValue(uint64_t nanos, OSVR_TimeValue *tvOut) {
+    tvOut->seconds = 0;
+    tvOut->microseconds = nanos / 1000;
+    osvrTimeValueNormalize(tvOut);
+}
+
 class PassThroughOpenGLContextImpl {
 	OSVR_OpenGLToolkitFunctions toolkit;
 	int mWidth;
 	int mHeight;
+
+#if UNITY_ANDROID
+	std::thread mChoreographerThread;
+#endif
 
 	static void createImpl(void *data) {}
 	static void destroyImpl(void *data) {
@@ -306,9 +462,17 @@ class PassThroughOpenGLContextImpl {
 		return ((PassThroughOpenGLContextImpl *)data)
 			->getDisplaySizeOverride(display, width, height);
 	}
+	static OSVR_CBool getRenderTimingInfoImpl(void* data, size_t display, size_t whichEye, OSVR_RenderTimingInfo* renderTimingInfoOut) {
+		return ((PassThroughOpenGLContextImpl*)data)
+			->getRenderTimingInfo(display, whichEye, renderTimingInfoOut);
+	}
 
 public:
+#if UNITY_ANDROID
+	PassThroughOpenGLContextImpl() : mChoreographerThread(choreographerThreadRun) {
+#else
 	PassThroughOpenGLContextImpl() {
+#endif
 		memset(&toolkit, 0, sizeof(toolkit));
 		toolkit.size = sizeof(toolkit);
 		toolkit.data = this;
@@ -323,6 +487,7 @@ public:
 		toolkit.handleEvents = handleEventsImpl;
 		toolkit.getDisplaySizeOverride = getDisplaySizeOverrideImpl;
 		toolkit.getDisplayFrameBuffer = getDisplayFrameBufferImpl;
+		toolkit.getRenderTimingInfo = getRenderTimingInfoImpl;
 	}
 
 	~PassThroughOpenGLContextImpl() {}
@@ -348,6 +513,43 @@ public:
 	bool getDisplaySizeOverride(size_t display, int *width, int *height) {
 		*width = gWidth;
 		*height = gHeight;
+		return false;
+	}
+
+	bool getRenderTimingInfo(size_t display, size_t whichEye,
+	                         OSVR_RenderTimingInfo *renderTimingInfoOut) {
+#if UNITY_ANDROID
+		timespec tp;
+		int rv = clock_gettime(CLOCK_MONOTONIC, &tp);
+		if(!rv) {
+			std::lock_guard<std::mutex> lockGuard(gFrameTimeMutex);
+			// uint64_t presentationDeadline = 17683333L; // Shouldn't this bee
+			// at least less than 16,666,666? (1 billion / 60)
+			// that's 1,016,666 nanoseconds greater than the hardware interval
+			// uint64_t hardwareDisplayIntervalNanos = 11111111L; // 90Hz hard
+			// coded, TODO measure this or get it from the API?
+			uint64_t hardwareDisplayIntervalNanos = gLastFrameTimeNanos - gPreviousFrameTimeNanos;
+			uint64_t nowNanos = ((tp.tv_sec * 1000000000L) + tp.tv_nsec);
+			uint64_t timeFromLastNanos = nowNanos >= gLastFrameTimeNanos
+			                                 ? nowNanos - gLastFrameTimeNanos
+			                                 : 0; // just being safe
+			uint64_t nextNanos = gLastFrameTimeNanos + hardwareDisplayIntervalNanos;
+			uint64_t timeUntilNextNanos =
+			    nextNanos >= nowNanos ? nextNanos - nowNanos
+			                          : 0; // 0 here means we missed a vsync
+			
+			nanoSecondsToTimeValue(timeFromLastNanos, 
+			    &renderTimingInfoOut->timeSincelastVerticalRetrace);
+			    
+			nanoSecondsToTimeValue(timeUntilNextNanos,
+			    &renderTimingInfoOut->timeUntilNextPresentRequired);
+			
+			nanoSecondsToTimeValue(hardwareDisplayIntervalNanos,
+			    &renderTimingInfoOut->hardwareDisplayInterval);
+			return true;
+		}
+		//LOGI("clock_gettime call failed.");
+#endif
 		return false;
 	}
 };
