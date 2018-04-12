@@ -39,7 +39,7 @@ Sensics, Inc.
 #include <thread>
 #include <vector>
 #include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
-#include "OsvrRenderingPlugin.h"
+
 class OsvrAndroidRenderer : public OsvrUnityRenderer{
 public:
 	OsvrAndroidRenderer();

@@ -240,7 +240,7 @@ public:
 	}
 
 	OSVR_RenderInfoOpenGL getRenderInfo(OSVR_RenderInfoCount index) {
-		if (index < 0 || index >= getNumRenderInfo()) {
+		if (index >= getNumRenderInfo()) {
 			const static char *err = "getRenderInfo called with invalid index";
 			// LOGE(err);
 			throw std::runtime_error(err);
@@ -331,7 +331,7 @@ static bool LoadAChoreographerAPI() {
 	if(!lib) {
 		gChoreographerAPISupported = false;
 		LOGE("Could not load libandroid.so with dlopen. Frame timing is disabled.");
-		return nullptr;
+		return false;
 	}
 
 	// Retrieve function pointers from shared object.
@@ -344,7 +344,7 @@ static bool LoadAChoreographerAPI() {
 	if(!AChoreographer_getInstance_ || !AChoreographer_postFrameCallback_) {
 		gChoreographerAPISupported = false;
 		LOGE("Could not dynamically load AChoreographer_getInstance and/or AChoreographer_postFrameCallback. Frame timing is disabled.");
-		return nullptr;
+		return false;
 	}
 	
 	gChoreographerAPILoaded = true;
@@ -1152,57 +1152,7 @@ void OsvrAndroidRenderer::OnRenderEvent()
 }
 
 void OsvrAndroidRenderer::OnInitializeGraphicsDeviceEvent()
-{/*
-#if UNITY_ANDROID
-	osvrJniWrapperClass = jniEnvironment->FindClass(
-		OSVR_JNI_CLASS_PATH); // try to find the class
-	if (osvrJniWrapperClass == nullptr) {
-		return;
-	}
-	else { // if osvrJniWrapperClass found, continue
-
-		// get the Android logger method ID
-		androidDebugLogMethodID = jniEnvironment->GetStaticMethodID(
-			osvrJniWrapperClass, OSVR_JNI_LOG_METHOD_NAME,
-			"(Ljava/lang/String;)V"); // find method
-		// get the method ID for setting the GL context
-		jmethodID setGlContextId = jniEnvironment->GetStaticMethodID(
-			osvrJniWrapperClass, "setUnityMainContext",
-			"()J"); // find method
-		if (setGlContextId == nullptr)
-			return;
-		else {
-			jlong currentEglContextHandle =
-				jniEnvironment->CallStaticLongMethod(
-				osvrJniWrapperClass, setGlContextId); // call method
-			// example code for logging the context ID
-			/*long myLongValue = (long)currentEglContextHandle;
-			std::string stringy = "[OSVR-Unity-Android]  setCurrentContext with handle : " + std::to_string(myLongValue);
-			jstring jstr2 = jniEnvironment->NewStringUTF(stringy.c_str());
-			jniEnvironment->CallStaticVoidMethod(osvrJniWrapperClass,
-			androidDebugLogMethodID, jstr2);*/
-
-	/*
-			contextSet = true;
-		}
-		// get the display width and height via JNI
-		jmethodID getWidthMID = jniEnvironment->GetStaticMethodID(
-			osvrJniWrapperClass, "getDisplayWidth", "()I"); // find method
-		jmethodID getHeightMID = jniEnvironment->GetStaticMethodID(
-			osvrJniWrapperClass, "getDisplayHeight", "()I"); // find method
-		if (getWidthMID == nullptr || getHeightMID == nullptr)
-			return;
-		else {
-			jint displayWidth = jniEnvironment->CallStaticIntMethod(
-				osvrJniWrapperClass, getWidthMID); // call method
-			jint displayHeight = jniEnvironment->CallStaticIntMethod(
-				osvrJniWrapperClass, getHeightMID); // call method
-			gWidth = (int)displayWidth;
-			gHeight = (int)displayHeight;
-		}
-	}
-#endif
-	*/
+{
 }
 
 
