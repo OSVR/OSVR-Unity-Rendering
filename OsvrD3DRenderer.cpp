@@ -3,6 +3,12 @@
 #include "OsvrUnityRenderer.h"
 #include "OsvrD3DRenderer.h"
 
+// this OnLoad gets called automatically
+jint JNI_OnLoad(JavaVM *vm, void *reserved) {
+	jniEnvironment = 0;
+	vm->AttachCurrentThread(&jniEnvironment, 0);
+	return JNI_VERSION_1_6;
+}
 
 OsvrD3DRenderer::OsvrD3DRenderer() : OsvrUnityRenderer()
 {

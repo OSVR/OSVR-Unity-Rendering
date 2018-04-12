@@ -119,6 +119,13 @@ const char gFragmentShader[] =
 "}\n";
 
 
+// this OnLoad gets called automatically
+jint JNI_OnLoad(JavaVM *vm, void *reserved) {
+	jniEnvironment = 0;
+	vm->AttachCurrentThread(&jniEnvironment, 0);
+	return JNI_VERSION_1_6;
+}
+
 OsvrAndroidRenderer::OsvrAndroidRenderer() : OsvrUnityRenderer()
 {
 

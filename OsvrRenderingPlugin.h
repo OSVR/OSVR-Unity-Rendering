@@ -33,21 +33,16 @@ Sensics, Inc.
 #if UNITY_ANDROID
 #include <dlfcn.h>
 #include <jni.h>
-JNIEnv *jniEnvironment = 0;
-jclass osvrJniWrapperClass;
-jmethodID logMsgId;
-jobject unityActivityClassInstance;
-const char* OSVR_JNI_CLASS_PATH = "org/osvr/osvrunityjni/OsvrJNIWrapper";
-const char* OSVR_JNI_LOG_METHOD_NAME = "logMsg";
+static JNIEnv *jniEnvironment = 0;
+static jclass osvrJniWrapperClass;
+static jmethodID logMsgId;
+static jobject unityActivityClassInstance;
+static const char* OSVR_JNI_CLASS_PATH = "org/osvr/osvrunityjni/OsvrJNIWrapper";
+static const char* OSVR_JNI_LOG_METHOD_NAME = "logMsg";
 
-jmethodID androidDebugLogMethodID = nullptr;
+static jmethodID androidDebugLogMethodID = nullptr;
 
-// this OnLoad gets called automatically
-jint JNI_OnLoad(JavaVM *vm, void *reserved) {
-	jniEnvironment = 0;
-	vm->AttachCurrentThread(&jniEnvironment, 0);
-	return JNI_VERSION_1_6;
-}
+
 
 
 #endif
