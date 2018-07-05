@@ -35,7 +35,6 @@ Sensics, Inc.
 #include <osvr/ClientKit/Interface.h>
 #include <osvr/Util/Finally.h>
 #include <osvr/Util/MatrixConventionsC.h>
-
 // standard includes
 #if defined(ENABLE_LOGGING) && defined(ENABLE_LOGFILE)
 #include <fstream>
@@ -364,6 +363,7 @@ UpdateDistortionMesh(float distanceScale[2], float centerOfProjection[2],
 
 #endif
 
+// DEPRECATED, use osvrResetYaw instead.
 // Updates the internal "room to world" transformation (applied to all
 // tracker data for this client context instance) based on the user's head
 // orientation, so that the direction the user is facing becomes -Z to your
@@ -371,14 +371,15 @@ UpdateDistortionMesh(float distanceScale[2], float centerOfProjection[2],
 //
 // Note that this method internally calls osvrClientUpdate() to get a head pose
 // so your callbacks may be called during its execution!
-/// @todo does this actually get called from anywhere or is it dead code?
-void SetRoomRotationUsingHead() { s_render->SetRoomRotationUsingHead(); }
+// DEPRECATED
+void SetRoomRotationUsingHead() { /*s_render->SetRoomRotationUsingHead();*/ }
 
+// DEPRECATED, use osvrResetYaw instead.
 // Clears/resets the internal "room to world" transformation back to an
 // identity transformation - that is, clears the effect of any other
 // manipulation of the room to world transform.
-/// @todo does this actually get called from anywhere or is it dead code?
-void ClearRoomToWorldTransform() { s_render->ClearRoomToWorldTransform(); }
+// DEPRECATED
+void ClearRoomToWorldTransform() { /*s_render->ClearRoomToWorldTransform();*/ }
 
 // Called from Unity to create a RenderManager, passing in a ClientContext
 OSVR_ReturnCode UNITY_INTERFACE_API
@@ -895,11 +896,12 @@ void UNITY_INTERFACE_API OnRenderEvent(int eventID) {
     case kOsvrEventID_Update:
         UpdateRenderInfo();
         break;
-    case kOsvrEventID_SetRoomRotationUsingHead:
-        SetRoomRotationUsingHead();
+    case kOsvrEventID_SetRoomRotationUsingHead: //"recenter"
+		osvrResetYaw();
+		//SetRoomRotationUsingHead();
         break;
     case kOsvrEventID_ClearRoomToWorldTransform:
-        ClearRoomToWorldTransform();
+        //ClearRoomToWorldTransform();
         break;
     default:
         break;
