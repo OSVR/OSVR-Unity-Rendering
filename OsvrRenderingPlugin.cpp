@@ -805,8 +805,8 @@ inline void RenderViewOpenGL(
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &texWidth);
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &texHeight);
 
-    GLuint glTex = eyeIndex == 0 ? (GLuint)s_leftEyeTexturePtr
-                                 : (GLuint)s_rightEyeTexturePtr;
+    GLuint glTex = eyeIndex == 0 ? *(GLuint *)s_leftEyeTexturePtr
+                                 : *(GLuint *)s_rightEyeTexturePtr;
 
     // unsigned char* data = new unsigned char[texWidth*texHeight * 4];
     // FillTextureFromCode(texWidth, texHeight, texHeight * 4, data);
